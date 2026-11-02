@@ -86,7 +86,7 @@ function HomeScreen({ documents, onImport, onOpen, onDelete }) {
             <View style={styles.paperBack} /><View style={styles.paperFront}><View style={styles.paperLineLong} /><View style={styles.paperLineShort} /><View style={styles.paperCircle}><Text style={styles.paperCheck}>✓</Text></View><View style={styles.paperLineMedium} /></View>
             <View style={styles.pencil}><Text style={styles.pencilText}>✎</Text></View>
           </View>
-          <Text style={styles.heroTitle}>Importe as páginas{ '\\n' }e resolva aqui.</Text>
+          <Text style={styles.heroTitle}>Importe as páginas{ '\n' }e resolva aqui.</Text>
           <Text style={styles.heroDescription}>Selecione várias imagens da prova. Depois, escreva, marque e desenhe diretamente sobre cada página.</Text>
           <View style={styles.heroActions}><View style={styles.heroButton}><Text style={styles.heroButtonText}>＋  Importar páginas</Text></View></View>
         </Pressable>
