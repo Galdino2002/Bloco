@@ -229,7 +229,7 @@ export default function RedacaoMode({ onExit }) {
         const distance = Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
         if (!pinchStart.current && distance > 0) pinchStart.current = { distance, zoom: zoomRef.current, centerX: (a.pageX + b.pageX) / 2, centerY: (a.pageY + b.pageY) / 2, pan: panRef.current };
         if (pinchStart.current?.distance && distance > 0) {
-          const nextZoom = Math.max(1, Math.min(3, pinchStart.current.zoom * distance / pinchStart.current.distance));
+          const nextZoom = Math.max(0.5, Math.min(3, pinchStart.current.zoom * distance / pinchStart.current.distance));
           zoomRef.current = nextZoom;
           setZoom(nextZoom);
           const centerX = (a.pageX + b.pageX) / 2;
@@ -342,22 +342,11 @@ export default function RedacaoMode({ onExit }) {
               </Pressable>
             </View>
             <View style={styles.zoomToolbar}>
-              <Pressable onPress={() => setZoom(value => { const next = Math.max(1, +(value - 0.25).toFixed(2)); zoomRef.current = next; return next; })} style={styles.zoomButton}><Text style={styles.zoomButtonText}>−</Text></Pressable>
+              <Pressable onPress={() => setZoom(value => { const next = Math.max(0.5, +(value - 0.25).toFixed(2)); zoomRef.current = next; return next; })} style={styles.zoomButton}><Text style={styles.zoomButtonText}>−</Text></Pressable>
               <Text style={styles.zoomLabel}>{Math.round(zoom * 100)}%</Text>
               <Pressable onPress={() => setZoom(value => { const next = Math.min(3, +(value + 0.25).toFixed(2)); zoomRef.current = next; return next; })} style={styles.zoomButton}><Text style={styles.zoomButtonText}>＋</Text></Pressable>
               <Pressable onPress={() => { zoomRef.current = 1; setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); }} style={styles.zoomReset}><Text style={styles.zoomResetText}>Ajustar</Text></Pressable>
             </View>
-            <View style={styles.paper} {...responder.panHandlers}>
-              <Svg ref={canvasRef} width="100%" height="100%">
-                <G transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
-                  {showLines && Array.from({ length: 70 }, (_, index) => (
-                    <Line key={index} x1="0" y1={32 + index * 28} x2="1200" y2={32 + index * 28} stroke="#E5EBE5" strokeWidth="1" />
-                  ))}
-                  {paths.map(path => <Path key={path.id} d={pathData(path.points)} stroke={path.color} strokeWidth={path.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}
-                </G>
-              </Svg>
-            </View>
-            <Text style={styles.drawHint}>Desenhe ou escreva com o dedo na folha.</Text>
             <Text style={styles.correctionCaption}>Enviar sua redação manuscrita ao ChatGPT</Text>
             <View style={styles.correctionButtons}>
               <Pressable
@@ -377,6 +366,18 @@ export default function RedacaoMode({ onExit }) {
                 <Text style={[styles.correctionButtonSub, styles.correctionButtonSubSecondary]}>Imagem · Nota de 0 a 10</Text>
               </Pressable>
             </View>
+            <View style={styles.paper} {...responder.panHandlers}>
+              <Svg ref={canvasRef} width="100%" height="100%">
+                <G transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
+                  {showLines && Array.from({ length: 70 }, (_, index) => (
+                    <Line key={index} x1="0" y1={32 + index * 28} x2="1200" y2={32 + index * 28} stroke="#E5EBE5" strokeWidth="1" />
+                  ))}
+                  {paths.map(path => <Path key={path.id} d={pathData(path.points)} stroke={path.color} strokeWidth={path.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}
+                </G>
+              </Svg>
+            </View>
+            <Text style={styles.drawHint}>Desenhe ou escreva com o dedo na folha.</Text>
+
           </View>
         )}
       </SafeAreaView>
