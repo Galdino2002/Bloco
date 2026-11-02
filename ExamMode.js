@@ -124,7 +124,7 @@ export default function ExamMode({ onExit }) {
         const examId = pagesRef.current.examId;
         const path = DIR + examId + '-page-' + message.number + '.jpg';
         await FileSystem.writeAsStringAsync(path, message.data, { encoding: FileSystem.EncodingType.Base64 });
-        pagesRef.current.items.push({ id: 'page-' + message.number, uri: path, paths: [] });
+        pagesRef.current.items[message.number - 1] = { id: 'page-' + message.number, uri: path, paths: [] };
         setProgress({ done: message.number, total: message.total });
       } catch (error) {
         setBusy(false); setStage('setup'); setPdfBase64(null);
@@ -223,23 +223,26 @@ function ExamEditor({ exam, onSave, onBack }) {
   const colorRef = useRef(color);
   pathsRef.current = paths; toolRef.current = tool; colorRef.current = color;
 
+  const snapshotRef = useRef({ pages, index, paths, remaining });
+  snapshotRef.current = { pages, index, paths, remaining };
   useEffect(() => {
-    if (remaining <= 0) { setFinished(true); return; }
     const id = setInterval(() => setRemaining(v => Math.max(0, v - 1)), 1000);
     return () => clearInterval(id);
   }, []);
+  useEffect(() => { if (remaining <= 0) setFinished(true); }, [remaining]);
   useEffect(() => {
     const id = setInterval(() => {
-      const current = pages.map((page, i) => i === index ? { ...page, paths } : page);
-      const elapsed = Math.max(0, exam.duration - remaining);
+      const snapshot = snapshotRef.current;
+      const current = snapshot.pages.map((page, i) => i === snapshot.index ? { ...page, paths: snapshot.paths } : page);
+      const elapsed = Math.max(0, exam.duration - snapshot.remaining);
       AsyncStorage.getItem(STORAGE_KEY).then(raw => {
         const list = raw ? JSON.parse(raw) : [];
-        const next = list.map(item => item.id === exam.id ? { ...item, pages: current, remaining, elapsed, updatedAt: Date.now() } : item);
+        const next = list.map(item => item.id === exam.id ? { ...item, pages: current, remaining: snapshot.remaining, elapsed, updatedAt: Date.now() } : item);
         return AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       }).catch(() => {});
     }, 10000);
     return () => clearInterval(id);
-  }, [pages, index, paths, remaining, exam.id, exam.duration]);
+  }, []);
 
   const responder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
