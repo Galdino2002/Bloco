@@ -305,6 +305,11 @@ function ExamEditor({ exam, onSave, onBack }) {
         activePath.current = null;
         const [a, b] = touches;
         const distance = Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
+        if (!pinchStart.current && distance > 0) {
+          pinchStart.current = { distance, zoom: zoomRef.current };
+          panStart.current = null;
+          return;
+        }
         if (pinchStart.current?.distance) {
           const nextZoom = Math.min(3, Math.max(1, pinchStart.current.zoom * distance / pinchStart.current.distance));
           zoomRef.current = nextZoom;
