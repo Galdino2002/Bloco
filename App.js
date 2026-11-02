@@ -28,6 +28,7 @@ const COLORS = {
 };
 
 const PALETTE = ['#203B32', '#D85D52', '#477BA8', '#D99A35', '#7659A6'];
+const HIGHLIGHTER_COLOR = '#F4D35E';
 
 function distanceToSegment(point, start, end) {
   const dx = end.x - start.x;
@@ -158,6 +159,7 @@ function EditorScreen({ document, onBack, onSave }) {
   const [tool, setTool] = useState('pen');
   const [color, setColor] = useState(PALETTE[0]);
   const [strokeWidth, setStrokeWidth] = useState(4);
+  const [zoom, setZoom] = useState(1);
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
   const activePath = useRef(null);
   const pathsRef = useRef(paths);
@@ -189,7 +191,8 @@ function EditorScreen({ document, onBack, onSave }) {
         setRedoPaths([]);
         return;
       }
-      const nextPath = { id: `${Date.now()}-${Math.random()}`, points: [point], color: colorRef.current, width: widthRef.current };
+      const isHighlighter = toolRef.current === 'highlighter';
+      const nextPath = { id: `${Date.now()}-${Math.random()}`, points: [point], color: isHighlighter ? HIGHLIGHTER_COLOR : colorRef.current, width: isHighlighter ? 16 : widthRef.current, opacity: isHighlighter ? 0.42 : 1, linecap: 'round' };
       activePath.current = nextPath;
       setPaths((previous) => [...previous, nextPath]);
       setRedoPaths([]);
@@ -261,6 +264,7 @@ function EditorScreen({ document, onBack, onSave }) {
 
       <View style={styles.canvasArea}>
         <View style={styles.canvasPaper} onLayout={(event) => setCanvasSize(event.nativeEvent.layout)}>
+          <View style={[styles.zoomContent, { transform: [{ scale: zoom }] }]}>
           <Image source={{ uri: document.uri }} style={styles.examImage} resizeMode="contain" />
           <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers}>
             <Svg width={canvasSize.width} height={canvasSize.height}>
@@ -270,6 +274,7 @@ function EditorScreen({ document, onBack, onSave }) {
                   d={pathToSvg(path.points)}
                   stroke={path.color}
                   strokeWidth={path.width}
+                  strokeOpacity={path.opacity ?? 1}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   fill="none"
@@ -277,8 +282,17 @@ function EditorScreen({ document, onBack, onSave }) {
               ))}
             </Svg>
           </View>
+          </View>
         </View>
-        <View style={styles.canvasHint}><Text style={styles.canvasHintText}>✎  Desenhe com o dedo sobre a folha</Text></View>
+        <View style={styles.canvasHintRow}>
+          <Text style={styles.canvasHintText}>✎  Desenhe com o dedo sobre a folha</Text>
+          <View style={styles.zoomControls}>
+            <Pressable onPress={() => setZoom((value) => Math.max(1, Number((value - 0.25).toFixed(2))))} style={styles.zoomButton}><Text style={styles.zoomButtonText}>−</Text></Pressable>
+            <Text style={styles.zoomValue}>{Math.round(zoom * 100)}%</Text>
+            <Pressable onPress={() => setZoom((value) => Math.min(3, Number((value + 0.25).toFixed(2))))} style={styles.zoomButton}><Text style={styles.zoomButtonText}>＋</Text></Pressable>
+            <Pressable onPress={() => setZoom(1)} style={styles.zoomReset}><Text style={styles.zoomResetText}>Ajustar</Text></Pressable>
+          </View>
+        </View>
       </View>
 
       <View style={styles.drawingPanel}>
@@ -286,6 +300,10 @@ function EditorScreen({ document, onBack, onSave }) {
           <Pressable onPress={() => setTool('pen')} style={[styles.modeButton, tool === 'pen' && styles.modeButtonActive]}>
             <Text style={[styles.modeGlyph, tool === 'pen' && styles.modeGlyphActive]}>✎</Text>
             <Text style={[styles.modeText, tool === 'pen' && styles.modeTextActive]}>Caneta</Text>
+          </Pressable>
+          <Pressable onPress={() => setTool('highlighter')} style={[styles.modeButton, tool === 'highlighter' && styles.modeButtonActive]}>
+            <Text style={[styles.modeGlyph, tool === 'highlighter' && styles.modeGlyphActive]}>▰</Text>
+            <Text style={[styles.modeText, tool === 'highlighter' && styles.modeTextActive]}>Marca-texto</Text>
           </Pressable>
           <Pressable onPress={() => setTool('eraser')} style={[styles.modeButton, tool === 'eraser' && styles.modeButtonActive]}>
             <Text style={[styles.modeGlyph, tool === 'eraser' && styles.modeGlyphActive]}>▱</Text>
@@ -435,10 +453,17 @@ const styles = StyleSheet.create({
   canvasArea: { flex: 1, paddingHorizontal: 13, paddingTop: 14, paddingBottom: 8 },
   canvasPaper: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, overflow: 'hidden', elevation: 2, shadowColor: '#23392E', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
   examImage: { width: '100%', height: '100%' },
-  canvasHint: { alignItems: 'center', paddingTop: 8 },
-  canvasHintText: { color: '#9AA298', fontSize: 10 },
+  zoomContent: { width: '100%', height: '100%' },
+  canvasHintRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 7 },
+  canvasHintText: { color: '#9AA298', fontSize: 9 },
+  zoomControls: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  zoomButton: { width: 27, height: 27, borderRadius: 9, backgroundColor: '#E8F0E9', alignItems: 'center', justifyContent: 'center' },
+  zoomButtonText: { color: COLORS.green, fontSize: 18, fontWeight: '600', lineHeight: 22 },
+  zoomValue: { color: COLORS.green, fontSize: 9, minWidth: 34, textAlign: 'center', fontWeight: '700' },
+  zoomReset: { paddingHorizontal: 7, paddingVertical: 6 },
+  zoomResetText: { color: COLORS.muted, fontSize: 9, fontWeight: '600' },
   drawingPanel: { backgroundColor: '#FFFFFF', paddingHorizontal: 18, paddingTop: 10, paddingBottom: 13, borderTopWidth: 1, borderTopColor: COLORS.line },
-  toolModeRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 10 },
+  toolModeRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 10, flexWrap: 'wrap' },
   modeButton: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 11, paddingVertical: 8, borderRadius: 11, marginRight: 7 },
   modeButtonActive: { backgroundColor: COLORS.greenLight },
   modeGlyph: { color: '#7F8B81', fontSize: 17, marginRight: 6 },
