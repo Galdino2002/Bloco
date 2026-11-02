@@ -67,7 +67,7 @@ function ActionButton({ label, onPress, secondary = false, compact = false }) {
   );
 }
 
-function HomeScreen({ documents, onImport, onOpen }) {
+function HomeScreen({ documents, onImport, onOpen, onDelete }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.paper} />
@@ -129,17 +129,34 @@ function HomeScreen({ documents, onImport, onOpen }) {
         ) : (
           <View style={styles.documentList}>
             {documents.map((document, index) => (
-              <Pressable key={document.id} onPress={() => onOpen(document)} style={({ pressed }) => [styles.documentCard, pressed && { opacity: 0.8 }]}>
-                <View style={styles.documentThumb}>
-                  <Image source={{ uri: document.uri }} style={styles.documentThumbImage} />
-                  <View style={styles.thumbBadge}><Text style={styles.thumbBadgeText}>✎</Text></View>
-                </View>
-                <View style={styles.documentInfo}>
-                  <Text style={styles.documentName} numberOfLines={1}>{document.title || `Minha página ${index + 1}`}</Text>
-                  <Text style={styles.documentMeta}>{document.paths.length} {document.paths.length === 1 ? 'anotação' : 'anotações'} · aberto recentemente</Text>
-                </View>
-                <Text style={styles.documentArrow}>›</Text>
-              </Pressable>
+              <View key={document.id} style={styles.documentCard}>
+                <Pressable onPress={() => onOpen(document)} style={({ pressed }) => [styles.documentOpenArea, pressed && { opacity: 0.75 }]}>
+                  <View style={styles.documentThumb}>
+                    <Image source={{ uri: document.uri }} style={styles.documentThumbImage} />
+                    <View style={styles.thumbBadge}><Text style={styles.thumbBadgeText}>✎</Text></View>
+                  </View>
+                  <View style={styles.documentInfo}>
+                    <Text style={styles.documentName} numberOfLines={1}>{document.title || `Minha página ${index + 1}`}</Text>
+                    <Text style={styles.documentMeta}>{document.paths.length} {document.paths.length === 1 ? 'anotação' : 'anotações'} · aberto recentemente</Text>
+                  </View>
+                  <Text style={styles.documentArrow}>›</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Excluir ${document.title || 'página'}`}
+                  onPress={() => Alert.alert(
+                    'Excluir página?',
+                    'Esta página e todas as anotações serão removidas. Essa ação não poderá ser desfeita.',
+                    [
+                      { text: 'Cancelar', style: 'cancel' },
+                      { text: 'Excluir', style: 'destructive', onPress: () => onDelete(document.id) },
+                    ],
+                  )}
+                  style={({ pressed }) => [styles.deleteButton, pressed && { opacity: 0.65 }]}
+                >
+                  <Text style={styles.deleteButtonText}>Excluir</Text>
+                </Pressable>
+              </View>
             ))}
           </View>
         )}
@@ -388,6 +405,10 @@ export default function App() {
     setActiveDocument(null);
   };
 
+  const deleteDocument = (documentId) => {
+    setDocuments((previous) => previous.filter((item) => item.id !== documentId));
+  };
+
   if (activeDocument) {
     return <EditorScreen key={activeDocument.id} document={activeDocument} onSave={saveDocument} />;
   }
@@ -397,6 +418,7 @@ export default function App() {
       documents={documents}
       onImport={importImage}
       onOpen={(document) => setActiveDocument(document)}
+      onDelete={deleteDocument}
     />
   );
 }
@@ -442,6 +464,9 @@ const styles = StyleSheet.create({
   emptyText: { color: COLORS.muted, fontSize: 11, lineHeight: 17, textAlign: 'center', maxWidth: 245 },
   documentList: { gap: 10 },
   documentCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 17, borderWidth: 1, borderColor: COLORS.line, padding: 10 },
+  documentOpenArea: { flex: 1, flexDirection: 'row', alignItems: 'center', minWidth: 0 },
+  deleteButton: { paddingHorizontal: 10, paddingVertical: 9, marginLeft: 5, borderRadius: 9, backgroundColor: '#FBEFED' },
+  deleteButtonText: { color: COLORS.rose, fontSize: 10, fontWeight: '700' },
   documentThumb: { width: 54, height: 58, backgroundColor: '#F1F0E9', borderRadius: 10, overflow: 'hidden' },
   documentThumbImage: { width: '100%', height: '100%' },
   thumbBadge: { position: 'absolute', right: 3, bottom: 3, width: 19, height: 19, borderRadius: 10, backgroundColor: COLORS.ink, alignItems: 'center', justifyContent: 'center' },
