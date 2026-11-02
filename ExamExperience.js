@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 import { EXAMS, getQuestions } from './examData';
 
 const C = { ink: '#203B32', green: '#315C49', pale: '#E8F0E9', paper: '#F7F6F1', white: '#FFFFFF', muted: '#89938A', line: '#E7E8E1', red: '#B95750', amber: '#D99A35' };
@@ -104,14 +103,21 @@ export default function ExamExperience({ onClose }) {
       const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true, multiple: false });
       if (result.canceled || !result.assets?.length) return;
       const asset = result.assets[0];
-      const directory = `${FileSystem.documentDirectory}exam-pdfs/`;
-      await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
-      const safeName = asset.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const savedUri = `${directory}${Date.now()}-${safeName}`;
-      await FileSystem.copyAsync({ from: asset.uri, to: savedUri });
-      await createSession({ mode: 'pdf', sourceUri: savedUri, sourceName: asset.name });
+      if (!asset?.uri) {
+        throw new Error('O seletor não retornou um endereço válido para o arquivo.');
+      }
+      if (asset.mimeType && asset.mimeType !== 'application/pdf') {
+        throw new Error('O arquivo selecionado não é um PDF.');
+      }
+      // O DocumentPicker já copia o arquivo para o cache quando copyToCacheDirectory é true.
+      // Usar essa URI evita falhas extras de cópia entre content:// e file:// no Android.
+      await createSession({ mode: 'pdf', sourceUri: asset.uri, sourceName: asset.name || 'Caderno.pdf' });
     } catch (error) {
-      Alert.alert('Não foi possível importar o PDF', 'Tente selecionar o arquivo novamente.');
+      console.error('Erro ao importar PDF:', error);
+      Alert.alert(
+        'Não foi possível importar o PDF',
+        error?.message || 'O seletor de arquivos não conseguiu abrir esse documento. Tente outro PDF.'
+      );
     } finally { setBusy(false); }
   };
 
