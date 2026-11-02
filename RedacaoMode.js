@@ -4,6 +4,8 @@ import {
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import Svg, { G, Line, Path } from 'react-native-svg';
 
 const STORAGE_KEY = '@bloco:redacoes:v1';
@@ -44,6 +46,8 @@ export default function RedacaoMode({ onExit }) {
   const [paths, setPaths] = useState([]);
   const [redo, setRedo] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [sharingDrawing, setSharingDrawing] = useState(false);
+  const canvasRef = useRef(null);
   const [zoom, setZoom] = useState(1);
   const [showLines, setShowLines] = useState(true);
   const [canvasTool, setCanvasTool] = useState('draw');
@@ -115,6 +119,52 @@ export default function RedacaoMode({ onExit }) {
       } },
     ],
   );
+
+  const shareDrawingForCorrection = async (criterion) => {
+    if (!paths.length) {
+      Alert.alert('Folha vazia', 'Faça sua redação na folha antes de solicitar a correção.');
+      return;
+    }
+    if (!canvasRef.current?.toDataURL) {
+      Alert.alert('Não foi possível exportar', 'Aguarde um instante e tente novamente.');
+      return;
+    }
+
+    setSharingDrawing(true);
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        try {
+          canvasRef.current.toDataURL(data => {
+            if (data) resolve(data);
+            else reject(new Error('A imagem não foi gerada.'));
+          });
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      const fileName = 'redacao-bloco-' + Date.now() + '.png';
+      const fileUri = FileSystem.cacheDirectory + fileName;
+      await FileSystem.writeAsStringAsync(fileUri, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        Alert.alert('Compartilhamento indisponível', 'Este aparelho não disponibilizou o compartilhamento de imagens.');
+        return;
+      }
+
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'image/png',
+        dialogTitle: criterion === 'enem' ? 'Compartilhar redação para correção ENEM' : 'Compartilhar redação para correção geral',
+      });
+    } catch (error) {
+      Alert.alert('Erro ao compartilhar', 'Não foi possível preparar a imagem da redação. Tente novamente.');
+    } finally {
+      setSharingDrawing(false);
+    }
+  };
 
   const shareForCorrection = async (criterion) => {
     const essay = (active?.text || '').trim();
@@ -298,7 +348,7 @@ export default function RedacaoMode({ onExit }) {
               <Pressable onPress={() => { zoomRef.current = 1; setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); }} style={styles.zoomReset}><Text style={styles.zoomResetText}>Ajustar</Text></Pressable>
             </View>
             <View style={styles.paper} {...responder.panHandlers}>
-              <Svg width="100%" height="100%">
+              <Svg ref={canvasRef} width="100%" height="100%">
                 <G transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
                   {showLines && Array.from({ length: 70 }, (_, index) => (
                     <Line key={index} x1="0" y1={32 + index * 28} x2="1200" y2={32 + index * 28} stroke="#E5EBE5" strokeWidth="1" />
@@ -308,6 +358,25 @@ export default function RedacaoMode({ onExit }) {
               </Svg>
             </View>
             <Text style={styles.drawHint}>Desenhe ou escreva com o dedo na folha.</Text>
+            <Text style={styles.correctionCaption}>Enviar sua redação manuscrita ao ChatGPT</Text>
+            <View style={styles.correctionButtons}>
+              <Pressable
+                disabled={sharingDrawing}
+                onPress={() => shareDrawingForCorrection('enem')}
+                style={[styles.correctionButton, sharingDrawing && styles.correctionButtonDisabled]}
+              >
+                <Text style={styles.correctionButtonTitle}>{sharingDrawing ? 'Preparando...' : 'Corrigir pelo ENEM'}</Text>
+                <Text style={styles.correctionButtonSub}>Imagem · Nota de 0 a 1.000</Text>
+              </Pressable>
+              <Pressable
+                disabled={sharingDrawing}
+                onPress={() => shareDrawingForCorrection('geral')}
+                style={[styles.correctionButton, styles.correctionButtonSecondary, sharingDrawing && styles.correctionButtonDisabled]}
+              >
+                <Text style={[styles.correctionButtonTitle, styles.correctionButtonTitleSecondary]}>Correção geral</Text>
+                <Text style={[styles.correctionButtonSub, styles.correctionButtonSubSecondary]}>Imagem · Nota de 0 a 10</Text>
+              </Pressable>
+            </View>
           </View>
         )}
       </SafeAreaView>
@@ -377,6 +446,7 @@ const styles = StyleSheet.create({
   correctionButtonTitleSecondary: { color: GREEN },
   correctionButtonSub: { color: '#D2DED3', fontSize: 9, marginTop: 4 },
   correctionButtonSubSecondary: { color: '#718477' },
+  correctionButtonDisabled: { opacity: 0.55 },
   drawArea: { flex: 1, paddingHorizontal: 14, paddingBottom: 12 },
   drawToolbar: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 10, backgroundColor: '#FFF', borderRadius: 11, marginBottom: 8 },
   toolText: { color: GREEN, fontSize: 11, fontWeight: '700' },
