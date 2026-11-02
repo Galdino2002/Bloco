@@ -3,7 +3,6 @@ import {
   Alert, Image, PanResponder, Pressable, SafeAreaView, ScrollView,
   StatusBar, StyleSheet, Text, View, ActivityIndicator,
 } from 'react-native';
-import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { File } from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -93,18 +92,18 @@ export default function ExamMode({ onExit }) {
   const startImport = async () => {
     if (!selected) return;
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true, multiple: false });
-      if (result.canceled || !result.assets?.length) return;
-      const file = result.assets[0];
-      if (file.size && file.size > 45 * 1024 * 1024) {
+      // Usa o seletor nativo da API File do Expo. Ele retorna um File com
+      // a permissão de leitura concedida pelo Android para o documento escolhido.
+      const result = await File.pickFileAsync({ mimeTypes: ['application/pdf'], multipleFiles: false });
+      if (result.canceled || !result.result) return;
+      const selectedPdf = result.result;
+      if (selectedPdf.size > 45 * 1024 * 1024) {
         Alert.alert('PDF muito grande', 'Por enquanto, selecione um PDF de até 45 MB para evitar falta de memória no celular.');
         return;
       }
       setBusy(true); setStage('converting'); setProgress({ done: 0, total: 0 });
-      // A API File lida com URIs file:// e content:// retornadas pelo seletor Android.
-      const selectedPdf = new File(file.uri);
       if (!selectedPdf.exists) {
-        throw new Error('O Android selecionou o arquivo, mas o aplicativo não conseguiu acessá-lo. Tente escolher o PDF novamente pelo armazenamento do aparelho.');
+        throw new Error('O Android retornou o documento, mas não concedeu acesso de leitura. Tente selecionar um PDF salvo localmente em Downloads.');
       }
       if (selectedPdf.size === 0) {
         throw new Error('O PDF selecionado está vazio ou não pôde ser lido.');
