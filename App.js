@@ -163,6 +163,8 @@ function EditorScreen({ document, onBack, onSave }) {
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
   const moveStart = useRef({ x: 0, y: 0 });
+  const panOffsetRef = useRef(panOffset);
+  panOffsetRef.current = panOffset;
   const activePath = useRef(null);
   const pathsRef = useRef(paths);
   const toolRef = useRef(tool);
@@ -179,7 +181,7 @@ function EditorScreen({ document, onBack, onSave }) {
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (event) => {
       if (toolRef.current === 'move') {
-        moveStart.current = { x: panOffset.x, y: panOffset.y };
+        moveStart.current = { x: panOffsetRef.current.x, y: panOffsetRef.current.y };
         return;
       }
       const point = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY };
@@ -205,10 +207,12 @@ function EditorScreen({ document, onBack, onSave }) {
     },
     onPanResponderMove: (event, gestureState) => {
       if (toolRef.current === 'move') {
-        setPanOffset({
+        const nextOffset = {
           x: moveStart.current.x + gestureState.dx,
           y: moveStart.current.y + gestureState.dy,
-        });
+        };
+        panOffsetRef.current = nextOffset;
+        setPanOffset(nextOffset);
         return;
       }
       const point = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY };
