@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { EXAMS, getQuestions } from './examData';
 
 const C = { ink: '#203B32', green: '#315C49', pale: '#E8F0E9', paper: '#F7F6F1', white: '#FFFFFF', muted: '#89938A', line: '#E7E8E1', red: '#B95750', amber: '#D99A35' };
@@ -28,6 +29,8 @@ export default function ExamExperience({ onClose }) {
   const [showEssay, setShowEssay] = useState(false);
   const [lastResult, setLastResult] = useState(null);
   const [busy, setBusy] = useState(false);
+  const activeRef = useRef(active);
+  activeRef.current = active;
 
   const refreshSessions = async () => {
     const rows = await db.getAllAsync('SELECT * FROM exam_sessions ORDER BY updated_at DESC');
@@ -49,12 +52,14 @@ export default function ExamExperience({ onClose }) {
   }, [active?.id, active?.status, active?.ends_at]);
 
   const updateSession = async (patch) => {
-    if (!active) return;
-    const next = { ...active, ...patch, updated_at: Date.now() };
+    const current = activeRef.current;
+    if (!current) return;
+    const next = { ...current, ...patch, updated_at: Date.now() };
     await db.runAsync(
       'UPDATE exam_sessions SET status=?, remaining_seconds=?, ends_at=?, current_index=?, answers_json=?, marked_json=?, essay_text=?, updated_at=? WHERE id=?',
       next.status, next.remaining_seconds, next.ends_at, next.current_index, JSON.stringify(next.answers), JSON.stringify(next.marked), next.essay_text || '', next.updated_at, next.id
     );
+    activeRef.current = next;
     setActive(next);
     await refreshSessions();
   };
@@ -64,7 +69,7 @@ export default function ExamExperience({ onClose }) {
     const questions = mode === 'bank' ? bankQuestions : Array.from({ length: selectedDay.questions }, (_, index) => ({
       id: `pdf-${index + 1}`, subject: 'Caderno importado',
       prompt: `Consulte a questão ${index + 1} no caderno PDF e marque a alternativa correspondente.`,
-      options: ['A', 'B', 'C', 'D', 'E'], answer: null, explanation: ''
+      options: ['Alternativa A', 'Alternativa B', 'Alternativa C', 'Alternativa D', 'Alternativa E'], answer: null, explanation: ''
     }));
     if (!questions.length) {
       Alert.alert('Banco em preparação', 'Ainda não há questões cadastradas para este exame. Você pode importar um caderno PDF ou escolher outro exame.');
@@ -99,7 +104,12 @@ export default function ExamExperience({ onClose }) {
       const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true, multiple: false });
       if (result.canceled || !result.assets?.length) return;
       const asset = result.assets[0];
-      await createSession({ mode: 'pdf', sourceUri: asset.uri, sourceName: asset.name });
+      const directory = `${FileSystem.documentDirectory}exam-pdfs/`;
+      await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
+      const safeName = asset.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const savedUri = `${directory}${Date.now()}-${safeName}`;
+      await FileSystem.copyAsync({ from: asset.uri, to: savedUri });
+      await createSession({ mode: 'pdf', sourceUri: savedUri, sourceName: asset.name });
     } catch (error) {
       Alert.alert('Não foi possível importar o PDF', 'Tente selecionar o arquivo novamente.');
     } finally { setBusy(false); }
@@ -119,18 +129,23 @@ export default function ExamExperience({ onClose }) {
 
   const pauseSession = async () => {
     if (!active) return;
-    const remaining = Math.max(0, Math.ceil((active.ends_at - Date.now()) / 1000));
+    const current = activeRef.current;
+    if (!current) return;
+    const remaining = Math.max(0, Math.ceil((current.ends_at - Date.now()) / 1000));
     await updateSession({ status: 'paused', remaining_seconds: remaining, ends_at: null, essay_text: essayDraft });
+    activeRef.current = null;
     setActive(null); setView('hub');
   };
 
   const finishSession = async (automatic = false) => {
-    if (!active || active.status === 'completed') return;
+    const current = activeRef.current;
+    if (!current || current.status === 'completed') return;
     const now = Date.now();
-    const remaining = automatic ? 0 : Math.max(0, Math.ceil((active.ends_at - now) / 1000));
-    const resultSnapshot = { ...active, status: 'completed', remaining_seconds: remaining, ends_at: null, completed_at: now, essay_text: essayDraft };
+    const remaining = automatic ? 0 : Math.max(0, Math.ceil((current.ends_at - now) / 1000));
+    const resultSnapshot = { ...current, status: 'completed', remaining_seconds: remaining, ends_at: null, completed_at: now, essay_text: essayDraft };
     setLastResult(resultSnapshot);
     await updateSession({ status: 'completed', remaining_seconds: remaining, ends_at: null, completed_at: now, essay_text: essayDraft });
+    activeRef.current = null;
     setActive(null); setView('result');
     if (automatic) Alert.alert('Tempo encerrado', 'O tempo da sua prova chegou ao fim. Confira o resultado.');
   };
