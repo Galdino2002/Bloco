@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
+import { SQLiteProvider } from 'expo-sqlite';
+import ExamExperience from './ExamExperience';
 import {
   Alert,
   Image,
@@ -67,7 +69,7 @@ function ActionButton({ label, onPress, secondary = false, compact = false }) {
   );
 }
 
-function HomeScreen({ documents, onImport, onOpen, onDelete }) {
+function HomeScreen({ documents, onImport, onOpen, onDelete, onOpenExams }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.paper} />
@@ -107,8 +109,13 @@ function HomeScreen({ documents, onImport, onOpen, onDelete }) {
           </View>
           <Text style={styles.heroTitle}>Sua próxima ideia{ '\n' }começa aqui.</Text>
           <Text style={styles.heroDescription}>Importe uma prova, atividade ou imagem e escreva por cima dela.</Text>
-          <View style={styles.heroButton}>
-            <Text style={styles.heroButtonText}>＋  Importar imagem</Text>
+          <View style={styles.heroActions}>
+            <Pressable onPress={onImport} style={styles.heroButton}>
+              <Text style={styles.heroButtonText}>＋  Importar imagem</Text>
+            </Pressable>
+            <Pressable onPress={onOpenExams} style={styles.heroExamButton}>
+              <Text style={styles.heroExamButtonText}>▤  Fazer prova</Text>
+            </Pressable>
           </View>
         </Pressable>
 
@@ -371,9 +378,10 @@ function EditorScreen({ document, onBack, onSave }) {
   );
 }
 
-export default function App() {
+function BlocoApp() {
   const [documents, setDocuments] = useState([]);
   const [activeDocument, setActiveDocument] = useState(null);
+  const [examVisible, setExamVisible] = useState(false);
 
   const importImage = async () => {
     try {
@@ -413,13 +421,52 @@ export default function App() {
     return <EditorScreen key={activeDocument.id} document={activeDocument} onSave={saveDocument} />;
   }
 
+  if (examVisible) {
+    return <ExamExperience onClose={() => setExamVisible(false)} />;
+  }
+
   return (
     <HomeScreen
       documents={documents}
       onImport={importImage}
       onOpen={(document) => setActiveDocument(document)}
       onDelete={deleteDocument}
+      onOpenExams={() => setExamVisible(true)}
     />
+  );
+}
+
+async function initializeDatabase(db) {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS exam_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      exam_id TEXT NOT NULL,
+      exam_name TEXT NOT NULL,
+      day_name TEXT NOT NULL,
+      mode TEXT NOT NULL,
+      source_uri TEXT,
+      source_name TEXT,
+      questions_json TEXT NOT NULL,
+      duration_seconds INTEGER NOT NULL,
+      remaining_seconds INTEGER NOT NULL,
+      ends_at INTEGER,
+      status TEXT NOT NULL,
+      current_index INTEGER NOT NULL DEFAULT 0,
+      answers_json TEXT NOT NULL DEFAULT '{}',
+      marked_json TEXT NOT NULL DEFAULT '[]',
+      essay_text TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      completed_at INTEGER
+    );
+  `);
+}
+
+export default function App() {
+  return (
+    <SQLiteProvider databaseName="bloco.db" onInit={initializeDatabase}>
+      <BlocoApp />
+    </SQLiteProvider>
   );
 }
 
@@ -452,8 +499,11 @@ const styles = StyleSheet.create({
   pencilText: { color: '#4A3827', fontSize: 21 },
   heroTitle: { color: '#FFFFFF', fontFamily: 'serif', fontSize: 28, lineHeight: 31, marginTop: 116, letterSpacing: -0.4 },
   heroDescription: { color: '#C1CEC3', fontSize: 11, lineHeight: 17, marginTop: 7, maxWidth: 235 },
-  heroButton: { alignSelf: 'flex-start', backgroundColor: '#E7EDE4', borderRadius: 13, paddingHorizontal: 16, paddingVertical: 12, marginTop: 16 },
-  heroButtonText: { color: COLORS.ink, fontWeight: '700', fontSize: 12 },
+  heroActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+  heroButton: { alignSelf: 'flex-start', backgroundColor: '#E7EDE4', borderRadius: 13, paddingHorizontal: 14, paddingVertical: 12 },
+  heroButtonText: { color: COLORS.ink, fontWeight: '700', fontSize: 11 },
+  heroExamButton: { alignSelf: 'flex-start', backgroundColor: 'transparent', borderColor: '#82978A', borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, paddingVertical: 11 },
+  heroExamButtonText: { color: '#E7EDE4', fontWeight: '700', fontSize: 11 },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   sectionTitle: { color: COLORS.ink, fontFamily: 'serif', fontSize: 23 },
   sectionSubtitle: { color: COLORS.muted, fontSize: 11, marginTop: 2 },
