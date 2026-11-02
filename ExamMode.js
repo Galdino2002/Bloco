@@ -27,8 +27,9 @@ const EXAMS = [
 const PDF_HTML = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;background:#fff}</style></head><body>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
 <script>
-pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 function send(o){window.ReactNativeWebView.postMessage(JSON.stringify(o));}
+if(typeof pdfjsLib==='undefined'){send({type:'ERROR',message:'Não foi possível carregar o mecanismo de PDF. Verifique a conexão com a internet.'});}else{
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 async function loadPdf(base64){
  try{
   const raw=atob(base64);const bytes=new Uint8Array(raw.length);
