@@ -229,7 +229,7 @@ export default function RedacaoMode({ onExit }) {
         const distance = Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
         if (!pinchStart.current && distance > 0) pinchStart.current = { distance, zoom: zoomRef.current, centerX: (a.pageX + b.pageX) / 2, centerY: (a.pageY + b.pageY) / 2, pan: panRef.current };
         if (pinchStart.current?.distance && distance > 0) {
-          const nextZoom = Math.max(0.5, Math.min(3, pinchStart.current.zoom * distance / pinchStart.current.distance));
+          const nextZoom = Math.max(0.25, Math.min(3, pinchStart.current.zoom * distance / pinchStart.current.distance));
           zoomRef.current = nextZoom;
           setZoom(nextZoom);
           const centerX = (a.pageX + b.pageX) / 2;
@@ -342,28 +342,20 @@ export default function RedacaoMode({ onExit }) {
               </Pressable>
             </View>
             <View style={styles.zoomToolbar}>
-              <Pressable onPress={() => setZoom(value => { const next = Math.max(0.5, +(value - 0.25).toFixed(2)); zoomRef.current = next; return next; })} style={styles.zoomButton}><Text style={styles.zoomButtonText}>−</Text></Pressable>
+              <Pressable onPress={() => setZoom(value => { const next = Math.max(0.25, +(value - 0.1).toFixed(2)); zoomRef.current = next; return next; })} style={styles.zoomButton}><Text style={styles.zoomButtonText}>−</Text></Pressable>
               <Text style={styles.zoomLabel}>{Math.round(zoom * 100)}%</Text>
-              <Pressable onPress={() => setZoom(value => { const next = Math.min(3, +(value + 0.25).toFixed(2)); zoomRef.current = next; return next; })} style={styles.zoomButton}><Text style={styles.zoomButtonText}>＋</Text></Pressable>
+              <Pressable onPress={() => setZoom(value => { const next = Math.min(3, +(value + 0.1).toFixed(2)); zoomRef.current = next; return next; })} style={styles.zoomButton}><Text style={styles.zoomButtonText}>＋</Text></Pressable>
               <Pressable onPress={() => { zoomRef.current = 1; setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); }} style={styles.zoomReset}><Text style={styles.zoomResetText}>Ajustar</Text></Pressable>
-            </View>
-            <Text style={styles.correctionCaption}>Enviar sua redação manuscrita ao ChatGPT</Text>
-            <View style={styles.correctionButtons}>
               <Pressable
                 disabled={sharingDrawing}
-                onPress={() => shareDrawingForCorrection('enem')}
-                style={[styles.correctionButton, sharingDrawing && styles.correctionButtonDisabled]}
+                onPress={() => Alert.alert('Corrigir redação', 'Escolha o tipo de correção:', [
+                  { text: 'Cancelar', style: 'cancel' },
+                  { text: 'Pelo ENEM (0–1.000)', onPress: () => shareDrawingForCorrection('enem') },
+                  { text: 'Correção geral (0–10)', onPress: () => shareDrawingForCorrection('geral') },
+                ])}
+                style={[styles.zoomReset, styles.correctDrawingButton, sharingDrawing && styles.correctionButtonDisabled]}
               >
-                <Text style={styles.correctionButtonTitle}>{sharingDrawing ? 'Preparando...' : 'Corrigir pelo ENEM'}</Text>
-                <Text style={styles.correctionButtonSub}>Imagem · Nota de 0 a 1.000</Text>
-              </Pressable>
-              <Pressable
-                disabled={sharingDrawing}
-                onPress={() => shareDrawingForCorrection('geral')}
-                style={[styles.correctionButton, styles.correctionButtonSecondary, sharingDrawing && styles.correctionButtonDisabled]}
-              >
-                <Text style={[styles.correctionButtonTitle, styles.correctionButtonTitleSecondary]}>Correção geral</Text>
-                <Text style={[styles.correctionButtonSub, styles.correctionButtonSubSecondary]}>Imagem · Nota de 0 a 10</Text>
+                <Text style={styles.correctDrawingButtonText}>{sharingDrawing ? 'Preparando...' : 'Corrigir desenho'}</Text>
               </Pressable>
             </View>
             <View style={styles.paper} {...responder.panHandlers}>
@@ -462,12 +454,14 @@ const styles = StyleSheet.create({
   canvasModeSelected: { backgroundColor: '#FFF' },
   canvasModeText: { color: '#7C887E', fontSize: 11, fontWeight: '700' },
   canvasModeTextSelected: { color: GREEN },
-  zoomToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 8 },
-  zoomButton: { width: 32, height: 30, borderRadius: 8, backgroundColor: '#E8F0E9', alignItems: 'center', justifyContent: 'center' },
+  zoomToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 5, paddingVertical: 6 },
+  zoomButton: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#E8F0E9', alignItems: 'center', justifyContent: 'center' },
   zoomButtonText: { color: INK, fontSize: 18, fontWeight: '700' },
   zoomLabel: { color: INK, fontSize: 11, fontWeight: '700', minWidth: 42, textAlign: 'center' },
   zoomReset: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: '#FFF' },
   zoomResetText: { color: GREEN, fontSize: 10, fontWeight: '700' },
+  correctDrawingButton: { backgroundColor: INK, paddingHorizontal: 9, paddingVertical: 9 },
+  correctDrawingButtonText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
   swatch: { width: 25, height: 25, borderRadius: 13 },
   swatchSelected: { borderWidth: 3, borderColor: '#A7BDAA' },
   paper: { flex: 1, minHeight: 220, backgroundColor: '#FFF', borderRadius: 10, borderWidth: 1, borderColor: LINE, overflow: 'hidden' },
