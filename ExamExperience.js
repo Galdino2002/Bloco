@@ -227,7 +227,7 @@ export default function ExamExperience({ onClose }) {
           <View style={s.progressTrack}><View style={[s.progressFill, { width: `${(active.current_index + 1) / active.questions.length * 100}%` }]} /></View>
           <View style={s.roomActions}>
             {active.mode === 'pdf' && <Button title="Abrir caderno PDF" secondary onPress={() => Linking.openURL(active.source_uri).catch(() => Alert.alert('Não foi possível abrir o PDF', 'Tente abrir o arquivo pelo gerenciador de documentos do aparelho.'))} />}
-            {active.exam_id === 'enem' && active.day_name.startsWith('1º dia') && <Button title={showEssay ? 'Voltar às questões' : 'Redação'} secondary onPress={async () => { await updateSession({ essay_text: essayDraft }); setShowEssay((value) => !value); }} />}
+            {((active.exam_id === 'enem' && active.day_name.startsWith('1º dia')) || (active.exam_id === 'urca' && active.day_name.startsWith('2º dia')) || (active.exam_id === 'uece' && active.day_name.includes('1º dia'))) && <Button title={showEssay ? 'Voltar às questões' : 'Redação'} secondary onPress={async () => { await updateSession({ essay_text: essayDraft }); setShowEssay((value) => !value); }} />}
             <Button title="Pausar e sair" secondary onPress={pauseSession} />
           </View>
           <ScrollView contentContainerStyle={s.questionScroll}>
