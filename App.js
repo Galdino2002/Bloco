@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import Svg, { Path } from 'react-native-svg';
+import ExamMode from './ExamMode';
 
 const COLORS = {
   ink: '#203B32',
@@ -67,7 +68,7 @@ function ActionButton({ label, onPress, secondary = false, compact = false }) {
   );
 }
 
-function HomeScreen({ documents, onImport, onOpen, onDelete }) {
+function HomeScreen({ documents, onImport, onOpen, onDelete, onExam }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.paper} />
@@ -88,7 +89,7 @@ function HomeScreen({ documents, onImport, onOpen, onDelete }) {
           </View>
           <Text style={styles.heroTitle}>Importe as páginas{ '\n' }e resolva aqui.</Text>
           <Text style={styles.heroDescription}>Selecione várias imagens da prova. Depois, escreva, marque e desenhe diretamente sobre cada página.</Text>
-          <View style={styles.heroActions}><View style={styles.heroButton}><Text style={styles.heroButtonText}>＋  Importar páginas</Text></View></View>
+          <View style={styles.heroActions}><Pressable onPress={onImport} style={styles.heroButton}><Text style={styles.heroButtonText}>＋  Importar páginas</Text></Pressable><Pressable onPress={onExam} style={styles.heroExamButton}><Text style={styles.heroExamButtonText}>Ambiente de provas</Text></Pressable></View>
         </Pressable>
         <View style={styles.sectionHeading}>
           <View><Text style={styles.sectionTitle}>Meus cadernos</Text><Text style={styles.sectionSubtitle}>Continue de onde parou</Text></View>
@@ -253,6 +254,7 @@ function EditorScreen({ document, onSave }) {
 function BlocoApp() {
   const [documents, setDocuments] = useState([]);
   const [activeDocument, setActiveDocument] = useState(null);
+  const [examMode, setExamMode] = useState(false);
 
   const importImages = async () => {
     try {
@@ -289,7 +291,8 @@ function BlocoApp() {
   const deleteDocument = (documentId) => setDocuments((previous) => previous.filter((item) => item.id !== documentId));
 
   if (activeDocument) return <EditorScreen key={activeDocument.id} document={activeDocument} onSave={saveDocument} />;
-  return <HomeScreen documents={documents} onImport={importImages} onOpen={setActiveDocument} onDelete={deleteDocument} />;
+  if (examMode) return <ExamMode onExit={() => setExamMode(false)} />;
+  return <HomeScreen documents={documents} onImport={importImages} onOpen={setActiveDocument} onDelete={deleteDocument} onExam={() => setExamMode(true)} />;
 }
 
 export default function App() {
