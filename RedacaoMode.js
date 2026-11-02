@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, PanResponder, Pressable, SafeAreaView, ScrollView, StatusBar,
+  Alert, PanResponder, Pressable, SafeAreaView, ScrollView, Share, StatusBar,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -116,6 +116,36 @@ export default function RedacaoMode({ onExit }) {
     ],
   );
 
+  const shareForCorrection = async (criterion) => {
+    const essay = (active?.text || '').trim();
+    if (!essay) {
+      Alert.alert('Redação vazia', 'Escreva sua redação antes de solicitar a correção.');
+      return;
+    }
+
+    const instructions = criterion === 'enem'
+      ? 'Corrija esta redação seguindo rigorosamente a matriz oficial do ENEM. Avalie separadamente as cinco competências (C1 a C5), atribuindo de 0 a 200 pontos para cada uma, explique cada nota, some a nota final de 0 a 1000, identifique erros e pontos fortes e apresente sugestões práticas de melhoria. Não invente um tema ou uma proposta de intervenção que não esteja no texto. Se o tema da proposta não foi informado, avalie o texto com essa limitação explícita.'
+      : 'Faça uma correção geral e criteriosa desta redação. Dê uma nota de 0 a 10 e justifique-a avaliando domínio da escrita, gramática, clareza, estrutura, coesão, coerência, argumentação e conclusão. Aponte erros específicos, pontos fortes e sugestões práticas de melhoria. Não presuma um tema que não foi informado.';
+
+    const message = [
+      'Atue como professor(a) de redação e corretor(a) criterioso(a).',
+      instructions,
+      '',
+      'Título: ' + (active.title || 'Sem título'),
+      '',
+      'REDAÇÃO:',
+      essay,
+      '',
+      'Organize a resposta com a nota, os critérios avaliados, justificativas e recomendações. Seja construtivo e explique como melhorar.',
+    ].join('\\n');
+
+    try {
+      await Share.share({ message, title: 'Corrigir minha redação' });
+    } catch {
+      Alert.alert('Não foi possível compartilhar', 'Tente novamente.');
+    }
+  };
+
   const responder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
@@ -220,6 +250,17 @@ export default function RedacaoMode({ onExit }) {
               style={styles.textEditor}
             />
             <Text style={styles.wordCount}>{(active.text || '').trim() ? (active.text || '').trim().split(/\\s+/).length : 0} palavras</Text>
+            <Text style={styles.correctionCaption}>Peça ao ChatGPT para avaliar seu texto</Text>
+            <View style={styles.correctionButtons}>
+              <Pressable onPress={() => shareForCorrection('enem')} style={styles.correctionButton}>
+                <Text style={styles.correctionButtonTitle}>Corrigir pelo ENEM</Text>
+                <Text style={styles.correctionButtonSub}>Nota de 0 a 1.000</Text>
+              </Pressable>
+              <Pressable onPress={() => shareForCorrection('geral')} style={[styles.correctionButton, styles.correctionButtonSecondary]}>
+                <Text style={[styles.correctionButtonTitle, styles.correctionButtonTitleSecondary]}>Correção geral</Text>
+                <Text style={[styles.correctionButtonSub, styles.correctionButtonSubSecondary]}>Nota de 0 a 10</Text>
+              </Pressable>
+            </View>
           </View>
         ) : (
           <View style={styles.drawArea}>
@@ -328,6 +369,14 @@ const styles = StyleSheet.create({
   writeArea: { flex: 1, marginHorizontal: 14, marginBottom: 14, backgroundColor: '#FFF', borderRadius: 12, borderWidth: 1, borderColor: LINE, padding: 14 },
   textEditor: { flex: 1, minHeight: 200, color: INK, fontSize: 16, lineHeight: 27 },
   wordCount: { color: '#9AA298', fontSize: 10, textAlign: 'right', marginTop: 8 },
+  correctionCaption: { color: GREEN, fontSize: 11, fontWeight: '700', marginTop: 14, marginBottom: 8 },
+  correctionButtons: { flexDirection: 'row', gap: 8 },
+  correctionButton: { flex: 1, backgroundColor: INK, borderRadius: 11, paddingVertical: 11, paddingHorizontal: 8, alignItems: 'center' },
+  correctionButtonSecondary: { backgroundColor: '#E8F0E9' },
+  correctionButtonTitle: { color: '#FFF', fontSize: 11, fontWeight: '800' },
+  correctionButtonTitleSecondary: { color: GREEN },
+  correctionButtonSub: { color: '#D2DED3', fontSize: 9, marginTop: 4 },
+  correctionButtonSubSecondary: { color: '#718477' },
   drawArea: { flex: 1, paddingHorizontal: 14, paddingBottom: 12 },
   drawToolbar: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 10, backgroundColor: '#FFF', borderRadius: 11, marginBottom: 8 },
   toolText: { color: GREEN, fontSize: 11, fontWeight: '700' },
