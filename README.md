@@ -1,28 +1,47 @@
 # Bloco
 
-Caderno digital para estudar diretamente sobre as páginas de uma prova.
+Caderno digital para estudar e resolver provas diretamente nas páginas.
 
-## Fluxo atual
+## Cadernos comuns
 
-1. Converta cada página do PDF da prova em uma imagem PNG ou JPG fora do aplicativo.
-2. No Bloco, toque em Importar páginas e selecione todas as imagens da prova de uma vez.
-3. As imagens são organizadas como páginas de um único caderno.
-4. Navegue entre as páginas e desenhe diretamente sobre cada uma.
-5. Use caneta, marca-texto, borracha, desfazer, refazer e zoom.
-6. Toque em Salvar para guardar o caderno na sessão atual do aplicativo.
+1. Toque em **Importar páginas** e selecione imagens PNG ou JPG.
+2. As imagens são organizadas como páginas de um caderno.
+3. Navegue entre as páginas e use caneta, marca-texto, borracha, desfazer, refazer e zoom.
+4. Toque em **Salvar** para guardar o caderno durante a sessão atual.
 
-As anotações são separadas por página. O Bloco permanece em JavaScript e foi mantido no Expo Go, sem Development Build.
+## Ambiente de provas
 
-## Limitação desta etapa
+1. Na tela inicial, toque em **Ambiente de provas**.
+2. Escolha URCA, UECE ou um dos dias do ENEM.
+3. Confira o tempo padrão da prova.
+4. Selecione o PDF no aparelho.
+5. O aplicativo converte as páginas do PDF em imagens JPEG locais.
+6. Resolva desenhando diretamente sobre as páginas. O cronômetro fica visível no editor.
+7. Toque em **Salvar e sair** para guardar as anotações e o tempo restante. As provas salvas aparecem na lista para continuar depois.
 
-A conversão de PDF para PNG ainda é feita fora do Bloco. A lista de cadernos e as anotações permanecem em memória nesta primeira etapa; fechar o aplicativo pode apagar esses dados. A próxima etapa será implementar a persistência dos cadernos e das páginas.
+### Tempos configurados
 
-## Executar no Expo Go
+- URCA: 4 horas.
+- UECE: 4 horas por prova/fase.
+- ENEM – 1º dia: 5 horas e 30 minutos.
+- ENEM – 2º dia: 5 horas.
 
-- git pull origin main
-- npm install
-- npx expo install --fix
-- npx expo start -c
+### Observações técnicas
+
+- O fluxo foi desenvolvido para Expo SDK 57 e bibliotecas compatíveis com Expo Go; não requer Development Build.
+- A conversão usa PDF.js carregado de CDN. É necessário estar conectado à internet durante a conversão do PDF. As páginas convertidas e os dados das provas são armazenados localmente no aparelho.
+- Para evitar uso excessivo de memória, o importador limita o PDF a 45 MB. PDFs protegidos por senha podem não ser convertidos.
+- As provas do Ambiente de provas têm salvamento automático periódico e salvamento ao sair. Os cadernos comuns ainda permanecem em memória nesta etapa.
+
+## Instalar e executar
+
+Depois de atualizar a branch:
+
+```powershell
+git pull origin main
+npm install
+npx expo start -c
+```
 
 Leia o QR Code com o Expo Go no Android.
 
@@ -31,4 +50,9 @@ Leia o QR Code com o Expo Go no Android.
 - React Native
 - Expo SDK 57
 - expo-image-picker
+- expo-document-picker
+- expo-file-system
+- @react-native-async-storage/async-storage
+- react-native-webview
 - react-native-svg
+- PDF.js
