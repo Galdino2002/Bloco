@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { File } from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
 import Svg, { Path } from 'react-native-svg';
@@ -100,7 +101,18 @@ export default function ExamMode({ onExit }) {
         return;
       }
       setBusy(true); setStage('converting'); setProgress({ done: 0, total: 0 });
-      const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });
+      // A API File lida com URIs file:// e content:// retornadas pelo seletor Android.
+      const selectedPdf = new File(file.uri);
+      if (!selectedPdf.exists) {
+        throw new Error('O Android selecionou o arquivo, mas o aplicativo não conseguiu acessá-lo. Tente escolher o PDF novamente pelo armazenamento do aparelho.');
+      }
+      if (selectedPdf.size === 0) {
+        throw new Error('O PDF selecionado está vazio ou não pôde ser lido.');
+      }
+      const base64 = await selectedPdf.base64();
+      if (!base64 || base64.length < 100) {
+        throw new Error('O conteúdo do PDF veio vazio ou incompleto.');
+      }
       setPdfBase64(base64);
     } catch (error) {
       setBusy(false); setStage('setup');
