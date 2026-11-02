@@ -81,7 +81,7 @@ function HomeScreen({ documents, onImport, onOpen, onDelete, onExam }) {
           <View><Text style={styles.eyebrow}>SEU CANTINHO DE ESTUDOS</Text><Text style={styles.welcomeTitle}>Sua prova, suas anotações.</Text></View>
           <Text style={styles.sparkle}>✳</Text>
         </View>
-        <Pressable onPress={onImport} style={({ pressed }) => [styles.heroCard, pressed && { opacity: 0.92 }]}>
+        <View style={styles.heroCard}>
           <View style={styles.heroTopLine}><View style={styles.heroTag}><Text style={styles.heroTagText}>NOVO CADERNO</Text></View><Text style={styles.heroArrow}>↗</Text></View>
           <View style={styles.heroIllustration}>
             <View style={styles.paperBack} /><View style={styles.paperFront}><View style={styles.paperLineLong} /><View style={styles.paperLineShort} /><View style={styles.paperCircle}><Text style={styles.paperCheck}>✓</Text></View><View style={styles.paperLineMedium} /></View>
@@ -90,7 +90,7 @@ function HomeScreen({ documents, onImport, onOpen, onDelete, onExam }) {
           <Text style={styles.heroTitle}>Importe as páginas{ '\n' }e resolva aqui.</Text>
           <Text style={styles.heroDescription}>Selecione várias imagens da prova. Depois, escreva, marque e desenhe diretamente sobre cada página.</Text>
           <View style={styles.heroActions}><Pressable onPress={onImport} style={styles.heroButton}><Text style={styles.heroButtonText}>＋  Importar páginas</Text></Pressable><Pressable onPress={onExam} style={styles.heroExamButton}><Text style={styles.heroExamButtonText}>Ambiente de provas</Text></Pressable></View>
-        </Pressable>
+        </View>
         <View style={styles.sectionHeading}>
           <View><Text style={styles.sectionTitle}>Meus cadernos</Text><Text style={styles.sectionSubtitle}>Continue de onde parou</Text></View>
           <Text style={styles.documentCount}>{documents.length.toString().padStart(2, '0')}</Text>
