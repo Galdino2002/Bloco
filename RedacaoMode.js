@@ -4,7 +4,7 @@ import {
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { G, Line, Path } from 'react-native-svg';
 
 const STORAGE_KEY = '@bloco:redacoes:v1';
 const INK = '#203B32';
@@ -44,6 +44,11 @@ export default function RedacaoMode({ onExit }) {
   const [paths, setPaths] = useState([]);
   const [redo, setRedo] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [showLines, setShowLines] = useState(true);
+  const pinchStart = useRef(null);
+  const zoomRef = useRef(1);
+  zoomRef.current = zoom;
   const activePath = useRef(null);
   const pathsRef = useRef(paths);
   const colorRef = useRef(color);
@@ -110,7 +115,13 @@ export default function RedacaoMode({ onExit }) {
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: event => {
-      const point = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY };
+      const touches = event.nativeEvent.touches || [];
+      if (touches.length >= 2) {
+        const [a, b] = touches;
+        pinchStart.current = { distance: Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY), zoom: zoomRef.current };
+        return;
+      }
+      const point = { x: event.nativeEvent.locationX / zoomRef.current, y: event.nativeEvent.locationY / zoomRef.current };
       const stroke = {
         id: String(Date.now()) + Math.random(),
         points: [point],
@@ -122,14 +133,28 @@ export default function RedacaoMode({ onExit }) {
       setRedo([]);
     },
     onPanResponderMove: event => {
+      const touches = event.nativeEvent.touches || [];
+      if (touches.length >= 2) {
+        activePath.current = null;
+        const [a, b] = touches;
+        const distance = Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
+        if (!pinchStart.current && distance > 0) pinchStart.current = { distance, zoom: zoomRef.current };
+        if (pinchStart.current?.distance && distance > 0) {
+          const nextZoom = Math.max(1, Math.min(3, pinchStart.current.zoom * distance / pinchStart.current.distance));
+          zoomRef.current = nextZoom;
+          setZoom(nextZoom);
+        }
+        return;
+      }
+      pinchStart.current = null;
       if (!activePath.current) return;
-      const point = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY };
+      const point = { x: event.nativeEvent.locationX / zoomRef.current, y: event.nativeEvent.locationY / zoomRef.current };
       const updated = { ...activePath.current, points: [...activePath.current.points, point] };
       activePath.current = updated;
       setPaths(old => [...old.slice(0, -1), updated]);
     },
-    onPanResponderRelease: () => { activePath.current = null; },
-    onPanResponderTerminate: () => { activePath.current = null; },
+    onPanResponderRelease: () => { activePath.current = null; pinchStart.current = null; },
+    onPanResponderTerminate: () => { activePath.current = null; pinchStart.current = null; },
   }), []);
 
   if (active) {
@@ -180,12 +205,28 @@ export default function RedacaoMode({ onExit }) {
               <Pressable onPress={() => { if (redo.length) { setPaths(old => [...old, redo[redo.length - 1]]); setRedo(old => old.slice(0, -1)); } }}><Text style={styles.toolText}>↷ Refazer</Text></Pressable>
               <Pressable onPress={() => Alert.alert('Limpar folha?', 'Apagar todos os traços desta folha?', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Limpar', style: 'destructive', onPress: () => { setPaths([]); setRedo([]); } }])}><Text style={styles.toolText}>Limpar</Text></Pressable>
             </View>
-            <View style={styles.palette}>
-              {COLORS.map(item => <Pressable key={item} onPress={() => setColor(item)} style={[styles.swatch, { backgroundColor: item }, color === item && styles.swatchSelected]} />)}
+            <View style={styles.drawToolsRow}>
+              <View style={styles.palette}>
+                {COLORS.map(item => <Pressable key={item} onPress={() => setColor(item)} style={[styles.swatch, { backgroundColor: item }, color === item && styles.swatchSelected]} />)}
+              </View>
+              <Pressable onPress={() => setShowLines(value => !value)} style={[styles.linesToggle, showLines && styles.linesToggleActive]}>
+                <Text style={[styles.linesToggleText, showLines && styles.linesToggleTextActive]}>{showLines ? '☷ Linhas' : '□ Sem linhas'}</Text>
+              </Pressable>
+            </View>
+            <View style={styles.zoomToolbar}>
+              <Pressable onPress={() => setZoom(value => { const next = Math.max(1, +(value - 0.25).toFixed(2)); zoomRef.current = next; return next; })} style={styles.zoomButton}><Text style={styles.zoomButtonText}>−</Text></Pressable>
+              <Text style={styles.zoomLabel}>{Math.round(zoom * 100)}%</Text>
+              <Pressable onPress={() => setZoom(value => { const next = Math.min(3, +(value + 0.25).toFixed(2)); zoomRef.current = next; return next; })} style={styles.zoomButton}><Text style={styles.zoomButtonText}>＋</Text></Pressable>
+              <Pressable onPress={() => { zoomRef.current = 1; setZoom(1); }} style={styles.zoomReset}><Text style={styles.zoomResetText}>Ajustar</Text></Pressable>
             </View>
             <View style={styles.paper} {...responder.panHandlers}>
               <Svg width="100%" height="100%">
-                {paths.map(path => <Path key={path.id} d={pathData(path.points)} stroke={path.color} strokeWidth={path.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}
+                <G scale={zoom}>
+                  {showLines && Array.from({ length: 70 }, (_, index) => (
+                    <Line key={index} x1="0" y1={32 + index * 28} x2="1200" y2={32 + index * 28} stroke="#E5EBE5" strokeWidth="1" />
+                  ))}
+                  {paths.map(path => <Path key={path.id} d={pathData(path.points)} stroke={path.color} strokeWidth={path.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}
+                </G>
               </Svg>
             </View>
             <Text style={styles.drawHint}>Desenhe ou escreva com o dedo na folha.</Text>
@@ -253,7 +294,18 @@ const styles = StyleSheet.create({
   drawArea: { flex: 1, paddingHorizontal: 14, paddingBottom: 12 },
   drawToolbar: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 10, backgroundColor: '#FFF', borderRadius: 11, marginBottom: 8 },
   toolText: { color: GREEN, fontSize: 11, fontWeight: '700' },
+  drawToolsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   palette: { flexDirection: 'row', gap: 13, paddingVertical: 9 },
+  linesToggle: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 9, backgroundColor: '#EAEDE6' },
+  linesToggleActive: { backgroundColor: '#DDE9DF' },
+  linesToggleText: { color: '#7C887E', fontSize: 10, fontWeight: '700' },
+  linesToggleTextActive: { color: GREEN },
+  zoomToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 8 },
+  zoomButton: { width: 32, height: 30, borderRadius: 8, backgroundColor: '#E8F0E9', alignItems: 'center', justifyContent: 'center' },
+  zoomButtonText: { color: INK, fontSize: 18, fontWeight: '700' },
+  zoomLabel: { color: INK, fontSize: 11, fontWeight: '700', minWidth: 42, textAlign: 'center' },
+  zoomReset: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: '#FFF' },
+  zoomResetText: { color: GREEN, fontSize: 10, fontWeight: '700' },
   swatch: { width: 25, height: 25, borderRadius: 13 },
   swatchSelected: { borderWidth: 3, borderColor: '#A7BDAA' },
   paper: { flex: 1, minHeight: 220, backgroundColor: '#FFF', borderRadius: 10, borderWidth: 1, borderColor: LINE, overflow: 'hidden' },
