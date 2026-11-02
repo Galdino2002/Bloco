@@ -24,7 +24,9 @@ export default function ExamExperience({ onClose }) {
   const [sessions, setSessions] = useState([]);
   const [active, setActive] = useState(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
-  const [essay, setEssay] = useState('');
+  const [essayDraft, setEssayDraft] = useState('');
+  const [showEssay, setShowEssay] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const refreshSessions = async () => {
@@ -84,6 +86,8 @@ export default function ExamExperience({ onClose }) {
       0, '{}', '[]', '', now, now
     );
     setActive(session);
+    setEssayDraft('');
+    setShowEssay(false);
     setSecondsLeft(duration);
     setView('room');
     await refreshSessions();
@@ -110,13 +114,13 @@ export default function ExamExperience({ onClose }) {
     }
     const next = { ...session, status: 'running', remaining_seconds: remaining, ends_at: now + remaining * 1000, updated_at: now };
     await db.runAsync('UPDATE exam_sessions SET status=?, remaining_seconds=?, ends_at=?, updated_at=? WHERE id=?', next.status, next.remaining_seconds, next.ends_at, next.updated_at, next.id);
-    setActive(next); setSecondsLeft(remaining); setView('room'); await refreshSessions();
+    setActive(next); setEssayDraft(next.essay_text || ''); setShowEssay(false); setSecondsLeft(remaining); setView('room'); await refreshSessions();
   };
 
   const pauseSession = async () => {
     if (!active) return;
     const remaining = Math.max(0, Math.ceil((active.ends_at - Date.now()) / 1000));
-    await updateSession({ status: 'paused', remaining_seconds: remaining, ends_at: null });
+    await updateSession({ status: 'paused', remaining_seconds: remaining, ends_at: null, essay_text: essayDraft });
     setActive(null); setView('hub');
   };
 
@@ -124,7 +128,9 @@ export default function ExamExperience({ onClose }) {
     if (!active || active.status === 'completed') return;
     const now = Date.now();
     const remaining = automatic ? 0 : Math.max(0, Math.ceil((active.ends_at - now) / 1000));
-    await updateSession({ status: 'completed', remaining_seconds: remaining, ends_at: null, completed_at: now });
+    const resultSnapshot = { ...active, status: 'completed', remaining_seconds: remaining, ends_at: null, completed_at: now, essay_text: essayDraft };
+    setLastResult(resultSnapshot);
+    await updateSession({ status: 'completed', remaining_seconds: remaining, ends_at: null, completed_at: now, essay_text: essayDraft });
     setActive(null); setView('result');
     if (automatic) Alert.alert('Tempo encerrado', 'O tempo da sua prova chegou ao fim. Confira o resultado.');
   };
@@ -206,9 +212,20 @@ export default function ExamExperience({ onClose }) {
           <View style={s.progressTrack}><View style={[s.progressFill, { width: `${(active.current_index + 1) / active.questions.length * 100}%` }]} /></View>
           <View style={s.roomActions}>
             {active.mode === 'pdf' && <Button title="Abrir caderno PDF" secondary onPress={() => Linking.openURL(active.source_uri).catch(() => Alert.alert('Não foi possível abrir o PDF', 'Tente abrir o arquivo pelo gerenciador de documentos do aparelho.'))} />}
+            {active.exam_id === 'enem' && active.day_name.startsWith('1º dia') && <Button title={showEssay ? 'Voltar às questões' : 'Redação'} secondary onPress={async () => { await updateSession({ essay_text: essayDraft }); setShowEssay((value) => !value); }} />}
             <Button title="Pausar e sair" secondary onPress={pauseSession} />
           </View>
           <ScrollView contentContainerStyle={s.questionScroll}>
+            {showEssay ? (
+              <View>
+                <Tag>REDAÇÃO ENEM</Tag>
+                <Text style={s.questionPrompt}>Desenvolva seu texto dissertativo-argumentativo.</Text>
+                <Text style={s.body}>O espaço abaixo salva seu rascunho nesta sessão. A avaliação pelas cinco competências poderá ser adicionada em uma etapa futura.</Text>
+                <TextInput multiline textAlignVertical="top" value={essayDraft} onChangeText={setEssayDraft} onEndEditing={() => updateSession({ essay_text: essayDraft })} placeholder="Comece a escrever sua redação..." style={s.essayInput} />
+                <Text style={s.sessionMeta}>{essayDraft.trim().split(/\\s+/).filter(Boolean).length} palavras · {essayDraft.length} caracteres</Text>
+              </View>
+            ) : (
+            <>
             <View style={s.questionTop}><Tag>{currentQuestion.subject || 'Questão'}</Tag><Text style={s.questionNumber}>QUESTÃO {active.current_index + 1} DE {active.questions.length}</Text></View>
             <Text style={s.questionPrompt}>{currentQuestion.prompt}</Text>
             {currentQuestion.options.map((option, index) => {
@@ -217,13 +234,39 @@ export default function ExamExperience({ onClose }) {
             })}
             {active.mode === 'bank' && active.answers[currentQuestion.id] !== undefined && <View style={s.explanation}><Text style={s.explanationTitle}>Resposta registrada</Text><Text style={s.body}>A explicação ficará disponível após finalizar a sessão.</Text></View>}
             <Pressable onPress={() => toggleMarked(currentQuestion.id)} style={s.markButton}><Text style={s.markText}>{active.marked.includes(currentQuestion.id) ? '★ Marcada para revisar' : '☆ Marcar para revisar'}</Text></Pressable>
+            </>
+            )}
           </ScrollView>
           <View style={s.navigation}><Button title="Anterior" secondary disabled={active.current_index === 0} onPress={() => changeIndex(active.current_index - 1)} /><Text style={s.navCount}>{active.current_index + 1} / {active.questions.length}</Text>{active.current_index === active.questions.length - 1 ? <Button title="Finalizar" onPress={() => Alert.alert('Finalizar prova?', 'Suas respostas serão registradas e a sessão será encerrada.', [{ text: 'Continuar', style: 'cancel' }, { text: 'Finalizar', style: 'destructive', onPress: () => finishSession(false) }])} /> : <Button title="Próxima" onPress={() => changeIndex(active.current_index + 1)} />}</View>
         </View>
       )}
 
       {view === 'result' && (
-        <View style={s.resultWrap}><Text style={s.kicker}>SESSÃO FINALIZADA</Text><Text style={s.title}>Bom trabalho!</Text><Text style={s.body}>Sua sessão foi salva no histórico do Bloco.</Text><View style={s.resultCard}><Text style={s.resultBig}>{completedSessions.length}</Text><Text style={s.body}>provas concluídas</Text></View><Button title="Voltar à central de provas" onPress={() => { setView('hub'); refreshSessions(); }} /></View>
+        <View style={s.resultWrap}>
+          <Text style={s.kicker}>SESSÃO FINALIZADA</Text>
+          <Text style={s.title}>Bom trabalho!</Text>
+          <Text style={s.body}>Sua sessão foi salva no histórico do Bloco.</Text>
+          <View style={s.resultCard}>
+            {lastResult?.mode === 'bank' ? (
+              <>
+                <Text style={s.resultBig}>{lastResult.questions.filter((q) => lastResult.answers[q.id] === q.answer).length}/{lastResult.questions.length}</Text>
+                <Text style={s.body}>acertos no banco de questões</Text>
+              </>
+            ) : (
+              <>
+                <Text style={s.resultBig}>{Object.keys(lastResult?.answers || {}).length}</Text>
+                <Text style={s.body}>respostas registradas no caderno importado</Text>
+              </>
+            )}
+          </View>
+          {lastResult?.mode === 'bank' && lastResult.questions.map((question, index) => (
+            <View key={question.id} style={s.reviewItem}>
+              <Text style={s.reviewTitle}>Questão {index + 1} · {lastResult.answers[question.id] === question.answer ? 'Acertou' : 'Revisar'}</Text>
+              <Text style={s.body}>Gabarito: {String.fromCharCode(65 + question.answer)} · {question.explanation}</Text>
+            </View>
+          ))}
+          <Button title="Voltar à central de provas" onPress={() => { setView('hub'); refreshSessions(); }} />
+        </View>
       )}
     </View>
   );
@@ -245,5 +288,7 @@ const s = StyleSheet.create({
   modeCard: { backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 17, padding: 16, gap: 8 }, modeTitle: { color: C.ink, fontSize: 15, fontWeight: '700' },
   button: { backgroundColor: C.ink, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' }, buttonSecondary: { backgroundColor: C.pale }, buttonDanger: { backgroundColor: '#FBEFED' }, buttonText: { color: C.white, fontSize: 10, fontWeight: '800' }, buttonTextSecondary: { color: C.green }, buttonTextDanger: { color: C.red },
   room: { flex: 1 }, timerBar: { backgroundColor: C.white, paddingHorizontal: 20, paddingVertical: 13, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, timerCaption: { color: C.muted, fontSize: 8, fontWeight: '800', letterSpacing: 1 }, timer: { color: C.ink, fontSize: 25, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 2 }, progressText: { color: C.green, fontSize: 11, fontWeight: '700', marginTop: 5 }, progressTrack: { height: 4, backgroundColor: C.line }, progressFill: { height: 4, backgroundColor: C.green }, roomActions: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, gap: 10 }, questionScroll: { padding: 18, paddingBottom: 25 }, questionTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, questionNumber: { color: C.muted, fontSize: 8, fontWeight: '800', letterSpacing: 0.8 }, questionPrompt: { color: C.ink, fontSize: 17, lineHeight: 25, fontWeight: '600', marginTop: 20, marginBottom: 18 }, option: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.white, borderRadius: 14, borderWidth: 1, borderColor: C.line, padding: 12, marginBottom: 9, gap: 11 }, optionSelected: { borderColor: C.green, backgroundColor: '#F0F5F0' }, optionLetter: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F0F1EC', alignItems: 'center', justifyContent: 'center' }, optionLetterSelected: { backgroundColor: C.green }, optionLetterText: { color: C.green, fontSize: 10, fontWeight: '800' }, optionText: { color: '#59675E', fontSize: 11, lineHeight: 17, flex: 1 }, explanation: { backgroundColor: C.pale, padding: 12, borderRadius: 12, marginTop: 8 }, explanationTitle: { color: C.green, fontSize: 11, fontWeight: '800' }, markButton: { paddingVertical: 12 }, markText: { color: C.amber, fontSize: 11, fontWeight: '700' }, navigation: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 13, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.line }, navCount: { color: C.muted, fontSize: 10, fontWeight: '700' },
-  resultWrap: { flex: 1, padding: 24, justifyContent: 'center', alignItems: 'stretch' }, resultCard: { backgroundColor: C.white, borderRadius: 18, padding: 24, alignItems: 'center', marginVertical: 24 }, resultBig: { color: C.green, fontSize: 42, fontWeight: '800' }
+  resultWrap: { flex: 1, padding: 24, justifyContent: 'center', alignItems: 'stretch' }, resultCard: { backgroundColor: C.white, borderRadius: 18, padding: 24, alignItems: 'center', marginVertical: 24 }, resultBig: { color: C.green, fontSize: 42, fontWeight: '800' },
+  essayInput: { minHeight: 300, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 14, color: C.ink, fontSize: 13, lineHeight: 21, marginTop: 14 },
+  reviewItem: { backgroundColor: C.white, borderRadius: 12, padding: 12, marginBottom: 8 }, reviewTitle: { color: C.green, fontSize: 11, fontWeight: '800' }
 });
