@@ -297,6 +297,10 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  pageNavigation: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingVertical: 8, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderBottomWidth: 1, borderColor: COLORS.line },
+  pageNavButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: COLORS.greenLight },
+  pageNavText: { color: COLORS.green, fontSize: 10, fontWeight: '700' },
+  pageNavLabel: { color: COLORS.muted, fontSize: 10, fontWeight: '700' },
   safeArea: { flex: 1, backgroundColor: COLORS.paper },
   homeContent: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 34 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 34 },
