@@ -46,6 +46,8 @@ export default function RedacaoMode({ onExit }) {
   const [loaded, setLoaded] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [showLines, setShowLines] = useState(true);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panRef = useRef({ x: 0, y: 0 });
   const pinchStart = useRef(null);
   const zoomRef = useRef(1);
   zoomRef.current = zoom;
@@ -118,10 +120,10 @@ export default function RedacaoMode({ onExit }) {
       const touches = event.nativeEvent.touches || [];
       if (touches.length >= 2) {
         const [a, b] = touches;
-        pinchStart.current = { distance: Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY), zoom: zoomRef.current };
+        pinchStart.current = { distance: Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY), zoom: zoomRef.current, centerX: (a.pageX + b.pageX) / 2, centerY: (a.pageY + b.pageY) / 2, pan: panRef.current };
         return;
       }
-      const point = { x: event.nativeEvent.locationX / zoomRef.current, y: event.nativeEvent.locationY / zoomRef.current };
+      const point = { x: (event.nativeEvent.locationX - panRef.current.x) / zoomRef.current, y: (event.nativeEvent.locationY - panRef.current.y) / zoomRef.current };
       const stroke = {
         id: String(Date.now()) + Math.random(),
         points: [point],
@@ -138,17 +140,22 @@ export default function RedacaoMode({ onExit }) {
         activePath.current = null;
         const [a, b] = touches;
         const distance = Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
-        if (!pinchStart.current && distance > 0) pinchStart.current = { distance, zoom: zoomRef.current };
+        if (!pinchStart.current && distance > 0) pinchStart.current = { distance, zoom: zoomRef.current, centerX: (a.pageX + b.pageX) / 2, centerY: (a.pageY + b.pageY) / 2, pan: panRef.current };
         if (pinchStart.current?.distance && distance > 0) {
           const nextZoom = Math.max(1, Math.min(3, pinchStart.current.zoom * distance / pinchStart.current.distance));
           zoomRef.current = nextZoom;
           setZoom(nextZoom);
+          const centerX = (a.pageX + b.pageX) / 2;
+          const centerY = (a.pageY + b.pageY) / 2;
+          const nextPan = { x: pinchStart.current.pan.x + centerX - pinchStart.current.centerX, y: pinchStart.current.pan.y + centerY - pinchStart.current.centerY };
+          panRef.current = nextPan;
+          setPan(nextPan);
         }
         return;
       }
       pinchStart.current = null;
       if (!activePath.current) return;
-      const point = { x: event.nativeEvent.locationX / zoomRef.current, y: event.nativeEvent.locationY / zoomRef.current };
+      const point = { x: (event.nativeEvent.locationX - panRef.current.x) / zoomRef.current, y: (event.nativeEvent.locationY - panRef.current.y) / zoomRef.current };
       const updated = { ...activePath.current, points: [...activePath.current.points, point] };
       activePath.current = updated;
       setPaths(old => [...old.slice(0, -1), updated]);
@@ -217,11 +224,11 @@ export default function RedacaoMode({ onExit }) {
               <Pressable onPress={() => setZoom(value => { const next = Math.max(1, +(value - 0.25).toFixed(2)); zoomRef.current = next; return next; })} style={styles.zoomButton}><Text style={styles.zoomButtonText}>−</Text></Pressable>
               <Text style={styles.zoomLabel}>{Math.round(zoom * 100)}%</Text>
               <Pressable onPress={() => setZoom(value => { const next = Math.min(3, +(value + 0.25).toFixed(2)); zoomRef.current = next; return next; })} style={styles.zoomButton}><Text style={styles.zoomButtonText}>＋</Text></Pressable>
-              <Pressable onPress={() => { zoomRef.current = 1; setZoom(1); }} style={styles.zoomReset}><Text style={styles.zoomResetText}>Ajustar</Text></Pressable>
+              <Pressable onPress={() => { zoomRef.current = 1; setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); }} style={styles.zoomReset}><Text style={styles.zoomResetText}>Ajustar</Text></Pressable>
             </View>
             <View style={styles.paper} {...responder.panHandlers}>
               <Svg width="100%" height="100%">
-                <G scale={zoom}>
+                <G transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
                   {showLines && Array.from({ length: 70 }, (_, index) => (
                     <Line key={index} x1="0" y1={32 + index * 28} x2="1200" y2={32 + index * 28} stroke="#E5EBE5" strokeWidth="1" />
                   ))}
