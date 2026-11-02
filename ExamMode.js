@@ -228,12 +228,15 @@ function ExamEditor({ exam, onSave, onBack }) {
   const [redo, setRedo] = useState([]);
   const [tool, setTool] = useState('pen');
   const [color, setColor] = useState(COLORS[0]);
+  const [zoom, setZoom] = useState(1);
   const [remaining, setRemaining] = useState(exam.remaining ?? exam.duration);
   const [finished, setFinished] = useState(false);
   const activePath = useRef(null);
   const pathsRef = useRef(paths);
   const toolRef = useRef(tool);
   const colorRef = useRef(color);
+  const zoomRef = useRef(1);
+  const pinchStart = useRef(null);
   pathsRef.current = paths; toolRef.current = tool; colorRef.current = color;
 
   const snapshotRef = useRef({ pages, index, paths, remaining });
@@ -259,26 +262,58 @@ function ExamEditor({ exam, onSave, onBack }) {
 
   const responder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: e => (e.nativeEvent.touches?.length || 0) >= 2 || true,
     onPanResponderGrant: e => {
+      const touches = e.nativeEvent.touches || [];
+      if (touches.length >= 2) {
+        activePath.current = null;
+        const [a, b] = touches;
+        pinchStart.current = {
+          distance: Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY),
+          zoom: zoomRef.current,
+        };
+        return;
+      }
       if (toolRef.current === 'eraser') {
         const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
         const next = pathsRef.current.filter(stroke => !stroke.points.some(q => Math.hypot(q.x - p.x, q.y - p.y) < 24));
         pathsRef.current = next; setPaths(next); setRedo([]); return;
       }
       const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
-      const stroke = { id: String(Date.now()) + Math.random(), points: [p], color: colorRef.current, width: 4 };
+      const isHighlighter = toolRef.current === 'highlighter';
+      const stroke = {
+        id: String(Date.now()) + Math.random(),
+        points: [p],
+        color: colorRef.current,
+        width: isHighlighter ? 17 : 4,
+        opacity: isHighlighter ? 0.28 : 1,
+      };
       activePath.current = stroke; setPaths(old => [...old, stroke]); setRedo([]);
     },
     onPanResponderMove: e => {
-      if (toolRef.current === 'eraser') return;
-      if (!activePath.current) return;
+      const touches = e.nativeEvent.touches || [];
+      if (touches.length >= 2) {
+        activePath.current = null;
+        const [a, b] = touches;
+        const distance = Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
+        if (pinchStart.current?.distance) {
+          const nextZoom = Math.min(3, Math.max(1, pinchStart.current.zoom * distance / pinchStart.current.distance));
+          zoomRef.current = nextZoom;
+          setZoom(nextZoom);
+        }
+        return;
+      }
+      pinchStart.current = null;
+      if (toolRef.current === 'eraser' || !activePath.current) return;
       const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
       const next = { ...activePath.current, points: [...activePath.current.points, p] };
       activePath.current = next; setPaths(old => [...old.slice(0, -1), next]);
     },
-    onPanResponderRelease: () => { activePath.current = null; },
-    onPanResponderTerminate: () => { activePath.current = null; },
+    onPanResponderRelease: e => {
+      activePath.current = null;
+      if ((e.nativeEvent.touches?.length || 0) < 2) pinchStart.current = null;
+    },
+    onPanResponderTerminate: () => { activePath.current = null; pinchStart.current = null; },
   }), []);
 
   const changePage = (next) => {
@@ -298,9 +333,9 @@ function ExamEditor({ exam, onSave, onBack }) {
     <View style={s.editorHead}><Pressable onPress={saveAndExit} style={s.back}><Text style={s.backText}>‹</Text></Pressable><View style={{ flex: 1 }}><Text style={s.editorTitle}>{exam.title}</Text><Text style={s.examDescription}>Página {index + 1} de {pages.length}</Text></View><View style={s.timerPill}><Text style={s.timerText}>{formatTime(remaining)}</Text></View></View>
     {finished && <View style={s.finishedBanner}><Text style={s.finishedText}>Tempo encerrado. Você ainda pode salvar suas anotações.</Text></View>}
     <View style={s.examToolbar}><Pressable onPress={() => { if (paths.length) { setRedo(old => [...old, paths[paths.length - 1]]); setPaths(old => old.slice(0, -1)); } }}><Text style={s.toolbarText}>↶ Desfazer</Text></Pressable><Pressable onPress={() => { if (redo.length) { setPaths(old => [...old, redo[redo.length - 1]]); setRedo(old => old.slice(0, -1)); } }}><Text style={s.toolbarText}>↷ Refazer</Text></Pressable><Pressable onPress={() => { setPaths([]); setRedo([]); }}><Text style={s.toolbarText}>Limpar</Text></Pressable></View>
-    <View style={s.examCanvas}><Image source={{ uri: current?.uri }} style={StyleSheet.absoluteFill} resizeMode="contain" /><View style={StyleSheet.absoluteFill} {...responder.panHandlers}><Svg width="100%" height="100%">{paths.map(stroke => <Path key={stroke.id} d={svgPath(stroke.points)} stroke={stroke.color} strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}</Svg></View></View>
+    <View style={s.examCanvas}><View style={[StyleSheet.absoluteFill, { transform: [{ scale: zoom }] }]}><Image source={{ uri: current?.uri }} style={StyleSheet.absoluteFill} resizeMode="contain" /><View style={StyleSheet.absoluteFill} {...responder.panHandlers}><Svg width="100%" height="100%">{paths.map(stroke => <Path key={stroke.id} d={svgPath(stroke.points)} stroke={stroke.color} strokeOpacity={stroke.opacity ?? 1} strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}</Svg></View></View></View>
     <View style={s.pageControls}><Pressable disabled={index === 0} onPress={() => changePage(index - 1)}><Text style={s.toolbarText}>‹ Anterior</Text></Pressable><Text style={s.pageText}>{index + 1} / {pages.length}</Text><Pressable disabled={index === pages.length - 1} onPress={() => changePage(index + 1)}><Text style={s.toolbarText}>Próxima ›</Text></Pressable></View>
-    <View style={s.drawPanel}><View style={s.drawTools}><Pressable onPress={() => setTool('pen')} style={[s.tool, tool === 'pen' && s.toolActive]}><Text style={s.toolText}>Caneta</Text></Pressable><Pressable onPress={() => setTool('eraser')} style={[s.tool, tool === 'eraser' && s.toolActive]}><Text style={s.toolText}>Borracha</Text></Pressable></View><View style={s.palette}>{COLORS.map(c => <Pressable key={c} onPress={() => { setColor(c); setTool('pen'); }} style={[s.swatch, { backgroundColor: c }, color === c && s.swatchSelected]} />)}</View><Button title="Salvar e sair" onPress={saveAndExit} /></View>
+    <View style={s.drawPanel}><View style={s.drawTools}><Pressable onPress={() => setTool('pen')} style={[s.tool, tool === 'pen' && s.toolActive]}><Text style={s.toolText}>Caneta</Text></Pressable><Pressable onPress={() => setTool('highlighter')} style={[s.tool, tool === 'highlighter' && s.toolActive]}><Text style={s.toolText}>Marca-texto</Text></Pressable><Pressable onPress={() => setTool('eraser')} style={[s.tool, tool === 'eraser' && s.toolActive]}><Text style={s.toolText}>Borracha</Text></Pressable></View><View style={s.paletteRow}><View style={s.palette}>{COLORS.map(c => <Pressable key={c} onPress={() => { setColor(c); if (tool === 'eraser') setTool('pen'); }} style={[s.swatch, { backgroundColor: c }, color === c && s.swatchSelected]} />)}</View><View style={s.zoomControls}><Pressable style={s.zoomButton} onPress={() => { const next = Math.max(1, Number((zoom - 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>−</Text></Pressable><Text style={s.zoomValue}>{Math.round(zoom * 100)}%</Text><Pressable style={s.zoomButton} onPress={() => { const next = Math.min(3, Number((zoom + 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>+</Text></Pressable><Pressable style={s.zoomReset} onPress={() => { zoomRef.current = 1; setZoom(1); }}><Text style={s.zoomResetText}>Ajustar</Text></Pressable></View></View><Button title="Salvar e sair" onPress={saveAndExit} /></View>
   </SafeAreaView>;
 }
 
@@ -334,7 +369,14 @@ const s = StyleSheet.create({
   toolbarText: { color: GREEN, fontSize: 11, fontWeight: '700' }, examCanvas: { flex: 1, margin: 10, backgroundColor: '#FFF', borderRadius: 10, overflow: 'hidden' },
   pageControls: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 9, backgroundColor: '#FFF' },
   pageText: { color: '#89938A', fontSize: 10, fontWeight: '700' }, drawPanel: { padding: 12, backgroundColor: '#FFF', borderTopWidth: 1, borderColor: LINE },
-  drawTools: { flexDirection: 'row', gap: 8, marginBottom: 10 }, tool: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 9, backgroundColor: '#F2F3EF' },
+  drawTools: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  paletteRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  zoomControls: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  zoomButton: { width: 30, height: 30, borderRadius: 9, backgroundColor: '#E8F0E9', alignItems: 'center', justifyContent: 'center' },
+  zoomText: { color: GREEN, fontSize: 20, fontWeight: '700', lineHeight: 23 },
+  zoomValue: { color: INK, fontSize: 10, fontWeight: '700', minWidth: 36, textAlign: 'center' },
+  zoomReset: { paddingHorizontal: 8, paddingVertical: 7, backgroundColor: '#F2F3EF', borderRadius: 8 },
+  zoomResetText: { color: GREEN, fontSize: 10, fontWeight: '700' }, tool: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 9, backgroundColor: '#F2F3EF' },
   toolActive: { backgroundColor: '#E8F0E9' }, toolText: { color: GREEN, fontSize: 11, fontWeight: '700' }, palette: { flexDirection: 'row', gap: 12, marginBottom: 6 },
   swatch: { width: 24, height: 24, borderRadius: 12 }, swatchSelected: { borderWidth: 3, borderColor: '#A7BDAA' },
 });
