@@ -1,6 +1,4 @@
 import { useMemo, useRef, useState } from 'react';
-import { SQLiteProvider } from 'expo-sqlite';
-import ExamExperience from './ExamExperience';
 import {
   Alert,
   Image,
@@ -69,116 +67,62 @@ function ActionButton({ label, onPress, secondary = false, compact = false }) {
   );
 }
 
-function HomeScreen({ documents, onImport, onOpen, onDelete, onOpenExams }) {
+function HomeScreen({ documents, onImport, onOpen, onDelete }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.paper} />
       <ScrollView contentContainerStyle={styles.homeContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <View>
-            <Text style={styles.brand}>Bloco</Text>
-            <Text style={styles.headerSubtitle}>seu espaço de ideias</Text>
-          </View>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>B</Text>
-          </View>
+          <View><Text style={styles.brand}>Bloco</Text><Text style={styles.headerSubtitle}>seu caderno digital</Text></View>
+          <View style={styles.avatar}><Text style={styles.avatarText}>B</Text></View>
         </View>
-
         <View style={styles.welcomeRow}>
-          <View>
-            <Text style={styles.eyebrow}>SEU CANTINHO DE ESTUDOS</Text>
-            <Text style={styles.welcomeTitle}>Tudo pronto para{ '\n' }colocar no papel.</Text>
-          </View>
+          <View><Text style={styles.eyebrow}>SEU CANTINHO DE ESTUDOS</Text><Text style={styles.welcomeTitle}>Sua prova, suas anotações.</Text></View>
           <Text style={styles.sparkle}>✳</Text>
         </View>
-
         <Pressable onPress={onImport} style={({ pressed }) => [styles.heroCard, pressed && { opacity: 0.92 }]}>
-          <View style={styles.heroTopLine}>
-            <View style={styles.heroTag}><Text style={styles.heroTagText}>NOVO DOCUMENTO</Text></View>
-            <Text style={styles.heroArrow}>↗</Text>
-          </View>
+          <View style={styles.heroTopLine}><View style={styles.heroTag}><Text style={styles.heroTagText}>NOVO CADERNO</Text></View><Text style={styles.heroArrow}>↗</Text></View>
           <View style={styles.heroIllustration}>
-            <View style={styles.paperBack} />
-            <View style={styles.paperFront}>
-              <View style={styles.paperLineLong} />
-              <View style={styles.paperLineShort} />
-              <View style={styles.paperCircle}><Text style={styles.paperCheck}>✓</Text></View>
-              <View style={styles.paperLineMedium} />
-            </View>
+            <View style={styles.paperBack} /><View style={styles.paperFront}><View style={styles.paperLineLong} /><View style={styles.paperLineShort} /><View style={styles.paperCircle}><Text style={styles.paperCheck}>✓</Text></View><View style={styles.paperLineMedium} /></View>
             <View style={styles.pencil}><Text style={styles.pencilText}>✎</Text></View>
           </View>
-          <Text style={styles.heroTitle}>Sua próxima ideia{ '\n' }começa aqui.</Text>
-          <Text style={styles.heroDescription}>Importe uma prova, atividade ou imagem e escreva por cima dela.</Text>
-          <View style={styles.heroActions}>
-            <Pressable onPress={onImport} style={styles.heroButton}>
-              <Text style={styles.heroButtonText}>＋  Importar imagem</Text>
-            </Pressable>
-            <Pressable onPress={onOpenExams} style={styles.heroExamButton}>
-              <Text style={styles.heroExamButtonText}>▤  Fazer prova</Text>
-            </Pressable>
-          </View>
+          <Text style={styles.heroTitle}>Importe as páginas{ '\\n' }e resolva aqui.</Text>
+          <Text style={styles.heroDescription}>Selecione várias imagens da prova. Depois, escreva, marque e desenhe diretamente sobre cada página.</Text>
+          <View style={styles.heroActions}><View style={styles.heroButton}><Text style={styles.heroButtonText}>＋  Importar páginas</Text></View></View>
         </Pressable>
-
         <View style={styles.sectionHeading}>
-          <View>
-            <Text style={styles.sectionTitle}>Seu espaço</Text>
-            <Text style={styles.sectionSubtitle}>Continue de onde parou</Text>
-          </View>
+          <View><Text style={styles.sectionTitle}>Meus cadernos</Text><Text style={styles.sectionSubtitle}>Continue de onde parou</Text></View>
           <Text style={styles.documentCount}>{documents.length.toString().padStart(2, '0')}</Text>
         </View>
-
         {documents.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <View style={styles.emptyIcon}><Text style={{ fontSize: 22 }}>▤</Text></View>
-            <Text style={styles.emptyTitle}>Ainda não há páginas</Text>
-            <Text style={styles.emptyText}>Quando você importar uma imagem e começar a escrever, seus documentos aparecerão aqui.</Text>
-          </View>
+          <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 22 }}>▤</Text></View><Text style={styles.emptyTitle}>Nenhum caderno por enquanto</Text><Text style={styles.emptyText}>Importe as páginas da sua prova em imagens PNG ou JPG para começar a resolver.</Text></View>
         ) : (
           <View style={styles.documentList}>
-            {documents.map((document, index) => (
-              <View key={document.id} style={styles.documentCard}>
+            {documents.map((document) => {
+              const pageCount = document.pages?.length || 1;
+              const annotationCount = (document.pages || [{ paths: document.paths || [] }]).reduce((sum, page) => sum + (page.paths?.length || 0), 0);
+              return <View key={document.id} style={styles.documentCard}>
                 <Pressable onPress={() => onOpen(document)} style={({ pressed }) => [styles.documentOpenArea, pressed && { opacity: 0.75 }]}>
-                  <View style={styles.documentThumb}>
-                    <Image source={{ uri: document.uri }} style={styles.documentThumbImage} />
-                    <View style={styles.thumbBadge}><Text style={styles.thumbBadgeText}>✎</Text></View>
-                  </View>
-                  <View style={styles.documentInfo}>
-                    <Text style={styles.documentName} numberOfLines={1}>{document.title || `Minha página ${index + 1}`}</Text>
-                    <Text style={styles.documentMeta}>{document.paths.length} {document.paths.length === 1 ? 'anotação' : 'anotações'} · aberto recentemente</Text>
-                  </View>
+                  <View style={styles.documentThumb}><Image source={{ uri: document.pages?.[0]?.uri || document.uri }} style={styles.documentThumbImage} /><View style={styles.thumbBadge}><Text style={styles.thumbBadgeText}>✎</Text></View></View>
+                  <View style={styles.documentInfo}><Text style={styles.documentName} numberOfLines={1}>{document.title || 'Minha prova'}</Text><Text style={styles.documentMeta}>{pageCount} {pageCount === 1 ? 'página' : 'páginas'} · {annotationCount} traços</Text></View>
                   <Text style={styles.documentArrow}>›</Text>
                 </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Excluir ${document.title || 'página'}`}
-                  onPress={() => Alert.alert(
-                    'Excluir página?',
-                    'Esta página e todas as anotações serão removidas. Essa ação não poderá ser desfeita.',
-                    [
-                      { text: 'Cancelar', style: 'cancel' },
-                      { text: 'Excluir', style: 'destructive', onPress: () => onDelete(document.id) },
-                    ],
-                  )}
-                  style={({ pressed }) => [styles.deleteButton, pressed && { opacity: 0.65 }]}
-                >
-                  <Text style={styles.deleteButtonText}>Excluir</Text>
-                </Pressable>
-              </View>
-            ))}
+                <Pressable accessibilityRole="button" onPress={() => Alert.alert('Excluir caderno?', 'Todas as páginas e anotações serão removidas.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Excluir', style: 'destructive', onPress: () => onDelete(document.id) }])} style={styles.deleteButton}><Text style={styles.deleteButtonText}>Excluir</Text></Pressable>
+              </View>;
+            })}
           </View>
         )}
-
-        <View style={styles.footerNote}>
-          <Text style={styles.footerLeaf}>✳</Text>
-          <Text style={styles.footerText}>Um espaço simples. Para ideias grandes.</Text>
-        </View>
+        <View style={styles.footerNote}><Text style={styles.footerLeaf}>✳</Text><Text style={styles.footerText}>Um espaço simples. Para ideias grandes.</Text></View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function EditorScreen({ document, onBack, onSave }) {
-  const [paths, setPaths] = useState(document.paths || []);
+function EditorScreen({ document, onSave }) {
+  const initialPages = document.pages?.length ? document.pages : [{ id: 'page-1', uri: document.uri, paths: document.paths || [] }];
+  const [pages, setPages] = useState(initialPages);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [paths, setPaths] = useState(initialPages[0]?.paths || []);
   const [redoPaths, setRedoPaths] = useState([]);
   const [tool, setTool] = useState('pen');
   const [color, setColor] = useState(PALETTE[0]);
@@ -194,139 +138,90 @@ function EditorScreen({ document, onBack, onSave }) {
   const toolRef = useRef(tool);
   const colorRef = useRef(color);
   const widthRef = useRef(strokeWidth);
-
-  pathsRef.current = paths;
-  toolRef.current = tool;
-  colorRef.current = color;
-  widthRef.current = strokeWidth;
+  pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; widthRef.current = strokeWidth;
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (event) => {
-      if (toolRef.current === 'move') {
-        moveStart.current = { x: panOffsetRef.current.x, y: panOffsetRef.current.y };
-        return;
-      }
+      if (toolRef.current === 'move') { moveStart.current = { x: panOffsetRef.current.x, y: panOffsetRef.current.y }; return; }
       const point = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY };
       if (toolRef.current === 'eraser') {
         const next = pathsRef.current.filter((path) => {
-          if (!path.points.length) return true;
           if (path.points.length === 1) return Math.hypot(path.points[0].x - point.x, path.points[0].y - point.y) > 22;
-          for (let i = 1; i < path.points.length; i += 1) {
-            if (distanceToSegment(point, path.points[i - 1], path.points[i]) < 22) return false;
-          }
+          for (let i = 1; i < path.points.length; i += 1) if (distanceToSegment(point, path.points[i - 1], path.points[i]) < 22) return false;
           return true;
         });
-        setPaths(next);
-        pathsRef.current = next;
-        setRedoPaths([]);
-        return;
+        pathsRef.current = next; setPaths(next); setRedoPaths([]); return;
       }
-      const isHighlighter = toolRef.current === 'highlighter';
-      const nextPath = { id: `${Date.now()}-${Math.random()}`, points: [point], color: isHighlighter ? HIGHLIGHTER_COLOR : colorRef.current, width: isHighlighter ? 16 : widthRef.current, opacity: isHighlighter ? 0.42 : 1, linecap: 'round' };
-      activePath.current = nextPath;
-      setPaths((previous) => [...previous, nextPath]);
-      setRedoPaths([]);
+      const highlighter = toolRef.current === 'highlighter';
+      const nextPath = { id: `${Date.now()}-${Math.random()}`, points: [point], color: highlighter ? HIGHLIGHTER_COLOR : colorRef.current, width: highlighter ? 16 : widthRef.current, opacity: highlighter ? 0.42 : 1 };
+      activePath.current = nextPath; setPaths((previous) => [...previous, nextPath]); setRedoPaths([]);
     },
     onPanResponderMove: (event, gestureState) => {
       if (toolRef.current === 'move') {
-        const nextOffset = {
-          x: moveStart.current.x + gestureState.dx,
-          y: moveStart.current.y + gestureState.dy,
-        };
-        panOffsetRef.current = nextOffset;
-        setPanOffset(nextOffset);
-        return;
+        const next = { x: moveStart.current.x + gestureState.dx, y: moveStart.current.y + gestureState.dy };
+        panOffsetRef.current = next; setPanOffset(next); return;
       }
       const point = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY };
       if (toolRef.current === 'eraser') {
-        const next = pathsRef.current.filter((path) => {
-          for (let i = 0; i < path.points.length; i += 1) {
-            if (Math.hypot(path.points[i].x - point.x, path.points[i].y - point.y) < 22) return false;
-          }
-          return true;
-        });
-        if (next.length !== pathsRef.current.length) {
-          pathsRef.current = next;
-          setPaths(next);
-        }
+        const next = pathsRef.current.filter((path) => !path.points.some((p) => Math.hypot(p.x - point.x, p.y - point.y) < 22));
+        if (next.length !== pathsRef.current.length) { pathsRef.current = next; setPaths(next); }
         return;
       }
       if (!activePath.current) return;
       const updated = { ...activePath.current, points: [...activePath.current.points, point] };
-      activePath.current = updated;
-      setPaths((previous) => [...previous.slice(0, -1), updated]);
+      activePath.current = updated; setPaths((previous) => [...previous.slice(0, -1), updated]);
     },
     onPanResponderRelease: () => { activePath.current = null; },
     onPanResponderTerminate: () => { activePath.current = null; },
   }), []);
 
-  const undo = () => {
-    if (!paths.length) return;
-    setRedoPaths((previous) => [...previous, paths[paths.length - 1]]);
-    setPaths((previous) => previous.slice(0, -1));
+  const changePage = (nextIndex) => {
+    if (nextIndex < 0 || nextIndex >= pages.length) return;
+    setPages((previous) => previous.map((page, index) => index === pageIndex ? { ...page, paths } : page));
+    const nextPage = pages[nextIndex];
+    setPageIndex(nextIndex); setPaths(nextPage.paths || []); setRedoPaths([]);
+    pathsRef.current = nextPage.paths || [];
+    setZoom(1); setPanOffset({ x: 0, y: 0 });
   };
-
-  const redo = () => {
-    if (!redoPaths.length) return;
-    setPaths((previous) => [...previous, redoPaths[redoPaths.length - 1]]);
-    setRedoPaths((previous) => previous.slice(0, -1));
+  const undo = () => { if (!paths.length) return; setRedoPaths((previous) => [...previous, paths[paths.length - 1]]); setPaths((previous) => previous.slice(0, -1)); };
+  const redo = () => { if (!redoPaths.length) return; setPaths((previous) => [...previous, redoPaths[redoPaths.length - 1]]); setRedoPaths((previous) => previous.slice(0, -1)); };
+  const save = () => {
+    const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths } : page);
+    onSave({ ...document, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
   };
-
-  const save = () => onSave({ ...document, paths, updatedAt: Date.now() });
+  const currentPage = pages[pageIndex];
 
   return (
     <SafeAreaView style={styles.editorSafe}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.paper} />
       <View style={styles.editorHeader}>
         <Pressable onPress={save} style={styles.backButton}><Text style={styles.backArrow}>‹</Text></Pressable>
-        <View style={styles.editorTitleWrap}>
-          <Text style={styles.editorTitle}>Área de escrita</Text>
-          <Text style={styles.editorSubtitle}>Suas anotações ficam sobre a imagem</Text>
-        </View>
+        <View style={styles.editorTitleWrap}><Text style={styles.editorTitle}>{document.title || 'Resolvendo prova'}</Text><Text style={styles.editorSubtitle}>Desenhe diretamente sobre a página</Text></View>
         <Pressable onPress={save} style={styles.saveButton}><Text style={styles.saveButtonText}>Salvar</Text></Pressable>
       </View>
-
       <View style={styles.editorToolbar}>
-        <Pressable onPress={undo} disabled={!paths.length} style={[styles.toolButton, !paths.length && styles.toolDisabled]}>
-          <Text style={styles.toolGlyph}>↶</Text><Text style={styles.toolLabel}>Desfazer</Text>
-        </Pressable>
-        <Pressable onPress={redo} disabled={!redoPaths.length} style={[styles.toolButton, !redoPaths.length && styles.toolDisabled]}>
-          <Text style={styles.toolGlyph}>↷</Text><Text style={styles.toolLabel}>Refazer</Text>
-        </Pressable>
+        <Pressable onPress={undo} disabled={!paths.length} style={[styles.toolButton, !paths.length && styles.toolDisabled]}><Text style={styles.toolGlyph}>↶</Text><Text style={styles.toolLabel}>Desfazer</Text></Pressable>
+        <Pressable onPress={redo} disabled={!redoPaths.length} style={[styles.toolButton, !redoPaths.length && styles.toolDisabled]}><Text style={styles.toolGlyph}>↷</Text><Text style={styles.toolLabel}>Refazer</Text></Pressable>
         <View style={styles.toolbarDivider} />
-        <Pressable onPress={() => setPaths([])} style={styles.toolButton}>
-          <Text style={styles.toolGlyph}>⌫</Text><Text style={styles.toolLabel}>Limpar</Text>
-        </Pressable>
+        <Pressable onPress={() => { setPaths([]); setRedoPaths([]); }} style={styles.toolButton}><Text style={styles.toolGlyph}>⌫</Text><Text style={styles.toolLabel}>Limpar</Text></Pressable>
         <View style={styles.editorSpacer} />
-        <View style={styles.pageCounter}><Text style={styles.pageCounterText}>01 / 01</Text></View>
+        <View style={styles.pageCounter}><Text style={styles.pageCounterText}>{String(pageIndex + 1).padStart(2, '0')} / {String(pages.length).padStart(2, '0')}</Text></View>
       </View>
-
       <View style={styles.canvasArea}>
         <View style={styles.canvasPaper} onLayout={(event) => setCanvasSize(event.nativeEvent.layout)}>
           <View style={[styles.zoomContent, { transform: [{ translateX: panOffset.x }, { translateY: panOffset.y }, { scale: zoom }] }]}>
-          <Image source={{ uri: document.uri }} style={styles.examImage} resizeMode="contain" />
-          <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers}>
-            <Svg width={canvasSize.width} height={canvasSize.height}>
-              {paths.map((path) => (
-                <Path
-                  key={path.id}
-                  d={pathToSvg(path.points)}
-                  stroke={path.color}
-                  strokeWidth={path.width}
-                  strokeOpacity={path.opacity ?? 1}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="none"
-                />
-              ))}
-            </Svg>
-          </View>
+            <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" />
+            <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers}>
+              <Svg width={canvasSize.width} height={canvasSize.height}>
+                {paths.map((path) => <Path key={path.id} d={pathToSvg(path.points)} stroke={path.color} strokeWidth={path.width} strokeOpacity={path.opacity ?? 1} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}
+              </Svg>
+            </View>
           </View>
         </View>
         <View style={styles.canvasHintRow}>
-          <Text style={styles.canvasHintText}>{tool === 'move' ? '✥  Arraste para posicionar a folha' : '✎  Desenhe com o dedo sobre a folha'}</Text>
+          <Text style={styles.canvasHintText}>{tool === 'move' ? '✥ Arraste para posicionar a folha' : '✎ Desenhe com o dedo sobre a folha'}</Text>
           <View style={styles.zoomControls}>
             <Pressable onPress={() => setZoom((value) => Math.max(1, Number((value - 0.25).toFixed(2))))} style={styles.zoomButton}><Text style={styles.zoomButtonText}>−</Text></Pressable>
             <Text style={styles.zoomValue}>{Math.round(zoom * 100)}%</Text>
@@ -335,44 +230,21 @@ function EditorScreen({ document, onBack, onSave }) {
           </View>
         </View>
       </View>
-
+      <View style={styles.pageNavigation}>
+        <Pressable disabled={pageIndex === 0} onPress={() => changePage(pageIndex - 1)} style={[styles.pageNavButton, pageIndex === 0 && styles.toolDisabled]}><Text style={styles.pageNavText}>‹ Anterior</Text></Pressable>
+        <Text style={styles.pageNavLabel}>Página {pageIndex + 1} de {pages.length}</Text>
+        <Pressable disabled={pageIndex === pages.length - 1} onPress={() => changePage(pageIndex + 1)} style={[styles.pageNavButton, pageIndex === pages.length - 1 && styles.toolDisabled]}><Text style={styles.pageNavText}>Próxima ›</Text></Pressable>
+      </View>
       <View style={styles.drawingPanel}>
         <View style={styles.toolModeRow}>
-          <Pressable onPress={() => setTool('pen')} style={[styles.modeButton, tool === 'pen' && styles.modeButtonActive]}>
-            <Text style={[styles.modeGlyph, tool === 'pen' && styles.modeGlyphActive]}>✎</Text>
-            <Text style={[styles.modeText, tool === 'pen' && styles.modeTextActive]}>Caneta</Text>
-          </Pressable>
-          <Pressable onPress={() => setTool('highlighter')} style={[styles.modeButton, tool === 'highlighter' && styles.modeButtonActive]}>
-            <Text style={[styles.modeGlyph, tool === 'highlighter' && styles.modeGlyphActive]}>▰</Text>
-            <Text style={[styles.modeText, tool === 'highlighter' && styles.modeTextActive]}>Marca-texto</Text>
-          </Pressable>
-          <Pressable onPress={() => setTool('move')} style={[styles.modeButton, tool === 'move' && styles.modeButtonActive]}>
-            <Text style={[styles.modeGlyph, tool === 'move' && styles.modeGlyphActive]}>✥</Text>
-            <Text style={[styles.modeText, tool === 'move' && styles.modeTextActive]}>Mover</Text>
-          </Pressable>
-          <Pressable onPress={() => setTool('eraser')} style={[styles.modeButton, tool === 'eraser' && styles.modeButtonActive]}>
-            <Text style={[styles.modeGlyph, tool === 'eraser' && styles.modeGlyphActive]}>▱</Text>
-            <Text style={[styles.modeText, tool === 'eraser' && styles.modeTextActive]}>Borracha</Text>
-          </Pressable>
+          <Pressable onPress={() => setTool('pen')} style={[styles.modeButton, tool === 'pen' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'pen' && styles.modeGlyphActive]}>✎</Text><Text style={[styles.modeText, tool === 'pen' && styles.modeTextActive]}>Caneta</Text></Pressable>
+          <Pressable onPress={() => setTool('highlighter')} style={[styles.modeButton, tool === 'highlighter' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'highlighter' && styles.modeGlyphActive]}>▰</Text><Text style={[styles.modeText, tool === 'highlighter' && styles.modeTextActive]}>Marca-texto</Text></Pressable>
+          <Pressable onPress={() => setTool('move')} style={[styles.modeButton, tool === 'move' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'move' && styles.modeGlyphActive]}>✥</Text><Text style={[styles.modeText, tool === 'move' && styles.modeTextActive]}>Mover</Text></Pressable>
+          <Pressable onPress={() => setTool('eraser')} style={[styles.modeButton, tool === 'eraser' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'eraser' && styles.modeGlyphActive]}>▱</Text><Text style={[styles.modeText, tool === 'eraser' && styles.modeTextActive]}>Borracha</Text></Pressable>
           <View style={styles.panelDivider} />
-          <View style={styles.widthOptions}>
-            {[2, 4, 7].map((width) => (
-              <Pressable key={width} onPress={() => { setStrokeWidth(width); setTool('pen'); }} style={[styles.widthButton, strokeWidth === width && tool === 'pen' && styles.widthButtonActive]}>
-                <View style={[styles.widthDot, { width: width + 3, height: width + 3 }]} />
-              </Pressable>
-            ))}
-          </View>
+          <View style={styles.widthOptions}>{[2, 4, 7].map((width) => <Pressable key={width} onPress={() => { setStrokeWidth(width); setTool('pen'); }} style={[styles.widthButton, strokeWidth === width && tool === 'pen' && styles.widthButtonActive]}><View style={[styles.widthDot, { width: width + 3, height: width + 3 }]} /></Pressable>)}</View>
         </View>
-        <View style={styles.colorRow}>
-          <Text style={styles.colorLabel}>COR</Text>
-          {PALETTE.map((item) => (
-            <Pressable key={item} onPress={() => { setColor(item); setTool('pen'); }} style={[styles.colorButton, color === item && tool === 'pen' && styles.colorButtonSelected]}>
-              <View style={[styles.colorDot, { backgroundColor: item }]} />
-            </Pressable>
-          ))}
-          <View style={styles.panelSpacer} />
-          <Text style={styles.annotationCount}>{paths.length} traços</Text>
-        </View>
+        <View style={styles.colorRow}><Text style={styles.colorLabel}>COR</Text>{PALETTE.map((item) => <Pressable key={item} onPress={() => { setColor(item); setTool('pen'); }} style={[styles.colorButton, color === item && tool === 'pen' && styles.colorButtonSelected]}><View style={[styles.colorDot, { backgroundColor: item }]} /></Pressable>)}<View style={styles.panelSpacer} /><Text style={styles.annotationCount}>{paths.length} traços nesta página</Text></View>
       </View>
     </SafeAreaView>
   );
@@ -381,27 +253,29 @@ function EditorScreen({ document, onBack, onSave }) {
 function BlocoApp() {
   const [documents, setDocuments] = useState([]);
   const [activeDocument, setActiveDocument] = useState(null);
-  const [examVisible, setExamVisible] = useState(false);
 
-  const importImage = async () => {
+  const importImages = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
+        allowsMultipleSelection: true,
+        selectionLimit: 100,
+        orderedSelection: true,
         allowsEditing: false,
         quality: 1,
       });
       if (result.canceled || !result.assets?.length) return;
-      const asset = result.assets[0];
-      const newDocument = {
-        id: `${Date.now()}`,
+      const pages = result.assets.map((asset, index) => ({
+        id: `page-${index + 1}-${Date.now()}`,
         uri: asset.uri,
-        title: 'Minha nova página',
         paths: [],
-        createdAt: Date.now(),
-      };
+        fileName: asset.fileName || `Página ${index + 1}`,
+      }));
+      const newDocument = { id: `${Date.now()}`, title: 'Minha prova', pages, createdAt: Date.now() };
       setActiveDocument(newDocument);
     } catch (error) {
-      Alert.alert('Não foi possível abrir a galeria', 'Tente novamente em alguns instantes.');
+      console.error('Erro ao importar páginas:', error);
+      Alert.alert('Não foi possível importar as imagens', error?.message || 'Tente selecionar as imagens novamente.');
     }
   };
 
@@ -412,62 +286,14 @@ function BlocoApp() {
     });
     setActiveDocument(null);
   };
+  const deleteDocument = (documentId) => setDocuments((previous) => previous.filter((item) => item.id !== documentId));
 
-  const deleteDocument = (documentId) => {
-    setDocuments((previous) => previous.filter((item) => item.id !== documentId));
-  };
-
-  if (activeDocument) {
-    return <EditorScreen key={activeDocument.id} document={activeDocument} onSave={saveDocument} />;
-  }
-
-  if (examVisible) {
-    return <ExamExperience onClose={() => setExamVisible(false)} />;
-  }
-
-  return (
-    <HomeScreen
-      documents={documents}
-      onImport={importImage}
-      onOpen={(document) => setActiveDocument(document)}
-      onDelete={deleteDocument}
-      onOpenExams={() => setExamVisible(true)}
-    />
-  );
-}
-
-async function initializeDatabase(db) {
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS exam_sessions (
-      id TEXT PRIMARY KEY NOT NULL,
-      exam_id TEXT NOT NULL,
-      exam_name TEXT NOT NULL,
-      day_name TEXT NOT NULL,
-      mode TEXT NOT NULL,
-      source_uri TEXT,
-      source_name TEXT,
-      questions_json TEXT NOT NULL,
-      duration_seconds INTEGER NOT NULL,
-      remaining_seconds INTEGER NOT NULL,
-      ends_at INTEGER,
-      status TEXT NOT NULL,
-      current_index INTEGER NOT NULL DEFAULT 0,
-      answers_json TEXT NOT NULL DEFAULT '{}',
-      marked_json TEXT NOT NULL DEFAULT '[]',
-      essay_text TEXT NOT NULL DEFAULT '',
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      completed_at INTEGER
-    );
-  `);
+  if (activeDocument) return <EditorScreen key={activeDocument.id} document={activeDocument} onSave={saveDocument} />;
+  return <HomeScreen documents={documents} onImport={importImages} onOpen={setActiveDocument} onDelete={deleteDocument} />;
 }
 
 export default function App() {
-  return (
-    <SQLiteProvider databaseName="bloco.db" onInit={initializeDatabase}>
-      <BlocoApp />
-    </SQLiteProvider>
-  );
+  return <BlocoApp />;
 }
 
 const styles = StyleSheet.create({
