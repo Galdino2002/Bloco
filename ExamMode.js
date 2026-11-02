@@ -50,6 +50,7 @@ async function loadPdf(base64){
 document.addEventListener('message',e=>{const m=JSON.parse(e.data);if(m.type==='LOAD_PDF')loadPdf(m.data);});
 window.addEventListener('message',e=>{const m=JSON.parse(e.data);if(m.type==='LOAD_PDF')loadPdf(m.data);});
 send({type:'READY'});
+}
 <\/script></body></html>`;
 
 function formatTime(seconds) {
