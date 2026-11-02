@@ -14,6 +14,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import Svg, { Path } from 'react-native-svg';
 import ExamMode from './ExamMode';
+import RedacaoMode from './RedacaoMode';
 
 const COLORS = {
   ink: '#203B32',
@@ -68,7 +69,7 @@ function ActionButton({ label, onPress, secondary = false, compact = false }) {
   );
 }
 
-function HomeScreen({ documents, onImport, onOpen, onDelete, onExam }) {
+function HomeScreen({ documents, onImport, onOpen, onDelete, onExam, onRedacao }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.paper} />
@@ -89,7 +90,7 @@ function HomeScreen({ documents, onImport, onOpen, onDelete, onExam }) {
           </View>
           <Text style={styles.heroTitle}>Importe as páginas{ '\n' }e resolva aqui.</Text>
           <Text style={styles.heroDescription}>Selecione várias imagens da prova. Depois, escreva, marque e desenhe diretamente sobre cada página.</Text>
-          <View style={styles.heroActions}><Pressable onPress={onImport} style={styles.heroButton}><Text style={styles.heroButtonText}>＋  Importar páginas</Text></Pressable><Pressable onPress={onExam} style={styles.heroExamButton}><Text style={styles.heroExamButtonText}>Ambiente de provas</Text></Pressable></View>
+          <View style={styles.heroActions}><Pressable onPress={onImport} style={styles.heroButton}><Text style={styles.heroButtonText}>＋  Importar páginas</Text></Pressable><View style={styles.heroSecondaryActions}><Pressable onPress={onExam} style={styles.heroExamButton}><Text style={styles.heroExamButtonText}>Ambiente de provas</Text></Pressable><Pressable onPress={onRedacao} style={styles.heroRedacaoButton}><Text style={styles.heroExamButtonText}>Ambiente de redação</Text></Pressable></View></View>
         </View>
         <View style={styles.sectionHeading}>
           <View><Text style={styles.sectionTitle}>Meus cadernos</Text><Text style={styles.sectionSubtitle}>Continue de onde parou</Text></View>
@@ -255,6 +256,7 @@ function BlocoApp() {
   const [documents, setDocuments] = useState([]);
   const [activeDocument, setActiveDocument] = useState(null);
   const [examMode, setExamMode] = useState(false);
+  const [redacaoMode, setRedacaoMode] = useState(false);
 
   const importImages = async () => {
     try {
@@ -292,7 +294,8 @@ function BlocoApp() {
 
   if (activeDocument) return <EditorScreen key={activeDocument.id} document={activeDocument} onSave={saveDocument} />;
   if (examMode) return <ExamMode onExit={() => setExamMode(false)} />;
-  return <HomeScreen documents={documents} onImport={importImages} onOpen={setActiveDocument} onDelete={deleteDocument} onExam={() => setExamMode(true)} />;
+  if (redacaoMode) return <RedacaoMode onExit={() => setRedacaoMode(false)} />;
+  return <HomeScreen documents={documents} onImport={importImages} onOpen={setActiveDocument} onDelete={deleteDocument} onExam={() => setExamMode(true)} onRedacao={() => setRedacaoMode(true)} />;
 }
 
 export default function App() {
@@ -332,10 +335,12 @@ const styles = StyleSheet.create({
   pencilText: { color: '#4A3827', fontSize: 21 },
   heroTitle: { color: '#FFFFFF', fontFamily: 'serif', fontSize: 28, lineHeight: 31, marginTop: 116, letterSpacing: -0.4 },
   heroDescription: { color: '#C1CEC3', fontSize: 11, lineHeight: 17, marginTop: 7, maxWidth: 235 },
-  heroActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+  heroActions: { flexDirection: 'column', alignItems: 'stretch', gap: 9, marginTop: 16 },
+  heroSecondaryActions: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
   heroButton: { alignSelf: 'flex-start', backgroundColor: '#E7EDE4', borderRadius: 13, paddingHorizontal: 14, paddingVertical: 12 },
   heroButtonText: { color: COLORS.ink, fontWeight: '700', fontSize: 11 },
-  heroExamButton: { alignSelf: 'flex-start', backgroundColor: 'transparent', borderColor: '#82978A', borderWidth: 1, borderRadius: 13, paddingHorizontal: 14, paddingVertical: 11 },
+  heroExamButton: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent', borderColor: '#82978A', borderWidth: 1, borderRadius: 13, paddingHorizontal: 8, paddingVertical: 11 },
+  heroRedacaoButton: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#476B5A', borderColor: '#82978A', borderWidth: 1, borderRadius: 13, paddingHorizontal: 8, paddingVertical: 11 },
   heroExamButtonText: { color: '#E7EDE4', fontWeight: '700', fontSize: 11 },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   sectionTitle: { color: COLORS.ink, fontFamily: 'serif', fontSize: 23 },
