@@ -160,7 +160,9 @@ function EditorScreen({ document, onBack, onSave }) {
   const [color, setColor] = useState(PALETTE[0]);
   const [strokeWidth, setStrokeWidth] = useState(4);
   const [zoom, setZoom] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
+  const moveStart = useRef({ x: 0, y: 0 });
   const activePath = useRef(null);
   const pathsRef = useRef(paths);
   const toolRef = useRef(tool);
@@ -176,6 +178,10 @@ function EditorScreen({ document, onBack, onSave }) {
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (event) => {
+      if (toolRef.current === 'move') {
+        moveStart.current = { x: panOffset.x, y: panOffset.y };
+        return;
+      }
       const point = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY };
       if (toolRef.current === 'eraser') {
         const next = pathsRef.current.filter((path) => {
@@ -197,7 +203,14 @@ function EditorScreen({ document, onBack, onSave }) {
       setPaths((previous) => [...previous, nextPath]);
       setRedoPaths([]);
     },
-    onPanResponderMove: (event) => {
+    onPanResponderMove: (event, gestureState) => {
+      if (toolRef.current === 'move') {
+        setPanOffset({
+          x: moveStart.current.x + gestureState.dx,
+          y: moveStart.current.y + gestureState.dy,
+        });
+        return;
+      }
       const point = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY };
       if (toolRef.current === 'eraser') {
         const next = pathsRef.current.filter((path) => {
@@ -264,7 +277,7 @@ function EditorScreen({ document, onBack, onSave }) {
 
       <View style={styles.canvasArea}>
         <View style={styles.canvasPaper} onLayout={(event) => setCanvasSize(event.nativeEvent.layout)}>
-          <View style={[styles.zoomContent, { transform: [{ scale: zoom }] }]}>
+          <View style={[styles.zoomContent, { transform: [{ translateX: panOffset.x }, { translateY: panOffset.y }, { scale: zoom }] }]}>
           <Image source={{ uri: document.uri }} style={styles.examImage} resizeMode="contain" />
           <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers}>
             <Svg width={canvasSize.width} height={canvasSize.height}>
@@ -285,12 +298,12 @@ function EditorScreen({ document, onBack, onSave }) {
           </View>
         </View>
         <View style={styles.canvasHintRow}>
-          <Text style={styles.canvasHintText}>✎  Desenhe com o dedo sobre a folha</Text>
+          <Text style={styles.canvasHintText}>{tool === 'move' ? '✥  Arraste para posicionar a folha' : '✎  Desenhe com o dedo sobre a folha'}</Text>
           <View style={styles.zoomControls}>
             <Pressable onPress={() => setZoom((value) => Math.max(1, Number((value - 0.25).toFixed(2))))} style={styles.zoomButton}><Text style={styles.zoomButtonText}>−</Text></Pressable>
             <Text style={styles.zoomValue}>{Math.round(zoom * 100)}%</Text>
             <Pressable onPress={() => setZoom((value) => Math.min(3, Number((value + 0.25).toFixed(2))))} style={styles.zoomButton}><Text style={styles.zoomButtonText}>＋</Text></Pressable>
-            <Pressable onPress={() => setZoom(1)} style={styles.zoomReset}><Text style={styles.zoomResetText}>Ajustar</Text></Pressable>
+            <Pressable onPress={() => { setZoom(1); setPanOffset({ x: 0, y: 0 }); }} style={styles.zoomReset}><Text style={styles.zoomResetText}>Ajustar</Text></Pressable>
           </View>
         </View>
       </View>
@@ -304,6 +317,10 @@ function EditorScreen({ document, onBack, onSave }) {
           <Pressable onPress={() => setTool('highlighter')} style={[styles.modeButton, tool === 'highlighter' && styles.modeButtonActive]}>
             <Text style={[styles.modeGlyph, tool === 'highlighter' && styles.modeGlyphActive]}>▰</Text>
             <Text style={[styles.modeText, tool === 'highlighter' && styles.modeTextActive]}>Marca-texto</Text>
+          </Pressable>
+          <Pressable onPress={() => setTool('move')} style={[styles.modeButton, tool === 'move' && styles.modeButtonActive]}>
+            <Text style={[styles.modeGlyph, tool === 'move' && styles.modeGlyphActive]}>✥</Text>
+            <Text style={[styles.modeText, tool === 'move' && styles.modeTextActive]}>Mover</Text>
           </Pressable>
           <Pressable onPress={() => setTool('eraser')} style={[styles.modeButton, tool === 'eraser' && styles.modeButtonActive]}>
             <Text style={[styles.modeGlyph, tool === 'eraser' && styles.modeGlyphActive]}>▱</Text>
