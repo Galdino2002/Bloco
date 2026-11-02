@@ -1,31 +1,28 @@
 # Bloco
 
-Um espaço de estudos para importar materiais, escrever sobre imagens e realizar simulados.
+Caderno digital para estudar diretamente sobre as páginas de uma prova.
 
-## Ambiente de provas
+## Fluxo atual
 
-- Catálogo inicial: ENEM, UECE, URCA, FUVEST, UNICAMP, UNESP e concursos.
-- Modelos de etapas e duração baseados nos editais/formatos de referência; editais futuros podem alterar regras e tempos.
-- Banco inicial com questões autorais de demonstração, alternativas, gabarito e explicações.
-- Importação de cadernos em PDF para consulta externa durante a sessão.
-- Folha digital para registrar respostas, marcar questões para revisar e navegar pelo caderno.
-- Cronômetro com pausa e retomada.
-- Histórico persistido localmente com SQLite.
-- Área de rascunho de redação para o primeiro dia do ENEM.
-- Resultados e revisão de respostas para questões do banco.
+1. Converta cada página do PDF da prova em uma imagem PNG ou JPG fora do aplicativo.
+2. No Bloco, toque em Importar páginas e selecione todas as imagens da prova de uma vez.
+3. As imagens são organizadas como páginas de um único caderno.
+4. Navegue entre as páginas e desenhe diretamente sobre cada uma.
+5. Use caneta, marca-texto, borracha, desfazer, refazer e zoom.
+6. Toque em Salvar para guardar o caderno na sessão atual do aplicativo.
 
-**Importante:** o banco de questões atual é pequeno e contém exemplos autorais, não é um acervo oficial de questões. O PDF selecionado é aberto no leitor do aparelho; nesta versão o Bloco não renderiza as páginas do PDF dentro do editor, não extrai automaticamente suas questões e não corrige automaticamente gabaritos de provas importadas. A redação fica salva como rascunho, sem correção automática.
+As anotações são separadas por página. O Bloco permanece em JavaScript e foi mantido no Expo Go, sem Development Build.
+
+## Limitação desta etapa
+
+A conversão de PDF para PNG ainda é feita fora do Bloco. A lista de cadernos e as anotações permanecem em memória nesta primeira etapa; fechar o aplicativo pode apagar esses dados. A próxima etapa será implementar a persistência dos cadernos e das páginas.
 
 ## Executar no Expo Go
 
-Requer Node.js compatível com Expo SDK 57 e Expo Go correspondente.
-
-```bash
-git pull origin main
-npm install
-npx expo install --fix
-npx expo start -c
-```
+- git pull origin main
+- npm install
+- npx expo install --fix
+- npx expo start -c
 
 Leia o QR Code com o Expo Go no Android.
 
@@ -34,8 +31,4 @@ Leia o QR Code com o Expo Go no Android.
 - React Native
 - Expo SDK 57
 - expo-image-picker
-- expo-document-picker
-- expo-sqlite
 - react-native-svg
-
-O projeto permanece em JavaScript e não exige Development Build para os recursos descritos.
