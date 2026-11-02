@@ -137,7 +137,7 @@ export default function RedacaoMode({ onExit }) {
       <SafeAreaView style={styles.safe}>
         <StatusBar barStyle="dark-content" backgroundColor={PAPER} />
         <View style={styles.header}>
-          <Pressable onPress={() => setActive(null)} style={styles.back}><Text style={styles.backText}>‹</Text></Pressable>
+          <Pressable onPress={saveDraft} style={styles.back}><Text style={styles.backText}>‹</Text></Pressable>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>Ambiente de redação</Text>
             <Text style={styles.headerSub}>Seu espaço para desenvolver ideias</Text>
