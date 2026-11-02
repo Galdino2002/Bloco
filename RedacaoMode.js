@@ -46,8 +46,11 @@ export default function RedacaoMode({ onExit }) {
   const [loaded, setLoaded] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [showLines, setShowLines] = useState(true);
+  const [canvasTool, setCanvasTool] = useState('draw');
+  const canvasToolRef = useRef('draw');
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const panRef = useRef({ x: 0, y: 0 });
+  const moveStart = useRef(null);
   const pinchStart = useRef(null);
   const zoomRef = useRef(1);
   zoomRef.current = zoom;
@@ -123,6 +126,10 @@ export default function RedacaoMode({ onExit }) {
         pinchStart.current = { distance: Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY), zoom: zoomRef.current, centerX: (a.pageX + b.pageX) / 2, centerY: (a.pageY + b.pageY) / 2, pan: panRef.current };
         return;
       }
+      if (canvasToolRef.current === 'move') {
+        moveStart.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY, pan: panRef.current };
+        return;
+      }
       const point = { x: (event.nativeEvent.locationX - panRef.current.x) / zoomRef.current, y: (event.nativeEvent.locationY - panRef.current.y) / zoomRef.current };
       const stroke = {
         id: String(Date.now()) + Math.random(),
@@ -154,14 +161,23 @@ export default function RedacaoMode({ onExit }) {
         return;
       }
       pinchStart.current = null;
+      if (canvasToolRef.current === 'move' && moveStart.current) {
+        const nextPan = {
+          x: moveStart.current.pan.x + event.nativeEvent.pageX - moveStart.current.x,
+          y: moveStart.current.pan.y + event.nativeEvent.pageY - moveStart.current.y,
+        };
+        panRef.current = nextPan;
+        setPan(nextPan);
+        return;
+      }
       if (!activePath.current) return;
       const point = { x: (event.nativeEvent.locationX - panRef.current.x) / zoomRef.current, y: (event.nativeEvent.locationY - panRef.current.y) / zoomRef.current };
       const updated = { ...activePath.current, points: [...activePath.current.points, point] };
       activePath.current = updated;
       setPaths(old => [...old.slice(0, -1), updated]);
     },
-    onPanResponderRelease: () => { activePath.current = null; pinchStart.current = null; },
-    onPanResponderTerminate: () => { activePath.current = null; pinchStart.current = null; },
+    onPanResponderRelease: () => { activePath.current = null; pinchStart.current = null; moveStart.current = null; },
+    onPanResponderTerminate: () => { activePath.current = null; pinchStart.current = null; moveStart.current = null; },
   }), []);
 
   if (active) {
@@ -218,6 +234,20 @@ export default function RedacaoMode({ onExit }) {
               </View>
               <Pressable onPress={() => setShowLines(value => !value)} style={[styles.linesToggle, showLines && styles.linesToggleActive]}>
                 <Text style={[styles.linesToggleText, showLines && styles.linesToggleTextActive]}>{showLines ? '☷ Linhas' : '□ Sem linhas'}</Text>
+              </Pressable>
+            </View>
+            <View style={styles.canvasModeBar}>
+              <Pressable
+                onPress={() => { canvasToolRef.current = 'draw'; setCanvasTool('draw'); }}
+                style={[styles.canvasModeButton, canvasTool === 'draw' && styles.canvasModeSelected]}
+              >
+                <Text style={[styles.canvasModeText, canvasTool === 'draw' && styles.canvasModeTextSelected]}>✎ Desenhar</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => { canvasToolRef.current = 'move'; setCanvasTool('move'); activePath.current = null; }}
+                style={[styles.canvasModeButton, canvasTool === 'move' && styles.canvasModeSelected]}
+              >
+                <Text style={[styles.canvasModeText, canvasTool === 'move' && styles.canvasModeTextSelected]}>✋ Mover</Text>
               </Pressable>
             </View>
             <View style={styles.zoomToolbar}>
@@ -307,6 +337,11 @@ const styles = StyleSheet.create({
   linesToggleActive: { backgroundColor: '#DDE9DF' },
   linesToggleText: { color: '#7C887E', fontSize: 10, fontWeight: '700' },
   linesToggleTextActive: { color: GREEN },
+  canvasModeBar: { flexDirection: 'row', backgroundColor: '#EAEDE6', borderRadius: 10, padding: 3, marginTop: 7 },
+  canvasModeButton: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 8 },
+  canvasModeSelected: { backgroundColor: '#FFF' },
+  canvasModeText: { color: '#7C887E', fontSize: 11, fontWeight: '700' },
+  canvasModeTextSelected: { color: GREEN },
   zoomToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 8 },
   zoomButton: { width: 32, height: 30, borderRadius: 8, backgroundColor: '#E8F0E9', alignItems: 'center', justifyContent: 'center' },
   zoomButtonText: { color: INK, fontSize: 18, fontWeight: '700' },
