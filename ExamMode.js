@@ -258,6 +258,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const [lasso, setLasso] = useState([]);
   const [color, setColor] = useState(COLORS[0]);
   const [markerType, setMarkerType] = useState('classic');
+  const [penWidth, setPenWidth] = useState(4);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [remaining, setRemaining] = useState(exam.remaining ?? exam.duration);
@@ -267,6 +268,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const toolRef = useRef(tool);
   const colorRef = useRef(color);
   const markerTypeRef = useRef(markerType);
+  const penWidthRef = useRef(penWidth);
   const zoomRef = useRef(1);
   const pinchStart = useRef(null);
   const panStart = useRef(null);
@@ -274,7 +276,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const selectedRef = useRef([]);
   const lassoRef = useRef([]);
   const selectionGesture = useRef(null);
-  pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType;
+  pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType; penWidthRef.current = penWidth;
   selectedRef.current = selectedIds; lassoRef.current = lasso;
 
   const snapshotRef = useRef({ pages, index, paths, remaining });
@@ -345,7 +347,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         id: String(Date.now()) + Math.random(),
         points: [p],
         color: colorRef.current,
-        width: isHighlighter ? markerStyle.width : 4,
+        width: isHighlighter ? markerStyle.width : penWidthRef.current,
         opacity: isHighlighter ? markerStyle.opacity : 1,
       };
       activePath.current = stroke; setPaths(old => [...old, stroke]); setRedo([]);
@@ -449,6 +451,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         <Text style={s.lassoMainGlyph}>⌁</Text><View style={{ flex: 1 }}><Text style={s.lassoMainTitle}>SELECIONAR ESCRITA • LAÇO</Text><Text style={s.lassoMainSubtitle}>Contorne, mova e redimensione somente sua escrita</Text></View><Text style={s.lassoMainChevron}>›</Text>
       </Pressable>
       <Text style={s.selectionHint}>{tool==='select'?(selectedIds.length?'Arraste a seleção para mover. Use A+ e A− para redimensionar.':'Contorne a escrita com o dedo para selecionar.'):'Escreva na página ou escolha uma ferramenta.'}</Text>{selectedIds.length>0 && <View style={s.selectionActions}><Pressable onPress={()=>{setPaths(old=>scaleSelected(old,selectedIds,1.15));setRedo([]);}}><Text style={s.toolbarText}>Aumentar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>scaleSelected(old,selectedIds,0.87));setRedo([]);}}><Text style={s.toolbarText}>Diminuir</Text></Pressable><Pressable onPress={()=>{setPaths(old=>rotateSelected(old,selectedIds,Math.PI/12));setRedo([]);}}><Text style={s.toolbarText}>Girar</Text></Pressable><Pressable onPress={()=>{const picked=paths.filter(stroke=>selectedIds.includes(stroke.id));setSelectedClipboard(picked);setPaths(old=>old.filter(stroke=>!selectedIds.includes(stroke.id)));setSelectedIds([]);setRedo([]);}}><Text style={s.toolbarText}>Recortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(stroke=>({...stroke,id:String(Date.now())+Math.random(),points:stroke.points.map(p=>({x:p.x+24,y:p.y+24}))}));setPaths(old=>[...old,...pasted]);setSelectedIds(pasted.map(stroke=>stroke.id));setRedo([]);}}><Text style={s.toolbarText}>Colar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>old.filter(stroke=>!selectedIds.includes(stroke.id)));setSelectedIds([]);setRedo([]);}}><Text style={[s.toolbarText,{color:'#B44D45'}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedIds([])}><Text style={s.toolbarText}>Desmarcar</Text></Pressable></View>}<View style={s.drawTools}><Pressable onPress={() => setTool('pen')} style={[s.tool, tool === 'pen' && s.toolActive]}><Text style={s.toolText}>✎ Caneta</Text></Pressable><Pressable onPress={() => setTool('highlighter')} style={[s.tool, tool === 'highlighter' && s.toolActive]}><Text style={s.toolText}>▰ Marca-texto</Text></Pressable><Pressable onPress={() => setTool('eraser')} style={[s.tool, tool === 'eraser' && s.toolActive]}><Text style={s.toolText}>⌫ Borracha</Text></Pressable><Pressable onPress={() => setTool('move')} style={[s.tool, tool === 'move' && s.toolActive]}><Text style={s.toolText}>✥ Mover folha</Text></Pressable></View>
+      {tool === 'pen' && <View style={s.penWidths}><Text style={s.paletteTitle}>ESPESSURA</Text>{[2,4,7].map(width => <Pressable key={width} onPress={() => setPenWidth(width)} style={[s.penWidthButton, penWidth === width && s.penWidthButtonActive]}><View style={{ width: width + 3, height: width + 3, borderRadius: 10, backgroundColor: INK }} /></Pressable>)}</View>}
       {tool === 'highlighter' && <View style={s.markerTypes}><Text style={s.paletteTitle}>ESTILO</Text>{[{id:'classic',label:'Clássico'},{id:'pastel',label:'Pastel'},{id:'bold',label:'Forte'},{id:'underline',label:'Sublinhado'}].map(item=><Pressable key={item.id} onPress={()=>setMarkerType(item.id)} style={[s.markerType,markerType===item.id&&s.markerTypeActive]}><Text style={[s.markerTypeText,markerType===item.id&&s.markerTypeTextActive]}>{item.label}</Text></Pressable>)}</View>}
       <View style={s.paletteSection}><Text style={s.paletteTitle}>CORES</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.palette}>{COLORS.map(c => <Pressable key={c} onPress={() => { setColor(c); if (tool === 'eraser') setTool('pen'); }} style={[s.swatch, { backgroundColor: c, borderColor: c === '#FFFFFF' ? '#AEB5AE' : c }, color === c && s.swatchSelected]} />)}</ScrollView></View><View style={s.paletteRow}><View style={s.zoomControls}><Pressable style={s.zoomButton} onPress={() => { const next = Math.max(1, Number((zoom - 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>−</Text></Pressable><Text style={s.zoomValue}>{Math.round(zoom * 100)}%</Text><Pressable style={s.zoomButton} onPress={() => { const next = Math.min(3, Number((zoom + 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>+</Text></Pressable><Pressable style={s.zoomReset} onPress={() => { zoomRef.current = 1; setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); }}><Text style={s.zoomResetText}>Ajustar</Text></Pressable></View></View><Button title="Salvar e sair" onPress={saveAndExit} /></View>
   </SafeAreaView>;
