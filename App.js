@@ -157,15 +157,13 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
           <View><Text style={styles.eyebrow}>CONTINUE DE ONDE PAROU</Text><Text style={styles.welcomeTitle}>Sua prova, suas anotações.</Text></View>
         </View>
         <View style={styles.searchBox}><Text style={styles.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="Buscar por título ou conteúdo" placeholderTextColor={COLORS.muted} style={styles.searchInput} returnKeyType="search" /></View>
-        <View style={styles.heroCard}>
-          <View style={styles.heroTopLine}><View style={styles.heroTag}><Text style={styles.heroTagText}>NOVO CADERNO</Text></View><Text style={styles.heroArrow}>↗</Text></View>
-          <View style={styles.heroIllustration}>
-            <View style={styles.paperBack} /><View style={styles.paperFront}><View style={styles.paperLineLong} /><View style={styles.paperLineShort} /><View style={styles.paperCircle}><Text style={styles.paperCheck}>✓</Text></View><View style={styles.paperLineMedium} /></View>
-            <View style={styles.pencil}><Text style={styles.pencilText}>✎</Text></View>
+        <View style={styles.quickLaunchPanel}>
+          <View style={styles.quickLaunchHeader}><Text style={styles.quickLaunchTitle}>Começar algo novo</Text><Text style={styles.quickLaunchSubtitle}>Escolha um espaço e mantenha o foco</Text></View>
+          <View style={styles.quickLaunchRow}>
+            <Pressable onPress={onCreateNote} style={styles.quickLaunchCard}><Text style={styles.quickLaunchIcon}>＋</Text><Text style={styles.quickLaunchCardTitle}>Nota</Text><Text style={styles.quickLaunchCardText}>Folha livre</Text></Pressable>
+            <Pressable onPress={onExam} style={styles.quickLaunchCard}><Text style={styles.quickLaunchIcon}>◷</Text><Text style={styles.quickLaunchCardTitle}>Prova</Text><Text style={styles.quickLaunchCardText}>Tempo e PDF</Text></Pressable>
+            <Pressable onPress={onRedacao} style={styles.quickLaunchCard}><Text style={styles.quickLaunchIcon}>✎</Text><Text style={styles.quickLaunchCardTitle}>Redação</Text><Text style={styles.quickLaunchCardText}>Escreva e revise</Text></Pressable>
           </View>
-          <Text style={styles.heroTitle}>Importe as páginas{ '\n' }e resolva aqui.</Text>
-          <Text style={styles.heroDescription}>Selecione várias imagens da prova. Depois, escreva, marque e desenhe diretamente sobre cada página.</Text>
-          <View style={styles.heroActions}><Pressable onPress={onImport} style={styles.heroButton}><Text style={styles.heroButtonText}>＋  Importar páginas</Text></Pressable><View style={styles.heroSecondaryActions}><Pressable onPress={onExam} style={styles.heroExamButton}><Text style={styles.heroExamButtonText}>Ambiente de provas</Text></Pressable><Pressable onPress={onRedacao} style={styles.heroRedacaoButton}><Text style={styles.heroExamButtonText}>Ambiente de redação</Text></Pressable></View></View>
         </View>
         <View style={styles.sectionHeading}>
           <View><Text style={styles.sectionTitle}>Meus cadernos</Text><Text style={styles.sectionSubtitle}>Continue de onde parou</Text></View>
@@ -681,6 +679,15 @@ const styles = StyleSheet.create({
   heroExamButton: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent', borderColor: '#82978A', borderWidth: 1, borderRadius: 13, paddingHorizontal: 8, paddingVertical: 11 },
   heroRedacaoButton: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#476B5A', borderColor: '#82978A', borderWidth: 1, borderRadius: 13, paddingHorizontal: 8, paddingVertical: 11 },
   heroExamButtonText: { color: '#E7EDE4', fontWeight: '700', fontSize: 11 },
+  quickLaunchPanel: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, padding: 16, marginBottom: 24 },
+  quickLaunchHeader: { marginBottom: 14 },
+  quickLaunchTitle: { color: COLORS.ink, fontSize: 17, fontWeight: '800' },
+  quickLaunchSubtitle: { color: COLORS.muted, fontSize: 11, marginTop: 4 },
+  quickLaunchRow: { flexDirection: 'row', gap: 8 },
+  quickLaunchCard: { flex: 1, minHeight: 88, borderRadius: 14, padding: 11, backgroundColor: '#F1F5F0', borderWidth: 1, borderColor: '#E0EAE1' },
+  quickLaunchIcon: { color: COLORS.green, fontSize: 19, fontWeight: '800', marginBottom: 6 },
+  quickLaunchCardTitle: { color: COLORS.ink, fontSize: 12, fontWeight: '800' },
+  quickLaunchCardText: { color: COLORS.muted, fontSize: 9, marginTop: 3 },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   sectionTitle: { color: COLORS.ink, fontFamily: 'serif', fontSize: 23 },
   sectionSubtitle: { color: COLORS.muted, fontSize: 11, marginTop: 2 },
