@@ -98,7 +98,7 @@ function ActionButton({ label, onPress, secondary = false, compact = false }) {
   );
 }
 
-function HomeScreen({ documents, onImport, onOpen, onDelete, onExam, onRedacao, onUpdate, onDuplicate }) {
+function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExam, onRedacao, onUpdate, onDuplicate }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('updated');
@@ -171,7 +171,7 @@ function HomeScreen({ documents, onImport, onOpen, onDelete, onExam, onRedacao, 
       </ScrollView>
       <Modal visible={quickMenuOpen} transparent animationType="slide" onRequestClose={() => setQuickMenuOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setQuickMenuOpen(false)}>
-          <View style={styles.quickSheet} onStartShouldSetResponder={() => true}><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Criar no Bloco</Text><Text style={styles.sheetSubtitle}>Escolha o tipo de conteúdo para começar</Text><Pressable onPress={() => { setQuickMenuOpen(false); onImport(); }} style={styles.quickOption}><Text style={styles.quickOptionIcon}>▧</Text><View><Text style={styles.quickOptionTitle}>Importar imagens</Text><Text style={styles.quickOptionText}>Criar um caderno a partir da galeria</Text></View></Pressable><Pressable onPress={() => { setQuickMenuOpen(false); onExam(); }} style={styles.quickOption}><Text style={styles.quickOptionIcon}>◷</Text><View><Text style={styles.quickOptionTitle}>Nova prova</Text><Text style={styles.quickOptionText}>Cronômetro e anotações sobre PDF</Text></View></Pressable><Pressable onPress={() => { setQuickMenuOpen(false); onRedacao(); }} style={styles.quickOption}><Text style={styles.quickOptionIcon}>✎</Text><View><Text style={styles.quickOptionTitle}>Nova redação</Text><Text style={styles.quickOptionText}>Digite ou escreva à mão</Text></View></Pressable></View>
+          <View style={styles.quickSheet} onStartShouldSetResponder={() => true}><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Criar no Bloco</Text><Text style={styles.sheetSubtitle}>Escolha o tipo de conteúdo para começar</Text><Pressable onPress={() => { setQuickMenuOpen(false); onCreateNote(); }} style={styles.quickOption}><Text style={styles.quickOptionIcon}>＋</Text><View><Text style={styles.quickOptionTitle}>Nova nota</Text><Text style={styles.quickOptionText}>Começar com uma folha em branco</Text></View></Pressable><Pressable onPress={() => { setQuickMenuOpen(false); onImport(); }} style={styles.quickOption}><Text style={styles.quickOptionIcon}>▧</Text><View><Text style={styles.quickOptionTitle}>Importar imagens</Text><Text style={styles.quickOptionText}>Criar um caderno a partir da galeria</Text></View></Pressable><Pressable onPress={() => { setQuickMenuOpen(false); onExam(); }} style={styles.quickOption}><Text style={styles.quickOptionIcon}>◷</Text><View><Text style={styles.quickOptionTitle}>Nova prova</Text><Text style={styles.quickOptionText}>Cronômetro e anotações sobre PDF</Text></View></Pressable><Pressable onPress={() => { setQuickMenuOpen(false); onRedacao(); }} style={styles.quickOption}><Text style={styles.quickOptionIcon}>✎</Text><View><Text style={styles.quickOptionTitle}>Nova redação</Text><Text style={styles.quickOptionText}>Digite ou escreva à mão</Text></View></Pressable></View>
         </Pressable>
       </Modal>
       <Modal visible={!!renameTarget} transparent animationType="fade" onRequestClose={() => setRenameTarget(null)}><View style={styles.modalBackdrop}><View style={styles.renameCard}><Text style={styles.sheetTitle}>Renomear caderno</Text><TextInput autoFocus value={renameValue} onChangeText={setRenameValue} style={styles.renameInput} placeholder="Nome do caderno" placeholderTextColor={COLORS.muted} onSubmitEditing={saveRename} /><View style={styles.renameActions}><Pressable onPress={() => setRenameTarget(null)} style={styles.renameCancel}><Text style={styles.renameCancelText}>Cancelar</Text></Pressable><Pressable onPress={saveRename} style={styles.renameConfirm}><Text style={styles.renameConfirmText}>Salvar</Text></Pressable></View></View></View></Modal>
@@ -184,6 +184,7 @@ function EditorScreen({ document, onSave, onChange }) {
   const [pages, setPages] = useState(initialPages);
   const [pageIndex, setPageIndex] = useState(0);
   const [paths, setPaths] = useState(initialPages[0]?.paths || []);
+  const [pageText, setPageText] = useState(initialPages[0]?.text || '');
   const [redoPaths, setRedoPaths] = useState([]);
   const [tool, setTool] = useState('pen');
   const [selectedStrokeIds, setSelectedStrokeIds] = useState([]);
@@ -302,27 +303,28 @@ function EditorScreen({ document, onSave, onChange }) {
     setPages((previous) => previous.map((page, index) => index === pageIndex ? { ...page, paths } : page));
     const nextPage = pages[nextIndex];
     setPageIndex(nextIndex); setPaths(nextPage.paths || []); setRedoPaths([]); setSelectedStrokeIds([]); setLassoPoints([]);
+    setPageText(nextPage.text || '');
     pathsRef.current = nextPage.paths || [];
     setZoom(1); setPanOffset({ x: 0, y: 0 });
   };
   const undo = () => { if (!paths.length) return; setRedoPaths((previous) => [...previous, paths[paths.length - 1]]); setPaths((previous) => previous.slice(0, -1)); };
   const redo = () => { if (!redoPaths.length) return; setPaths((previous) => [...previous, redoPaths[redoPaths.length - 1]]); setRedoPaths((previous) => previous.slice(0, -1)); };
   const save = () => {
-    const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths } : page);
+    const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths, text: pageText } : page);
     onSave({ ...document, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
   };
   const currentPage = pages[pageIndex];
   useEffect(() => {
-    const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths } : page);
+    const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths, text: pageText } : page);
     onChange({ ...document, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
-  }, [pages, paths, pageIndex]);
+  }, [pages, paths, pageText, pageIndex]);
 
   return (
     <SafeAreaView style={styles.editorSafe}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.paper} />
       <View style={styles.editorHeader}>
         <Pressable onPress={save} style={styles.backButton}><Text style={styles.backArrow}>‹</Text></Pressable>
-        <View style={styles.editorTitleWrap}><Text style={styles.editorTitle}>{document.title || 'Resolvendo prova'}</Text><Text style={styles.editorSubtitle}>Desenhe diretamente sobre a página</Text></View>
+        <View style={styles.editorTitleWrap}><TextInput value={document.title || 'Minha nota'} onChangeText={title => onChange({ ...document, title, updatedAt: Date.now() })} style={styles.editorTitleInput} maxLength={70} /><Text style={styles.editorSubtitle}>Texto e escrita manual salvos automaticamente</Text></View>
         <Pressable onPress={save} style={styles.saveButton}><Text style={styles.saveButtonText}>Salvar</Text></Pressable>
       </View>
       <View style={styles.editorToolbar}>
@@ -336,7 +338,7 @@ function EditorScreen({ document, onSave, onChange }) {
       <View style={styles.canvasArea}>
         <View style={styles.canvasPaper} onLayout={(event) => setCanvasSize(event.nativeEvent.layout)}>
           <View style={[styles.zoomContent, { transform: [{ translateX: panOffset.x }, { translateY: panOffset.y }, { scale: zoom }] }]}>
-            <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" />
+            {currentPage.uri ? <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" /> : <View style={styles.blankPage}><TextInput value={pageText} onChangeText={setPageText} placeholder="Digite nesta página..." placeholderTextColor="#A0AAA1" multiline textAlignVertical="top" style={styles.pageTextInput} /></View>}
             <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers}>
               <Svg width={canvasSize.width} height={canvasSize.height}>
                 {paths.map((path) => <Path key={path.id} d={pathToSvg(path.points)} stroke={path.color} strokeWidth={path.width} strokeOpacity={path.opacity ?? 1} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lassoPoints.length>1&&<Path d={pathToSvg(lassoPoints)} stroke={COLORS.green} strokeWidth={2} strokeDasharray="6 4" fill="none"/>}{selectedStrokeIds.length>0&&(()=>{const b=getStrokeBounds(paths.filter(path=>selectedStrokeIds.includes(path.id)));return b?<><Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={COLORS.green} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/><Rect x={b.maxX+1} y={b.maxY+1} width={12} height={12} rx={3} fill={COLORS.green}/></>:null;})()}
@@ -355,9 +357,11 @@ function EditorScreen({ document, onSave, onChange }) {
         </View>
       </View>
       <View style={styles.pageNavigation}>
+        <Pressable onPress={() => { const newPage = { id: `page-${Date.now()}`, paths: [], text: '' }; setPages(old => [...old, newPage]); setPageIndex(pages.length); setPaths([]); setPageText(''); }} style={styles.pageNavButton}><Text style={styles.pageNavText}>＋ Página</Text></Pressable>
         <Pressable disabled={pageIndex === 0} onPress={() => changePage(pageIndex - 1)} style={[styles.pageNavButton, pageIndex === 0 && styles.toolDisabled]}><Text style={styles.pageNavText}>‹ Anterior</Text></Pressable>
         <Text style={styles.pageNavLabel}>Página {pageIndex + 1} de {pages.length}</Text>
         <Pressable disabled={pageIndex === pages.length - 1} onPress={() => changePage(pageIndex + 1)} style={[styles.pageNavButton, pageIndex === pages.length - 1 && styles.toolDisabled]}><Text style={styles.pageNavText}>Próxima ›</Text></Pressable>
+        <Pressable disabled={pages.length <= 1} onPress={() => Alert.alert('Excluir página?', 'O conteúdo desta página será removido.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Excluir', style: 'destructive', onPress: () => { const next = pages.filter((_, index) => index !== pageIndex); const nextIndex = Math.max(0, pageIndex - 1); setPages(next); setPageIndex(nextIndex); setPaths(next[nextIndex]?.paths || []); setPageText(next[nextIndex]?.text || ''); } }])} style={[styles.pageNavButton, pages.length <= 1 && styles.toolDisabled]}><Text style={styles.pageNavText}>Excluir</Text></Pressable>
       </View>
       <View style={styles.drawingPanel}>
         <View style={styles.compactToolRow}>
@@ -425,6 +429,10 @@ function BlocoApp() {
       Alert.alert('Não foi possível importar as imagens', error?.message || 'Tente selecionar as imagens novamente.');
     }
   };
+  const createNote = () => {
+    const now = Date.now();
+    setActiveDocument({ id: `${now}`, title: 'Minha nota', pages: [{ id: `page-${now}`, paths: [], text: '' }], createdAt: now, updatedAt: now });
+  };
 
   const saveDocument = (document) => {
     setDocuments((previous) => {
@@ -449,7 +457,7 @@ function BlocoApp() {
   if (activeDocument) return <EditorScreen key={activeDocument.id} document={activeDocument} onSave={saveDocument} onChange={updateDocument} />;
   if (examMode) return <ExamMode onExit={() => setExamMode(false)} />;
   if (redacaoMode) return <RedacaoMode onExit={() => setRedacaoMode(false)} />;
-  return <HomeScreen documents={documents} onImport={importImages} onOpen={setActiveDocument} onDelete={deleteDocument} onUpdate={updateDocument} onDuplicate={duplicateDocument} onExam={() => setExamMode(true)} onRedacao={() => setRedacaoMode(true)} />;
+  return <HomeScreen documents={documents} onImport={importImages} onCreateNote={createNote} onOpen={setActiveDocument} onDelete={deleteDocument} onUpdate={updateDocument} onDuplicate={duplicateDocument} onExam={() => setExamMode(true)} onRedacao={() => setRedacaoMode(true)} />;
 }
 
 export default function App() {
@@ -562,6 +570,7 @@ const styles = StyleSheet.create({
   backArrow: { color: COLORS.ink, fontSize: 31, lineHeight: 34, marginTop: -4 },
   editorTitleWrap: { flex: 1, marginLeft: 11 },
   editorTitle: { color: COLORS.ink, fontWeight: '700', fontSize: 14 },
+  editorTitleInput: { flex: 1, color: COLORS.ink, fontWeight: '700', fontSize: 14, paddingVertical: 0 },
   editorSubtitle: { color: COLORS.muted, fontSize: 9, marginTop: 3 },
   saveButton: { backgroundColor: COLORS.ink, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
   saveButtonText: { color: 'white', fontWeight: '700', fontSize: 11 },
@@ -592,6 +601,8 @@ const styles = StyleSheet.create({
   canvasArea: { flex: 1, paddingHorizontal: 13, paddingTop: 14, paddingBottom: 8 },
   canvasPaper: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, overflow: 'hidden', elevation: 2, shadowColor: '#23392E', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
   examImage: { width: '100%', height: '100%' },
+  blankPage: { flex: 1, backgroundColor: '#FFFDF8', padding: 22 },
+  pageTextInput: { flex: 1, color: COLORS.ink, fontSize: 17, lineHeight: 27 },
   zoomContent: { width: '100%', height: '100%' },
   canvasHintRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 7 },
   canvasHintText: { color: '#9AA298', fontSize: 9 },
