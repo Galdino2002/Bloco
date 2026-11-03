@@ -412,7 +412,7 @@ export default function RedacaoMode({ onExit }) {
               {[['classic','Clássico'],['pastel','Pastel'],['bold','Forte'],['underline','Sublinhado']].map(([id,label]) => <Pressable key={id} onPress={() => setMarkerType(id)} style={[styles.markerType, markerType === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, markerType === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}
             </View>}
             <View style={styles.drawToolsRow}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.palette}>
+              <ScrollView horizontal style={{ flex: 1 }} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.palette}>
                 {COLORS.map(item => <Pressable key={item} onPress={() => setColor(item)} style={[styles.swatch, { backgroundColor: item, borderWidth: item === '#FFFFFF' ? 1 : 0, borderColor: '#AEB5AE' }, color === item && styles.swatchSelected]} />)}
               </ScrollView>
               <Pressable onPress={() => setShowLines(value => !value)} style={[styles.linesToggle, showLines && styles.linesToggleActive]}>
@@ -537,8 +537,8 @@ const styles = StyleSheet.create({
   linesToggleActive: { backgroundColor: '#DDE9DF' },
   linesToggleText: { color: '#7C887E', fontSize: 10, fontWeight: '700' },
   linesToggleTextActive: { color: GREEN },
-  canvasModeBar: { flexDirection: 'row', backgroundColor: '#EAEDE6', borderRadius: 10, padding: 3, marginTop: 7 },
-  canvasModeButton: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 8 },
+  canvasModeBar: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: '#EAEDE6', borderRadius: 10, padding: 3, marginTop: 7 },
+  canvasModeButton: { flexGrow: 1, minWidth: 88, alignItems: 'center', paddingVertical: 8, borderRadius: 8 },
   canvasModeSelected: { backgroundColor: '#FFF' },
   canvasModeText: { color: '#7C887E', fontSize: 11, fontWeight: '700' },
   canvasModeTextSelected: { color: GREEN },
