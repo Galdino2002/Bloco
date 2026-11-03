@@ -132,10 +132,14 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
     .filter(document => filter === 'favorite' ? document.favorite && !document.deletedAt : true)
     .filter(document => {
       const normalized = query.trim().toLocaleLowerCase();
-      return !normalized || (document.title || '').toLocaleLowerCase().includes(normalized);
+      const pageText = (document.pages || []).map(page => page.text || '').join(' ');
+      const searchable = `${document.title || ''} ${pageText}`.toLocaleLowerCase();
+      return !normalized || searchable.includes(normalized);
     })
     .sort((a, b) => sort === 'name'
       ? (a.title || '').localeCompare(b.title || '', 'pt-BR')
+      : sort === 'created'
+        ? (b.createdAt || 0) - (a.createdAt || 0)
       : (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)), [documents, filter, query, sort]);
   const saveRename = () => {
     const title = renameValue.trim();
@@ -170,7 +174,7 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
           <View><Text style={styles.sectionTitle}>Meus cadernos</Text><Text style={styles.sectionSubtitle}>Continue de onde parou</Text></View>
           <Text style={styles.documentCount}>{filteredDocuments.length.toString().padStart(2, '0')}</Text>
         </View>
-        <View style={styles.filterRow}><Pressable onPress={() => setFilter('all')} style={[styles.filterChip, filter === 'all' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>Todos</Text></Pressable><Pressable onPress={() => setFilter('favorite')} style={[styles.filterChip, filter === 'favorite' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'favorite' && styles.filterTextActive]}>★ Favoritos</Text></Pressable><Pressable onPress={() => setFilter('trash')} style={[styles.filterChip, filter === 'trash' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'trash' && styles.filterTextActive]}>Lixeira</Text></Pressable><Pressable onPress={() => setSort(value => value === 'updated' ? 'name' : 'updated')} style={styles.sortChip}><Text style={styles.filterText}>{sort === 'updated' ? 'Mais recentes' : 'Por nome'} ↕</Text></Pressable></View>
+        <View style={styles.filterRow}><Pressable onPress={() => setFilter('all')} style={[styles.filterChip, filter === 'all' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>Todos</Text></Pressable><Pressable onPress={() => setFilter('favorite')} style={[styles.filterChip, filter === 'favorite' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'favorite' && styles.filterTextActive]}>★ Favoritos</Text></Pressable><Pressable onPress={() => setFilter('trash')} style={[styles.filterChip, filter === 'trash' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'trash' && styles.filterTextActive]}>Lixeira</Text></Pressable><Pressable onPress={() => setSort(value => value === 'updated' ? 'name' : value === 'name' ? 'created' : 'updated')} style={styles.sortChip}><Text style={styles.filterText}>{sort === 'updated' ? 'Mais recentes' : sort === 'name' ? 'Por nome' : 'Por criação'} ↕</Text></Pressable></View>
         {filteredDocuments.length === 0 ? (
           <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 22 }}>▤</Text></View><Text style={styles.emptyTitle}>{query || filter === 'favorite' ? 'Nada encontrado' : 'Nenhum caderno por enquanto'}</Text><Text style={styles.emptyText}>{query || filter === 'favorite' ? 'Tente outra busca ou remova o filtro.' : 'Use o botão + para importar páginas, criar uma redação ou iniciar uma prova.'}</Text></View>
         ) : (
