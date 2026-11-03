@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Rect } from 'react-native-svg';
 import ExamMode from './ExamMode';
 import RedacaoMode from './RedacaoMode';
 
@@ -45,6 +45,31 @@ function distanceToSegment(point, start, end) {
 function pathToSvg(points) {
   if (!points.length) return '';
   return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+}
+function isInsideLasso(point, polygon) {
+  let inside=false;
+  for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){
+    const a=polygon[i],b=polygon[j];
+    if(((a.y>point.y)!==(b.y>point.y)) && point.x<((b.x-a.x)*(point.y-a.y))/((b.y-a.y)||0.00001)+a.x) inside=!inside;
+  }
+  return inside;
+}
+function getStrokeBounds(strokes) {
+  const points=strokes.flatMap(stroke=>stroke.points||[]);
+  if(!points.length)return null;
+  return {minX:Math.min(...points.map(p=>p.x)),minY:Math.min(...points.map(p=>p.y)),maxX:Math.max(...points.map(p=>p.x)),maxY:Math.max(...points.map(p=>p.y))};
+}
+function resizeStrokes(strokes,ids,factor) {
+  const box=getStrokeBounds(strokes.filter(stroke=>ids.includes(stroke.id)));
+  if(!box)return strokes;
+  const cx=(box.minX+box.maxX)/2,cy=(box.minY+box.maxY)/2;
+  return strokes.map(stroke=>ids.includes(stroke.id)?{...stroke,width:stroke.width*factor,points:stroke.points.map(p=>({x:cx+(p.x-cx)*factor,y:cy+(p.y-cy)*factor}))}:stroke);
+}
+function rotateStrokes(strokes,ids,angle) {
+  const box=getStrokeBounds(strokes.filter(stroke=>ids.includes(stroke.id)));
+  if(!box)return strokes;
+  const cx=(box.minX+box.maxX)/2,cy=(box.minY+box.maxY)/2;
+  return strokes.map(stroke=>ids.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>{const x=p.x-cx,y=p.y-cy;return{x:cx+x*Math.cos(angle)-y*Math.sin(angle),y:cy+x*Math.sin(angle)+y*Math.cos(angle)}})}:stroke);
 }
 
 function IconText({ children, color = COLORS.ink, size = 18 }) {
@@ -127,6 +152,8 @@ function EditorScreen({ document, onSave }) {
   const [paths, setPaths] = useState(initialPages[0]?.paths || []);
   const [redoPaths, setRedoPaths] = useState([]);
   const [tool, setTool] = useState('pen');
+  const [selectedStrokeIds, setSelectedStrokeIds] = useState([]);
+  const [lassoPoints, setLassoPoints] = useState([]);
   const [color, setColor] = useState(PALETTE[0]);
   const [strokeWidth, setStrokeWidth] = useState(4);
   const [zoom, setZoom] = useState(1);
@@ -140,12 +167,23 @@ function EditorScreen({ document, onSave }) {
   const toolRef = useRef(tool);
   const colorRef = useRef(color);
   const widthRef = useRef(strokeWidth);
+  const selectedIdsRef = useRef([]);
+  const lassoRef = useRef([]);
+  const selectionGestureRef = useRef(null);
   pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; widthRef.current = strokeWidth;
+  selectedIdsRef.current=selectedStrokeIds; lassoRef.current=lassoPoints;
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (event) => {
+      if (toolRef.current === 'select') {
+        activePath.current=null;
+        const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
+        if(selectedIdsRef.current.length) selectionGestureRef.current={type:'move',start:point,original:pathsRef.current};
+        else {selectionGestureRef.current={type:'lasso'};lassoRef.current=[point];setLassoPoints([point]);}
+        return;
+      }
       if (toolRef.current === 'move') { moveStart.current = { x: panOffsetRef.current.x, y: panOffsetRef.current.y }; return; }
       const point = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY };
       if (toolRef.current === 'eraser') {
@@ -161,6 +199,16 @@ function EditorScreen({ document, onSave }) {
       activePath.current = nextPath; setPaths((previous) => [...previous, nextPath]); setRedoPaths([]);
     },
     onPanResponderMove: (event, gestureState) => {
+      if(toolRef.current==='select' && selectionGestureRef.current?.type==='lasso'){
+        const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
+        const next=[...lassoRef.current,point];lassoRef.current=next;setLassoPoints(next);return;
+      }
+      if(toolRef.current==='select' && selectionGestureRef.current?.type==='move'){
+        const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
+        const dx=point.x-selectionGestureRef.current.start.x,dy=point.y-selectionGestureRef.current.start.y;
+        const moved=selectionGestureRef.current.original.map(stroke=>selectedIdsRef.current.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>({x:p.x+dx,y:p.y+dy}))}:stroke);
+        pathsRef.current=moved;setPaths(moved);return;
+      }
       if (toolRef.current === 'move') {
         const next = { x: moveStart.current.x + gestureState.dx, y: moveStart.current.y + gestureState.dy };
         panOffsetRef.current = next; setPanOffset(next); return;
@@ -175,8 +223,20 @@ function EditorScreen({ document, onSave }) {
       const updated = { ...activePath.current, points: [...activePath.current.points, point] };
       activePath.current = updated; setPaths((previous) => [...previous.slice(0, -1), updated]);
     },
-    onPanResponderRelease: () => { activePath.current = null; },
-    onPanResponderTerminate: () => { activePath.current = null; },
+    onPanResponderRelease: (event) => {
+      if(toolRef.current==='select' && selectionGestureRef.current?.type==='lasso'){
+        const polygon=lassoRef.current;
+        const ids=polygon.length>=3?pathsRef.current.filter(stroke=>(stroke.points||[]).some(point=>isInsideLasso(point,polygon))).map(stroke=>stroke.id):[];
+        selectedIdsRef.current=ids;setSelectedStrokeIds(ids);lassoRef.current=[];setLassoPoints([]);
+      }else if(toolRef.current==='select' && selectionGestureRef.current?.type==='move'){
+        const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
+        const dx=point.x-selectionGestureRef.current.start.x,dy=point.y-selectionGestureRef.current.start.y;
+        const moved=selectionGestureRef.current.original.map(stroke=>selectedIdsRef.current.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>({x:p.x+dx,y:p.y+dy}))}:stroke);
+        pathsRef.current=moved;setPaths(moved);setRedoPaths([]);
+      }
+      selectionGestureRef.current=null;activePath.current=null;
+    },
+    onPanResponderTerminate: () => { activePath.current = null; selectionGestureRef.current=null;lassoRef.current=[];setLassoPoints([]); },
   }), []);
 
   const changePage = (nextIndex) => {
@@ -207,7 +267,7 @@ function EditorScreen({ document, onSave }) {
         <Pressable onPress={undo} disabled={!paths.length} style={[styles.toolButton, !paths.length && styles.toolDisabled]}><Text style={styles.toolGlyph}>↶</Text><Text style={styles.toolLabel}>Desfazer</Text></Pressable>
         <Pressable onPress={redo} disabled={!redoPaths.length} style={[styles.toolButton, !redoPaths.length && styles.toolDisabled]}><Text style={styles.toolGlyph}>↷</Text><Text style={styles.toolLabel}>Refazer</Text></Pressable>
         <View style={styles.toolbarDivider} />
-        <Pressable onPress={() => { setPaths([]); setRedoPaths([]); }} style={styles.toolButton}><Text style={styles.toolGlyph}>⌫</Text><Text style={styles.toolLabel}>Limpar</Text></Pressable>
+        <Pressable onPress={() => { setPaths([]); setRedoPaths([]); setSelectedStrokeIds([]); }} style={styles.toolButton}><Text style={styles.toolGlyph}>⌫</Text><Text style={styles.toolLabel}>Limpar</Text></Pressable>
         <View style={styles.editorSpacer} />
         <View style={styles.pageCounter}><Text style={styles.pageCounterText}>{String(pageIndex + 1).padStart(2, '0')} / {String(pages.length).padStart(2, '0')}</Text></View>
       </View>
@@ -217,13 +277,13 @@ function EditorScreen({ document, onSave }) {
             <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" />
             <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers}>
               <Svg width={canvasSize.width} height={canvasSize.height}>
-                {paths.map((path) => <Path key={path.id} d={pathToSvg(path.points)} stroke={path.color} strokeWidth={path.width} strokeOpacity={path.opacity ?? 1} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}
+                {paths.map((path) => <Path key={path.id} d={pathToSvg(path.points)} stroke={path.color} strokeWidth={path.width} strokeOpacity={path.opacity ?? 1} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lassoPoints.length>1&&<Path d={pathToSvg(lassoPoints)} stroke={COLORS.green} strokeWidth={2} strokeDasharray="6 4" fill="none"/>}{selectedStrokeIds.length>0&&(()=>{const b=getStrokeBounds(paths.filter(path=>selectedStrokeIds.includes(path.id)));return b?<Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={COLORS.green} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/>:null;})()}
               </Svg>
             </View>
           </View>
         </View>
         <View style={styles.canvasHintRow}>
-          <Text style={styles.canvasHintText}>{tool === 'move' ? '✥ Arraste para posicionar a folha' : '✎ Desenhe com o dedo sobre a folha'}</Text>
+          <Text style={styles.canvasHintText}>{tool==='select'?(selectedStrokeIds.length?'Arraste a seleção para mover':'Contorne a escrita para selecionar'):tool === 'move' ? '✥ Arraste para posicionar a folha' : '✎ Desenhe com o dedo sobre a folha'}</Text>
           <View style={styles.zoomControls}>
             <Pressable onPress={() => setZoom((value) => Math.max(1, Number((value - 0.25).toFixed(2))))} style={styles.zoomButton}><Text style={styles.zoomButtonText}>−</Text></Pressable>
             <Text style={styles.zoomValue}>{Math.round(zoom * 100)}%</Text>
@@ -241,12 +301,12 @@ function EditorScreen({ document, onSave }) {
         <View style={styles.toolModeRow}>
           <Pressable onPress={() => setTool('pen')} style={[styles.modeButton, tool === 'pen' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'pen' && styles.modeGlyphActive]}>✎</Text><Text style={[styles.modeText, tool === 'pen' && styles.modeTextActive]}>Caneta</Text></Pressable>
           <Pressable onPress={() => setTool('highlighter')} style={[styles.modeButton, tool === 'highlighter' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'highlighter' && styles.modeGlyphActive]}>▰</Text><Text style={[styles.modeText, tool === 'highlighter' && styles.modeTextActive]}>Marca-texto</Text></Pressable>
-          <Pressable onPress={() => setTool('move')} style={[styles.modeButton, tool === 'move' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'move' && styles.modeGlyphActive]}>✥</Text><Text style={[styles.modeText, tool === 'move' && styles.modeTextActive]}>Mover</Text></Pressable>
+          <Pressable onPress={() => {setTool('select');setSelectedStrokeIds([]);}} style={[styles.modeButton, tool === 'select' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'select' && styles.modeGlyphActive]}>⌁</Text><Text style={[styles.modeText, tool === 'select' && styles.modeTextActive]}>Laço</Text></Pressable><Pressable onPress={() => setTool('move')} style={[styles.modeButton, tool === 'move' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'move' && styles.modeGlyphActive]}>✥</Text><Text style={[styles.modeText, tool === 'move' && styles.modeTextActive]}>Mover folha</Text></Pressable>
           <Pressable onPress={() => setTool('eraser')} style={[styles.modeButton, tool === 'eraser' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'eraser' && styles.modeGlyphActive]}>▱</Text><Text style={[styles.modeText, tool === 'eraser' && styles.modeTextActive]}>Borracha</Text></Pressable>
           <View style={styles.panelDivider} />
           <View style={styles.widthOptions}>{[2, 4, 7].map((width) => <Pressable key={width} onPress={() => { setStrokeWidth(width); setTool('pen'); }} style={[styles.widthButton, strokeWidth === width && tool === 'pen' && styles.widthButtonActive]}><View style={[styles.widthDot, { width: width + 3, height: width + 3 }]} /></Pressable>)}</View>
         </View>
-        <View style={styles.colorRow}><Text style={styles.colorLabel}>COR</Text>{PALETTE.map((item) => <Pressable key={item} onPress={() => { setColor(item); setTool('pen'); }} style={[styles.colorButton, color === item && tool === 'pen' && styles.colorButtonSelected]}><View style={[styles.colorDot, { backgroundColor: item }]} /></Pressable>)}<View style={styles.panelSpacer} /><Text style={styles.annotationCount}>{paths.length} traços nesta página</Text></View>
+        {selectedStrokeIds.length>0&&<View style={styles.selectionActionRow}><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,1.15));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Aumentar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,0.87));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Diminuir</Text></Pressable><Pressable onPress={()=>{setPaths(old=>rotateStrokes(old,selectedStrokeIds,Math.PI/12));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Girar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={[styles.selectionActionText,{color:COLORS.rose}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedStrokeIds([])}><Text style={styles.selectionActionText}>Desmarcar</Text></Pressable></View>}<View style={styles.colorRow}><Text style={styles.colorLabel}>COR</Text>{PALETTE.map((item) => <Pressable key={item} onPress={() => { setColor(item); setTool('pen'); }} style={[styles.colorButton, color === item && tool === 'pen' && styles.colorButtonSelected]}><View style={[styles.colorDot, { backgroundColor: item }]} /></Pressable>)}<View style={styles.panelSpacer} /><Text style={styles.annotationCount}>{paths.length} traços nesta página</Text></View>
       </View>
     </SafeAreaView>
   );
@@ -409,6 +469,8 @@ const styles = StyleSheet.create({
   widthButton: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
   widthButtonActive: { borderColor: '#B8CDBB', backgroundColor: '#F4F7F2' },
   widthDot: { borderRadius: 10, backgroundColor: COLORS.ink },
+  selectionActionRow: { flexDirection:'row', flexWrap:'wrap', gap:14, paddingBottom:9 },
+  selectionActionText: { color:COLORS.green, fontSize:10, fontWeight:'700' },
   colorRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F0F1EC', paddingTop: 9 },
   colorLabel: { color: '#9AA298', fontSize: 8, letterSpacing: 1.1, fontWeight: '800', marginRight: 12 },
   colorButton: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 5, borderWidth: 1, borderColor: 'transparent' },
