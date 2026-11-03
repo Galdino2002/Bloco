@@ -265,8 +265,15 @@ function EditorScreen({ document, onSave, onChange }) {
       if (toolRef.current === 'move') { moveStart.current = { x: panOffsetRef.current.x, y: panOffsetRef.current.y }; return; }
       const point = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY };
       if (toolRef.current === 'eraser') {
-        const next = eraseAtPoint(pathsRef.current, point, 22);
-        pathsRef.current = next; setPaths(next); setRedoPaths([]); return;
+        const previous = pathsRef.current;
+        const next = eraseAtPoint(previous, point, 22);
+        const changed = next.length !== previous.length || next.some((path, index) => path !== previous[index]);
+        if (changed) {
+          pathsRef.current = next;
+          setPaths(next);
+          setRedoPaths([]);
+        }
+        return;
       }
       const highlighter = toolRef.current === 'highlighter';
       const marker = markerTypeRef.current;
@@ -314,8 +321,13 @@ function EditorScreen({ document, onSave, onChange }) {
       }
       const point = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY };
       if (toolRef.current === 'eraser') {
-        const next = eraseAtPoint(pathsRef.current, point, 22);
-        if (next.length !== pathsRef.current.length) { pathsRef.current = next; setPaths(next); }
+        const previous = pathsRef.current;
+        const next = eraseAtPoint(previous, point, 22);
+        const changed = next.length !== previous.length || next.some((path, index) => path !== previous[index]);
+        if (changed) {
+          pathsRef.current = next;
+          setPaths(next);
+        }
         return;
       }
       if (!activePath.current) return;
