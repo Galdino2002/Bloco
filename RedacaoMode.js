@@ -327,6 +327,8 @@ export default function RedacaoMode({ onExit }) {
       } else if (canvasToolRef.current === 'select' && selectionRef.current?.type === 'resize') {
         const resized = transformSelected(selectionRef.current.original, selectedIdsRef.current, selectionRef.current.factor || 1);
         pathsRef.current = resized; setPaths(resized); setRedo([]);
+      } else if (canvasToolRef.current === 'select' && selectionRef.current?.type === 'move') {
+        setRedo([]);
       }
       selectionRef.current = null; activePath.current = null; pinchStart.current = null; moveStart.current = null;
     },
