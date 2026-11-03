@@ -18,6 +18,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect } from 'react-native-svg';
 import ExamMode from './ExamMode';
 import RedacaoMode from './RedacaoMode';
+import { pathIntersectsPolygon } from './drawing';
 
 const NOTEBOOKS_STORAGE_KEY = '@bloco:notebooks:v1';
 
@@ -282,7 +283,7 @@ function EditorScreen({ document, onSave, onChange }) {
     onPanResponderRelease: (event) => {
       if(toolRef.current==='select' && selectionGestureRef.current?.type==='lasso'){
         const polygon=lassoRef.current;
-        const ids=polygon.length>=3?pathsRef.current.filter(stroke=>(stroke.points||[]).some(point=>isInsideLasso(point,polygon))).map(stroke=>stroke.id):[];
+        const ids=polygon.length>=3?pathsRef.current.filter(stroke=>pathIntersectsPolygon(stroke, polygon)).map(stroke=>stroke.id):[];
         selectedIdsRef.current=ids;setSelectedStrokeIds(ids);lassoRef.current=[];setLassoPoints([]);
       }else if(toolRef.current==='select' && selectionGestureRef.current?.type==='resize'){
         const resized=resizeStrokes(selectionGestureRef.current.original,selectedIdsRef.current,selectionGestureRef.current.factor||1);
@@ -300,7 +301,7 @@ function EditorScreen({ document, onSave, onChange }) {
 
   const changePage = (nextIndex) => {
     if (nextIndex < 0 || nextIndex >= pages.length) return;
-    setPages((previous) => previous.map((page, index) => index === pageIndex ? { ...page, paths } : page));
+    setPages((previous) => previous.map((page, index) => index === pageIndex ? { ...page, paths, text: pageText } : page));
     const nextPage = pages[nextIndex];
     setPageIndex(nextIndex); setPaths(nextPage.paths || []); setRedoPaths([]); setSelectedStrokeIds([]); setLassoPoints([]);
     setPageText(nextPage.text || '');
@@ -316,7 +317,10 @@ function EditorScreen({ document, onSave, onChange }) {
   const currentPage = pages[pageIndex];
   useEffect(() => {
     const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths, text: pageText } : page);
-    onChange({ ...document, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
+    const timer = setTimeout(() => {
+      onChange({ ...document, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
+    }, 350);
+    return () => clearTimeout(timer);
   }, [pages, paths, pageText, pageIndex]);
 
   return (
@@ -349,7 +353,7 @@ function EditorScreen({ document, onSave, onChange }) {
         <View style={styles.canvasHintRow}>
           <Text style={styles.canvasHintText}>{tool==='select'?(selectedStrokeIds.length?'Arraste a seleção para mover':'Contorne a escrita para selecionar'):tool === 'move' ? '✥ Arraste para posicionar a folha' : '✎ Desenhe com o dedo sobre a folha'}</Text>
           <View style={styles.zoomControls}>
-            <Pressable onPress={() => setZoom((value) => Math.max(1, Number((value - 0.25).toFixed(2))))} style={styles.zoomButton}><Text style={styles.zoomButtonText}>−</Text></Pressable>
+            <Pressable onPress={() => setZoom((value) => Math.max(0.5, Number((value - 0.25).toFixed(2))))} style={styles.zoomButton}><Text style={styles.zoomButtonText}>−</Text></Pressable>
             <Text style={styles.zoomValue}>{Math.round(zoom * 100)}%</Text>
             <Pressable onPress={() => setZoom((value) => Math.min(3, Number((value + 0.25).toFixed(2))))} style={styles.zoomButton}><Text style={styles.zoomButtonText}>＋</Text></Pressable>
             <Pressable onPress={() => { setZoom(1); setPanOffset({ x: 0, y: 0 }); }} style={styles.zoomReset}><Text style={styles.zoomResetText}>Ajustar</Text></Pressable>
@@ -391,6 +395,7 @@ function BlocoApp() {
   const [activeDocument, setActiveDocument] = useState(null);
   const [examMode, setExamMode] = useState(false);
   const [redacaoMode, setRedacaoMode] = useState(false);
+  const persistenceTimer = useRef(null);
 
   useEffect(() => {
     AsyncStorage.getItem(NOTEBOOKS_STORAGE_KEY)
@@ -401,8 +406,12 @@ function BlocoApp() {
 
   useEffect(() => {
     if (!documentsLoaded) return;
-    AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, JSON.stringify(documents))
-      .catch(error => Alert.alert('Erro ao salvar cadernos', error?.message || 'Não foi possível salvar suas anotações.'));
+    clearTimeout(persistenceTimer.current);
+    persistenceTimer.current = setTimeout(() => {
+      AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, JSON.stringify(documents))
+        .catch(error => Alert.alert('Erro ao salvar cadernos', error?.message || 'Não foi possível salvar suas anotações.'));
+    }, 350);
+    return () => clearTimeout(persistenceTimer.current);
   }, [documents, documentsLoaded]);
 
   const importImages = async () => {

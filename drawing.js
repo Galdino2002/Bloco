@@ -23,9 +23,34 @@ export function isPointInPolygon(point, polygon) {
   return inside;
 }
 
+function segmentsIntersect(a, b, c, d) {
+  const orientation = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  const onSegment = (p, q, r) => Math.min(p.x, r.x) <= q.x && q.x <= Math.max(p.x, r.x)
+    && Math.min(p.y, r.y) <= q.y && q.y <= Math.max(p.y, r.y);
+  const abC = orientation(a, b, c);
+  const abD = orientation(a, b, d);
+  const cdA = orientation(c, d, a);
+  const cdB = orientation(c, d, b);
+  if ((abC > 0) !== (abD > 0) && (cdA > 0) !== (cdB > 0)) return true;
+  return (abC === 0 && onSegment(a, c, b))
+    || (abD === 0 && onSegment(a, d, b))
+    || (cdA === 0 && onSegment(c, a, d))
+    || (cdB === 0 && onSegment(c, b, d));
+}
+
+export function pathIntersectsPolygon(path, polygon) {
+  if (!path?.points?.length || polygon.length < 3) return false;
+  if (path.points.some(point => isPointInPolygon(point, polygon))) return true;
+  for (let i = 1; i < path.points.length; i += 1) {
+    for (let j = 0; j < polygon.length; j += 1) {
+      if (segmentsIntersect(path.points[i - 1], path.points[i], polygon[j], polygon[(j + 1) % polygon.length])) return true;
+    }
+  }
+  return false;
+}
+
 export function pathIsSelected(path, polygon) {
-  return path.points.some(point => isPointInPolygon(point, polygon))
-    || path.points.some((point, index) => index > 0 && distanceToSegment(polygon[0], point, path.points[index - 1]) < 12);
+  return pathIntersectsPolygon(path, polygon);
 }
 
 export function boundsForPaths(paths) {

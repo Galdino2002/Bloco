@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import Svg, { G, Line, Path, Rect } from 'react-native-svg';
+import { pathIntersectsPolygon } from './drawing';
 
 const STORAGE_KEY = '@bloco:redacoes:v1';
 const INK = '#203B32';
@@ -323,7 +324,7 @@ export default function RedacaoMode({ onExit }) {
     onPanResponderRelease: () => {
       if (canvasToolRef.current === 'select' && selectionRef.current?.type === 'lasso') {
         const polygon = lassoRef.current;
-        const ids = polygon.length >= 3 ? pathsRef.current.filter(stroke => (stroke.points || []).some(point => pointInPolygon(point, polygon))).map(stroke => stroke.id) : [];
+        const ids=polygon.length>=3 ? pathsRef.current.filter(stroke=>pathIntersectsPolygon(stroke, polygon)).map(stroke=>stroke.id) : [];
         selectedIdsRef.current = ids; setSelectedIds(ids); lassoRef.current = []; setLasso([]);
       } else if (canvasToolRef.current === 'select' && selectionRef.current?.type === 'resize') {
         const resized = transformSelected(selectionRef.current.original, selectedIdsRef.current, selectionRef.current.factor || 1);

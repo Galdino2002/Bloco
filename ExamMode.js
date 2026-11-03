@@ -9,6 +9,7 @@ import { File } from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
 import Svg, { Path, Rect } from 'react-native-svg';
+import { pathIntersectsPolygon } from './drawing';
 
 const STORAGE_KEY = '@bloco:exams:v1';
 const DIR = FileSystem.documentDirectory + 'bloco-exams/';
@@ -184,6 +185,7 @@ export default function ExamMode({ onExit }) {
         examType: selected.id,
         duration: selected.duration,
         remaining: selected.duration,
+        endAt: Date.now() + selected.duration * 1000,
         elapsed: 0,
         pages: pagesRef.current.items,
         createdAt: Date.now(),
@@ -265,6 +267,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [remaining, setRemaining] = useState(exam.remaining ?? exam.duration);
   const [finished, setFinished] = useState(false);
+  const remainingRef = useRef(remaining);
   const activePath = useRef(null);
   const pathsRef = useRef(paths);
   const toolRef = useRef(tool);
@@ -283,10 +286,14 @@ function ExamEditor({ exam, onSave, onBack }) {
 
   const snapshotRef = useRef({ pages, index, paths, remaining });
   snapshotRef.current = { pages, index, paths, remaining };
+  remainingRef.current = remaining;
   useEffect(() => {
-    const id = setInterval(() => setRemaining(v => Math.max(0, v - 1)), 1000);
+    const id = setInterval(() => {
+      const next = exam.endAt ? Math.max(0, Math.ceil((exam.endAt - Date.now()) / 1000)) : Math.max(0, remainingRef.current - 1);
+      setRemaining(next);
+    }, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [exam.endAt]);
   useEffect(() => { if (remaining <= 0) setFinished(true); }, [remaining]);
   useEffect(() => {
     const id = setInterval(() => {
@@ -409,7 +416,7 @@ function ExamEditor({ exam, onSave, onBack }) {
     onPanResponderRelease: e => {
       if (toolRef.current === 'select' && selectionGesture.current?.type === 'lasso') {
         const polygon=lassoRef.current;
-        const ids=polygon.length>=3 ? pathsRef.current.filter(stroke=>(stroke.points||[]).some(point=>insidePolygon(point,polygon))).map(stroke=>stroke.id) : [];
+        const ids=polygon.length>=3 ? pathsRef.current.filter(stroke=>pathIntersectsPolygon(stroke, polygon)).map(stroke=>stroke.id) : [];
         selectedRef.current=ids; setSelectedIds(ids); lassoRef.current=[]; setLasso([]);
       } else if (toolRef.current === 'select' && selectionGesture.current?.type === 'resize') {
         const resized=scaleSelected(selectionGesture.current.original,selectedRef.current,selectionGesture.current.factor||1);
@@ -437,7 +444,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const saveAndExit = () => {
     const updatedPages = pages.map((page, i) => i === index ? { ...page, paths } : page);
     const elapsed = Math.max(0, exam.duration - remaining);
-    onSave({ ...exam, pages: updatedPages, remaining, elapsed, status: remaining === 0 ? 'Tempo encerrado' : 'Em andamento' });
+    onSave({ ...exam, pages: updatedPages, remaining, elapsed, endAt: exam.endAt, status: remaining === 0 ? 'Tempo encerrado' : 'Em andamento' });
   };
   const current = pages[index];
 
