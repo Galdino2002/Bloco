@@ -217,6 +217,9 @@ function EditorScreen({ document, onSave, onChange }) {
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
+  const zoomRef = useRef(zoom);
+  const pinchStart = useRef(null);
+  zoomRef.current = zoom;
   const moveStart = useRef({ x: 0, y: 0 });
   const panOffsetRef = useRef(panOffset);
   panOffsetRef.current = panOffset;
@@ -236,6 +239,17 @@ function EditorScreen({ document, onSave, onChange }) {
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (event) => {
+      const touches = event.nativeEvent.touches || [];
+      if (touches.length >= 2) {
+        activePath.current = null;
+        selectionGestureRef.current = null;
+        const [first, second] = touches;
+        pinchStart.current = {
+          distance: Math.hypot(first.pageX - second.pageX, first.pageY - second.pageY),
+          zoom: zoomRef.current,
+        };
+        return;
+      }
       if (toolRef.current === 'select') {
         activePath.current=null;
         const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
@@ -261,6 +275,19 @@ function EditorScreen({ document, onSave, onChange }) {
       activePath.current = nextPath; setPaths((previous) => [...previous, nextPath]); setRedoPaths([]);
     },
     onPanResponderMove: (event, gestureState) => {
+      const touches = event.nativeEvent.touches || [];
+      if (touches.length >= 2) {
+        activePath.current = null;
+        const [first, second] = touches;
+        const distance = Math.hypot(first.pageX - second.pageX, first.pageY - second.pageY);
+        if (pinchStart.current?.distance > 0) {
+          const nextZoom = Math.min(3, Math.max(0.5, pinchStart.current.zoom * distance / pinchStart.current.distance));
+          zoomRef.current = nextZoom;
+          setZoom(nextZoom);
+        }
+        return;
+      }
+      pinchStart.current = null;
       if(toolRef.current==='select' && selectionGestureRef.current?.type==='lasso'){
         const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
         const next=[...lassoRef.current,point];lassoRef.current=next;setLassoPoints(next);return;
@@ -309,9 +336,17 @@ function EditorScreen({ document, onSave, onChange }) {
         const moved=selectionGestureRef.current.original.map(stroke=>selectedIdsRef.current.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>({x:p.x+dx,y:p.y+dy}))}:stroke);
         pathsRef.current=moved;setPaths(moved);setRedoPaths([]);
       }
-      selectionGestureRef.current=null;activePath.current=null;
+      selectionGestureRef.current=null;
+      activePath.current=null;
+      if ((event.nativeEvent.touches?.length || 0) < 2) pinchStart.current = null;
     },
-    onPanResponderTerminate: () => { activePath.current = null; selectionGestureRef.current=null;lassoRef.current=[];setLassoPoints([]); },
+    onPanResponderTerminate: () => {
+      activePath.current = null;
+      pinchStart.current = null;
+      selectionGestureRef.current=null;
+      lassoRef.current=[];
+      setLassoPoints([]);
+    },
   }), []);
 
   const changePage = (nextIndex) => {
