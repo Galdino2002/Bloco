@@ -340,6 +340,27 @@ function ExamEditor({ exam, onSave, onBack }) {
     return () => clearInterval(id);
   }, [exam.id, exam.duration, endAt, finalized, paused]);
 
+  const persistExamState = (state = {}) => {
+    const currentPages = pages.map((page, pageIndex) => pageIndex === index
+      ? { ...page, paths: pathsRef.current }
+      : page);
+    const nextRemaining = state.remaining ?? remainingRef.current;
+    const nextEndAt = state.endAt ?? endAtRef.current;
+    const nextStatus = state.status || (finalized ? 'Finalizada' : (paused ? 'Pausada' : 'Em andamento'));
+    const elapsed = Math.max(0, exam.duration - nextRemaining);
+    persistenceQueueRef.current = persistenceQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const list = raw ? JSON.parse(raw) : [];
+        const next = list.map(item => item.id === exam.id
+          ? { ...item, pages: currentPages, remaining: nextRemaining, endAt: nextEndAt, elapsed, status: nextStatus, updatedAt: Date.now() }
+          : item);
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      })
+      .catch(error => console.error('Erro ao persistir estado da prova:', error));
+  };
+
   const responder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => !finalized,
     onMoveShouldSetPanResponder: e => !finalized && ((e.nativeEvent.touches?.length || 0) >= 2 || true),
@@ -518,10 +539,12 @@ function ExamEditor({ exam, onSave, onBack }) {
     if (paused) {
       endAtRef.current = Date.now() + remaining * 1000;
       setPaused(false);
+      persistExamState({ endAt: endAtRef.current, status: 'Em andamento' });
     } else {
       const currentRemaining = Math.max(0, Math.ceil((endAtRef.current - Date.now()) / 1000));
       setRemaining(currentRemaining);
       setPaused(true);
+      persistExamState({ remaining: currentRemaining, status: 'Pausada' });
     }
   };
   const finalizeExam = () => Alert.alert('Finalizar prova?', 'Depois de finalizar, as anotações ficarão somente para consulta.', [
@@ -529,6 +552,7 @@ function ExamEditor({ exam, onSave, onBack }) {
     { text: 'Finalizar', style: 'destructive', onPress: () => {
       setFinalized(true);
       const updatedPages = pages.map((page, i) => i === index ? { ...page, paths } : page);
+      persistExamState({ status: 'Finalizada' });
       onSave({ ...exam, pages: updatedPages, remaining, elapsed: Math.max(0, exam.duration - remaining), endAt, status: 'Finalizada' });
     } },
   ]);
