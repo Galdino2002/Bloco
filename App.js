@@ -29,8 +29,7 @@ const COLORS = {
   blue: '#6385A5',
 };
 
-const PALETTE = ['#203B32', '#D85D52', '#477BA8', '#D99A35', '#7659A6'];
-const HIGHLIGHTER_COLOR = '#F4D35E';
+const PALETTE = ['#202124','#5F6368','#B3261E','#E67C73','#E8710A','#F9AB00','#188038','#34A853','#00796B','#12A594','#1A73E8','#4285F4','#3F51B5','#673AB7','#A142F4','#D81B60','#8D6E63','#FFFFFF'];
 
 function distanceToSegment(point, start, end) {
   const dx = end.x - start.x;
@@ -156,6 +155,7 @@ function EditorScreen({ document, onSave }) {
   const [selectedClipboard, setSelectedClipboard] = useState([]);
   const [lassoPoints, setLassoPoints] = useState([]);
   const [color, setColor] = useState(PALETTE[0]);
+  const [markerType, setMarkerType] = useState('classic');
   const [strokeWidth, setStrokeWidth] = useState(4);
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -167,11 +167,12 @@ function EditorScreen({ document, onSave }) {
   const pathsRef = useRef(paths);
   const toolRef = useRef(tool);
   const colorRef = useRef(color);
+  const markerTypeRef = useRef(markerType);
   const widthRef = useRef(strokeWidth);
   const selectedIdsRef = useRef([]);
   const lassoRef = useRef([]);
   const selectionGestureRef = useRef(null);
-  pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; widthRef.current = strokeWidth;
+  pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType; widthRef.current = strokeWidth;
   selectedIdsRef.current=selectedStrokeIds; lassoRef.current=lassoPoints;
 
   const panResponder = useMemo(() => PanResponder.create({
@@ -201,7 +202,9 @@ function EditorScreen({ document, onSave }) {
         pathsRef.current = next; setPaths(next); setRedoPaths([]); return;
       }
       const highlighter = toolRef.current === 'highlighter';
-      const nextPath = { id: `${Date.now()}-${Math.random()}`, points: [point], color: highlighter ? HIGHLIGHTER_COLOR : colorRef.current, width: highlighter ? 16 : widthRef.current, opacity: highlighter ? 0.42 : 1 };
+      const marker = markerTypeRef.current;
+      const markerStyle = marker === 'pastel' ? { width: 24, opacity: 0.22 } : marker === 'underline' ? { width: 5, opacity: 0.95 } : marker === 'bold' ? { width: 13, opacity: 0.58 } : { width: 19, opacity: 0.32 };
+      const nextPath = { id: `${Date.now()}-${Math.random()}`, points: [point], color: colorRef.current, width: highlighter ? markerStyle.width : widthRef.current, opacity: highlighter ? markerStyle.opacity : 1 };
       activePath.current = nextPath; setPaths((previous) => [...previous, nextPath]); setRedoPaths([]);
     },
     onPanResponderMove: (event, gestureState) => {
@@ -326,7 +329,8 @@ function EditorScreen({ document, onSave }) {
           <View style={styles.panelDivider} />
           <View style={styles.widthOptions}>{[2, 4, 7].map((width) => <Pressable key={width} onPress={() => { setStrokeWidth(width); setTool('pen'); }} style={[styles.widthButton, strokeWidth === width && tool === 'pen' && styles.widthButtonActive]}><View style={[styles.widthDot, { width: width + 3, height: width + 3 }]} /></Pressable>)}</View>
         </View>
-        {selectedStrokeIds.length>0&&<View style={styles.selectionActionRow}><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,1.15));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Aumentar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,0.87));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Diminuir</Text></Pressable><Pressable onPress={()=>{setPaths(old=>rotateStrokes(old,selectedStrokeIds,Math.PI/12));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Girar</Text></Pressable><Pressable onPress={()=>{const picked=paths.filter(path=>selectedStrokeIds.includes(path.id));setSelectedClipboard(picked);setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={styles.selectionActionText}>Recortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(path=>({...path,id:`${Date.now()}-${Math.random()}`,points:path.points.map(p=>({x:p.x+24,y:p.y+24}))}));setPaths(old=>[...old,...pasted]);setSelectedStrokeIds(pasted.map(path=>path.id));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Colar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={[styles.selectionActionText,{color:COLORS.rose}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedStrokeIds([])}><Text style={styles.selectionActionText}>Desmarcar</Text></Pressable></View>}<View style={styles.colorRow}><Text style={styles.colorLabel}>COR</Text>{PALETTE.map((item) => <Pressable key={item} onPress={() => { setColor(item); setTool('pen'); }} style={[styles.colorButton, color === item && tool === 'pen' && styles.colorButtonSelected]}><View style={[styles.colorDot, { backgroundColor: item }]} /></Pressable>)}<View style={styles.panelSpacer} /><Text style={styles.annotationCount}>{paths.length} traços nesta página</Text></View>
+        {tool === 'highlighter' && <View style={styles.markerTypes}><Text style={styles.markerLabel}>ESTILO</Text>{[['classic','Clássico'],['pastel','Pastel'],['bold','Forte'],['underline','Sublinhado']].map(([id,label]) => <Pressable key={id} onPress={() => setMarkerType(id)} style={[styles.markerType, markerType === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, markerType === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View>}
+        {selectedStrokeIds.length>0&&<View style={styles.selectionActionRow}><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,1.15));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Aumentar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,0.87));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Diminuir</Text></Pressable><Pressable onPress={()=>{setPaths(old=>rotateStrokes(old,selectedStrokeIds,Math.PI/12));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Girar</Text></Pressable><Pressable onPress={()=>{const picked=paths.filter(path=>selectedStrokeIds.includes(path.id));setSelectedClipboard(picked);setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={styles.selectionActionText}>Recortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(path=>({...path,id:`${Date.now()}-${Math.random()}`,points:path.points.map(p=>({x:p.x+24,y:p.y+24}))}));setPaths(old=>[...old,...pasted]);setSelectedStrokeIds(pasted.map(path=>path.id));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Colar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={[styles.selectionActionText,{color:COLORS.rose}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedStrokeIds([])}><Text style={styles.selectionActionText}>Desmarcar</Text></Pressable></View>}<View style={styles.colorRow}><Text style={styles.colorLabel}>COR</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorScroll}>{PALETTE.map((item) => <Pressable key={item} onPress={() => setColor(item)} style={[styles.colorButton, color === item && styles.colorButtonSelected]}><View style={[styles.colorDot, { backgroundColor: item, borderWidth: item === '#FFFFFF' ? 1 : 0, borderColor: '#AEB5AE' }]} /></Pressable>)}</ScrollView><Text style={styles.annotationCount}>{paths.length} traços</Text></View>
       </View>
     </SafeAreaView>
   );
@@ -494,6 +498,13 @@ const styles = StyleSheet.create({
   widthDot: { borderRadius: 10, backgroundColor: COLORS.ink },
   selectionActionRow: { flexDirection:'row', flexWrap:'wrap', gap:14, paddingBottom:9 },
   selectionActionText: { color:COLORS.green, fontSize:10, fontWeight:'700' },
+  markerTypes: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8, marginBottom: 8 },
+  markerLabel: { color: COLORS.green, fontSize: 9, fontWeight: '800', marginRight: 3 },
+  markerType: { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 8, backgroundColor: '#F1F2EE', borderWidth: 1, borderColor: '#E3E6DF' },
+  markerTypeActive: { backgroundColor: '#DCEBDD', borderColor: COLORS.green },
+  markerTypeText: { color: '#667269', fontSize: 9, fontWeight: '600' },
+  markerTypeTextActive: { color: COLORS.green, fontWeight: '800' },
+  colorScroll: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 3 },
   colorRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F0F1EC', paddingTop: 9 },
   colorLabel: { color: '#9AA298', fontSize: 8, letterSpacing: 1.1, fontWeight: '800', marginRight: 12 },
   colorButton: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 5, borderWidth: 1, borderColor: 'transparent' },
