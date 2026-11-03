@@ -159,6 +159,7 @@ function EditorScreen({ document, onSave, onChange }) {
   const [lassoPoints, setLassoPoints] = useState([]);
   const [color, setColor] = useState(PALETTE[0]);
   const [markerType, setMarkerType] = useState('classic');
+  const [toolsExpanded, setToolsExpanded] = useState(false);
   const [strokeWidth, setStrokeWidth] = useState(4);
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -297,7 +298,6 @@ function EditorScreen({ document, onSave, onChange }) {
         <Pressable onPress={redo} disabled={!redoPaths.length} style={[styles.toolButton, !redoPaths.length && styles.toolDisabled]}><Text style={styles.toolGlyph}>↷</Text><Text style={styles.toolLabel}>Refazer</Text></Pressable>
         <View style={styles.toolbarDivider} />
         <Pressable onPress={() => { setPaths([]); setRedoPaths([]); setSelectedStrokeIds([]); }} style={styles.toolButton}><Text style={styles.toolGlyph}>⌫</Text><Text style={styles.toolLabel}>Limpar</Text></Pressable>
-        <Pressable onPress={() => { setTool("select"); setSelectedStrokeIds([]); }} style={[styles.lassoTopButton, tool === "select" && styles.lassoTopButtonActive]}><Text style={styles.lassoTopButtonText}>⌁ LAÇO</Text></Pressable>
         <View style={styles.editorSpacer} />
         <View style={styles.pageCounter}><Text style={styles.pageCounterText}>{String(pageIndex + 1).padStart(2, '0')} / {String(pages.length).padStart(2, '0')}</Text></View>
       </View>
@@ -328,15 +328,21 @@ function EditorScreen({ document, onSave, onChange }) {
         <Pressable disabled={pageIndex === pages.length - 1} onPress={() => changePage(pageIndex + 1)} style={[styles.pageNavButton, pageIndex === pages.length - 1 && styles.toolDisabled]}><Text style={styles.pageNavText}>Próxima ›</Text></Pressable>
       </View>
       <View style={styles.drawingPanel}>
-        <View style={styles.toolModeRow}>
-          <Pressable onPress={() => setTool('pen')} style={[styles.modeButton, tool === 'pen' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'pen' && styles.modeGlyphActive]}>✎</Text><Text style={[styles.modeText, tool === 'pen' && styles.modeTextActive]}>Caneta</Text></Pressable>
-          <Pressable onPress={() => setTool('highlighter')} style={[styles.modeButton, tool === 'highlighter' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'highlighter' && styles.modeGlyphActive]}>▰</Text><Text style={[styles.modeText, tool === 'highlighter' && styles.modeTextActive]}>Marca-texto</Text></Pressable>
-          <Pressable onPress={() => {setTool('select');setSelectedStrokeIds([]);}} style={[styles.modeButton, tool === 'select' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'select' && styles.modeGlyphActive]}>⌁</Text><Text style={[styles.modeText, tool === 'select' && styles.modeTextActive]}>Laço</Text></Pressable><Pressable onPress={() => setTool('move')} style={[styles.modeButton, tool === 'move' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'move' && styles.modeGlyphActive]}>✥</Text><Text style={[styles.modeText, tool === 'move' && styles.modeTextActive]}>Mover folha</Text></Pressable>
-          <Pressable onPress={() => setTool('eraser')} style={[styles.modeButton, tool === 'eraser' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'eraser' && styles.modeGlyphActive]}>▱</Text><Text style={[styles.modeText, tool === 'eraser' && styles.modeTextActive]}>Borracha</Text></Pressable>
-          <View style={styles.panelDivider} />
-          <View style={styles.widthOptions}>{[2, 4, 7].map((width) => <Pressable key={width} onPress={() => { setStrokeWidth(width); setTool('pen'); }} style={[styles.widthButton, strokeWidth === width && tool === 'pen' && styles.widthButtonActive]}><View style={[styles.widthDot, { width: width + 3, height: width + 3 }]} /></Pressable>)}</View>
+        <View style={styles.compactToolRow}>
+          <Pressable onPress={() => setTool('pen')} style={[styles.compactTool, tool === 'pen' && styles.compactToolActive]}><Text style={styles.compactToolGlyph}>✎</Text><Text style={styles.compactToolText}>{tool === 'pen' ? 'Caneta' : tool === 'highlighter' ? 'Marca-texto' : tool === 'eraser' ? 'Borracha' : tool === 'move' ? 'Mover folha' : 'Laço'}</Text></Pressable>
+          <Pressable onPress={() => { setTool('select'); setSelectedStrokeIds([]); }} style={[styles.compactTool, tool === 'select' && styles.compactToolActive]}><Text style={styles.compactToolGlyph}>⌁</Text><Text style={styles.compactToolText}>Laço</Text></Pressable>
+          <Pressable onPress={() => setToolsExpanded(value => !value)} style={[styles.moreToolsButton, toolsExpanded && styles.moreToolsButtonActive]}><Text style={styles.moreToolsGlyph}>{toolsExpanded ? '⌃' : '•••'}</Text><Text style={styles.moreToolsText}>{toolsExpanded ? 'Fechar' : 'Ferramentas'}</Text></Pressable>
         </View>
-        {tool === 'highlighter' && <View style={styles.markerTypes}><Text style={styles.markerLabel}>ESTILO</Text>{[['classic','Clássico'],['pastel','Pastel'],['bold','Forte'],['underline','Sublinhado']].map(([id,label]) => <Pressable key={id} onPress={() => setMarkerType(id)} style={[styles.markerType, markerType === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, markerType === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View>}
+        {toolsExpanded && <View style={styles.expandedTools}>
+          <View style={styles.toolModeRow}>
+            <Pressable onPress={() => setTool('pen')} style={[styles.modeButton, tool === 'pen' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'pen' && styles.modeGlyphActive]}>✎</Text><Text style={[styles.modeText, tool === 'pen' && styles.modeTextActive]}>Caneta</Text></Pressable>
+            <Pressable onPress={() => setTool('highlighter')} style={[styles.modeButton, tool === 'highlighter' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'highlighter' && styles.modeGlyphActive]}>▰</Text><Text style={[styles.modeText, tool === 'highlighter' && styles.modeTextActive]}>Marca-texto</Text></Pressable>
+            <Pressable onPress={() => setTool('move')} style={[styles.modeButton, tool === 'move' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'move' && styles.modeGlyphActive]}>✥</Text><Text style={[styles.modeText, tool === 'move' && styles.modeTextActive]}>Mover folha</Text></Pressable>
+            <Pressable onPress={() => setTool('eraser')} style={[styles.modeButton, tool === 'eraser' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'eraser' && styles.modeGlyphActive]}>▱</Text><Text style={[styles.modeText, tool === 'eraser' && styles.modeTextActive]}>Borracha</Text></Pressable>
+          </View>
+          <View style={styles.toolSettingsRow}><Text style={styles.toolSettingsLabel}>Espessura</Text><View style={styles.widthOptions}>{[2, 4, 7].map((width) => <Pressable key={width} onPress={() => { setStrokeWidth(width); setTool('pen'); }} style={[styles.widthButton, strokeWidth === width && tool === 'pen' && styles.widthButtonActive]}><View style={[styles.widthDot, { width: width + 3, height: width + 3 }]} /></Pressable>)}</View></View>
+          {tool === 'highlighter' && <View style={styles.markerTypes}><Text style={styles.markerLabel}>ESTILO</Text>{[['classic','Clássico'],['pastel','Pastel'],['bold','Forte'],['underline','Sublinhado']].map(([id,label]) => <Pressable key={id} onPress={() => setMarkerType(id)} style={[styles.markerType, markerType === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, markerType === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View>}
+        </View>}
         {selectedStrokeIds.length>0&&<View style={styles.selectionActionRow}><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,1.15));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Aumentar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,0.87));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Diminuir</Text></Pressable><Pressable onPress={()=>{setPaths(old=>rotateStrokes(old,selectedStrokeIds,Math.PI/12));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Girar</Text></Pressable><Pressable onPress={()=>{const picked=paths.filter(path=>selectedStrokeIds.includes(path.id));setSelectedClipboard(picked);setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={styles.selectionActionText}>Recortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(path=>({...path,id:`${Date.now()}-${Math.random()}`,points:path.points.map(p=>({x:p.x+24,y:p.y+24}))}));setPaths(old=>[...old,...pasted]);setSelectedStrokeIds(pasted.map(path=>path.id));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Colar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={[styles.selectionActionText,{color:COLORS.rose}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedStrokeIds([])}><Text style={styles.selectionActionText}>Desmarcar</Text></Pressable></View>}<View style={styles.colorRow}><Text style={styles.colorLabel}>COR</Text><ScrollView horizontal style={{ flex: 1 }} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorScroll}>{PALETTE.map((item) => <Pressable key={item} onPress={() => setColor(item)} style={[styles.colorButton, color === item && styles.colorButtonSelected]}><View style={[styles.colorDot, { backgroundColor: item, borderWidth: item === '#FFFFFF' ? 1 : 0, borderColor: '#AEB5AE' }]} /></Pressable>)}</ScrollView><Text style={styles.annotationCount}>{paths.length} traços</Text></View>
       </View>
     </SafeAreaView>
@@ -498,6 +504,18 @@ const styles = StyleSheet.create({
   toolDisabled: { opacity: 0.3 },
   toolGlyph: { color: COLORS.ink, fontSize: 20, lineHeight: 23 },
   toolLabel: { color: '#68756C', fontSize: 8, marginTop: 2 },
+  compactToolRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8 },
+  compactTool: { flexDirection: 'row', alignItems: 'center', minWidth: 92, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 11 },
+  compactToolActive: { backgroundColor: COLORS.greenLight },
+  compactToolGlyph: { color: COLORS.green, fontSize: 19, marginRight: 7 },
+  compactToolText: { color: COLORS.green, fontSize: 10, fontWeight: '700' },
+  moreToolsButton: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 11, backgroundColor: '#F1F3EE' },
+  moreToolsButtonActive: { backgroundColor: COLORS.greenLight },
+  moreToolsGlyph: { color: COLORS.green, fontSize: 16, fontWeight: '800', letterSpacing: 1 },
+  moreToolsText: { color: COLORS.green, fontSize: 10, fontWeight: '700', marginLeft: 6 },
+  expandedTools: { borderTopWidth: 1, borderTopColor: '#F0F1EC', paddingTop: 7 },
+  toolSettingsRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingBottom: 4 },
+  toolSettingsLabel: { color: COLORS.muted, fontSize: 9, fontWeight: '700', marginRight: 10 },
   toolbarDivider: { width: 1, height: 29, backgroundColor: COLORS.line, marginHorizontal: 8 },
   editorSpacer: { flex: 1 },
   pageCounter: { backgroundColor: COLORS.greenLight, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 6 },
