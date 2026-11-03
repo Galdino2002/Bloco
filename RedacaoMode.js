@@ -76,10 +76,12 @@ export default function RedacaoMode({ onExit }) {
   const [canvasTool, setCanvasTool] = useState('draw');
   const canvasToolRef = useRef('draw');
   const [markerType, setMarkerType] = useState('classic');
+  const [penWidth, setPenWidth] = useState(4);
   const [selectedIds, setSelectedIds] = useState([]);
   const [clipboard, setClipboard] = useState([]);
   const [lasso, setLasso] = useState([]);
   const markerTypeRef = useRef('classic');
+  const penWidthRef = useRef(4);
   const selectedIdsRef = useRef([]);
   const lassoRef = useRef([]);
   const selectionRef = useRef(null);
@@ -95,6 +97,7 @@ export default function RedacaoMode({ onExit }) {
   pathsRef.current = paths;
   colorRef.current = color;
   markerTypeRef.current = markerType;
+  penWidthRef.current = penWidth;
   selectedIdsRef.current = selectedIds;
   lassoRef.current = lasso;
 
@@ -268,7 +271,7 @@ export default function RedacaoMode({ onExit }) {
       const isMarker = canvasToolRef.current === 'highlighter';
       const marker = markerTypeRef.current;
       const markerStyle = marker === 'pastel' ? { width: 24, opacity: 0.22 } : marker === 'underline' ? { width: 5, opacity: 0.95 } : marker === 'bold' ? { width: 13, opacity: 0.58 } : { width: 19, opacity: 0.32 };
-      const stroke = { id: String(Date.now()) + Math.random(), points: [point], color: colorRef.current, width: isMarker ? markerStyle.width : 3.5, opacity: isMarker ? markerStyle.opacity : 1 };
+      const stroke = { id: String(Date.now()) + Math.random(), points: [point], color: colorRef.current, width: isMarker ? markerStyle.width : penWidthRef.current, opacity: isMarker ? markerStyle.opacity : 1 };
       activePath.current = stroke; pathsRef.current = [...pathsRef.current, stroke]; setPaths(pathsRef.current); setRedo([]);
     },
     onPanResponderMove: event => {
@@ -407,6 +410,7 @@ export default function RedacaoMode({ onExit }) {
                 <Pressable onPress={() => setSelectedIds([])}><Text style={styles.toolText}>Desmarcar</Text></Pressable>
               </View>}
             </View>}
+            {canvasTool === 'draw' && <View style={styles.penWidths}><Text style={styles.markerLabel}>ESPESSURA</Text>{[2,4,7].map(width => <Pressable key={width} onPress={() => setPenWidth(width)} style={[styles.penWidthButton, penWidth === width && styles.penWidthButtonActive]}><View style={{ width: width + 3, height: width + 3, borderRadius: 10, backgroundColor: INK }} /></Pressable>)}</View>}
             {canvasTool === 'highlighter' && <View style={styles.markerTypes}>
               <Text style={styles.markerLabel}>ESTILO</Text>
               {[['classic','Clássico'],['pastel','Pastel'],['bold','Forte'],['underline','Sublinhado']].map(([id,label]) => <Pressable key={id} onPress={() => setMarkerType(id)} style={[styles.markerType, markerType === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, markerType === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}
@@ -523,6 +527,9 @@ const styles = StyleSheet.create({
   selectionHint: { color: '#77847A', fontSize: 10, marginBottom: 7 },
   selectionActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
   markerTypes: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 7 },
+  penWidths: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 7 },
+  penWidthButton: { width: 29, height: 27, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
+  penWidthButtonActive: { borderColor: '#B8CDBB', backgroundColor: '#F4F7F2' },
   markerLabel: { color: GREEN, fontSize: 9, fontWeight: '800', marginRight: 3 },
   markerType: { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 8, backgroundColor: '#F1F2EE', borderWidth: 1, borderColor: '#E3E6DF' },
   markerTypeActive: { backgroundColor: '#DCEBDD', borderColor: GREEN },
