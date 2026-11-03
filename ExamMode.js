@@ -347,10 +347,14 @@ function ExamEditor({ exam, onSave, onBack }) {
       }
       if (toolRef.current === 'eraser') {
         const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
-        const next = eraseAtPoint(pathsRef.current, p, 24);
-        pathsRef.current = next;
-        setPaths(next);
-        setRedo([]);
+        const previous = pathsRef.current;
+        const next = eraseAtPoint(previous, p, 24);
+        const changed = next.length !== previous.length || next.some((path, index) => path !== previous[index]);
+        if (changed) {
+          pathsRef.current = next;
+          setPaths(next);
+          setRedo([]);
+        }
         return;
       }
       const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
@@ -415,8 +419,10 @@ function ExamEditor({ exam, onSave, onBack }) {
       }
       const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
       if (toolRef.current === 'eraser') {
-        const next = eraseAtPoint(pathsRef.current, p, 24);
-        if (next !== pathsRef.current) {
+        const previous = pathsRef.current;
+        const next = eraseAtPoint(previous, p, 24);
+        const changed = next.length !== previous.length || next.some((path, index) => path !== previous[index]);
+        if (changed) {
           pathsRef.current = next;
           setPaths(next);
         }
