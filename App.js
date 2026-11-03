@@ -20,6 +20,7 @@ import Svg, { Path, Rect } from 'react-native-svg';
 import ExamMode from './ExamMode';
 import RedacaoMode from './RedacaoMode';
 import { eraseAtPoint, pathIntersectsPolygon, screenToDocument } from './drawing';
+import { commitHistory, createHistory, redoHistory, undoHistory } from './drawingHistory';
 
 const NOTEBOOKS_STORAGE_KEY = '@bloco:notebooks:v1';
 const NOTEBOOKS_FILES_DIRECTORY = `${FileSystem.documentDirectory}bloco-notebooks/`;
@@ -208,6 +209,7 @@ function EditorScreen({ document, onSave, onChange }) {
   const [pageText, setPageText] = useState(initialPages[0]?.text || '');
   const [pageBackground, setPageBackground] = useState(initialPages[0]?.background || 'plain');
   const [redoPaths, setRedoPaths] = useState([]);
+  const [pathHistory, setPathHistory] = useState(() => createHistory(initialPages[0]?.paths || []));
   const [tool, setTool] = useState('pen');
   const [selectedStrokeIds, setSelectedStrokeIds] = useState([]);
   const [selectedClipboard, setSelectedClipboard] = useState([]);
@@ -234,8 +236,29 @@ function EditorScreen({ document, onSave, onChange }) {
   const selectedIdsRef = useRef([]);
   const lassoRef = useRef([]);
   const selectionGestureRef = useRef(null);
+  const pathHistoryRef = useRef(pathHistory);
   pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType; widthRef.current = strokeWidth;
   selectedIdsRef.current=selectedStrokeIds; lassoRef.current=lassoPoints;
+  pathHistoryRef.current = pathHistory;
+
+  const applyPathChange = (nextPaths, record = true) => {
+    pathsRef.current = nextPaths;
+    setPaths(nextPaths);
+    if (record) {
+      const nextHistory = commitHistory(pathHistoryRef.current, nextPaths);
+      pathHistoryRef.current = nextHistory;
+      setPathHistory(nextHistory);
+    }
+    setRedoPaths([]);
+  };
+
+  const recordPathSnapshot = () => {
+    if (JSON.stringify(pathHistoryRef.current.present) === JSON.stringify(pathsRef.current)) return;
+    const nextHistory = commitHistory(pathHistoryRef.current, pathsRef.current);
+    pathHistoryRef.current = nextHistory;
+    setPathHistory(nextHistory);
+    setRedoPaths([]);
+  };
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -272,7 +295,7 @@ function EditorScreen({ document, onSave, onChange }) {
         const changed = next.length !== previous.length || next.some((path, index) => path !== previous[index]);
         if (changed) {
           pathsRef.current = next;
-          setPaths(next);
+          applyPathChange(next);
           setRedoPaths([]);
         }
         return;
@@ -281,7 +304,10 @@ function EditorScreen({ document, onSave, onChange }) {
       const marker = markerTypeRef.current;
       const markerStyle = marker === 'pastel' ? { width: 24, opacity: 0.22 } : marker === 'underline' ? { width: 5, opacity: 0.95 } : marker === 'bold' ? { width: 13, opacity: 0.58 } : { width: 19, opacity: 0.32 };
       const nextPath = { id: `${Date.now()}-${Math.random()}`, points: [point], color: colorRef.current, width: highlighter ? markerStyle.width : widthRef.current, opacity: highlighter ? markerStyle.opacity : 1 };
-      activePath.current = nextPath; setPaths((previous) => [...previous, nextPath]); setRedoPaths([]);
+      activePath.current = nextPath;
+      pathsRef.current = [...pathsRef.current, nextPath];
+      setPaths(pathsRef.current);
+      setRedoPaths([]);
     },
     onPanResponderMove: (event, gestureState) => {
       const touches = event.nativeEvent.touches || [];
@@ -338,7 +364,9 @@ function EditorScreen({ document, onSave, onChange }) {
       }
       if (!activePath.current) return;
       const updated = { ...activePath.current, points: [...activePath.current.points, point] };
-      activePath.current = updated; setPaths((previous) => [...previous.slice(0, -1), updated]);
+      activePath.current = updated;
+      pathsRef.current = [...pathsRef.current.slice(0, -1), updated];
+      setPaths(pathsRef.current);
     },
     onPanResponderRelease: (event) => {
       if(toolRef.current==='select' && selectionGestureRef.current?.type==='lasso'){
@@ -354,6 +382,7 @@ function EditorScreen({ document, onSave, onChange }) {
         const moved=selectionGestureRef.current.original.map(stroke=>selectedIdsRef.current.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>({x:p.x+dx,y:p.y+dy}))}:stroke);
         pathsRef.current=moved;setPaths(moved);setRedoPaths([]);
       }
+      recordPathSnapshot();
       selectionGestureRef.current=null;
       activePath.current=null;
       if ((event.nativeEvent.touches?.length || 0) < 2) pinchStart.current = null;
@@ -382,10 +411,29 @@ function EditorScreen({ document, onSave, onChange }) {
     lassoRef.current = [];
     setPageText(nextPage.text || '');
     setPageBackground(nextPage.background || 'plain');
+    const nextHistory = createHistory(nextPaths);
+    pathHistoryRef.current = nextHistory;
+    setPathHistory(nextHistory);
     setZoom(1); setPanOffset({ x: 0, y: 0 });
   };
-  const undo = () => { if (!paths.length) return; setRedoPaths((previous) => [...previous, paths[paths.length - 1]]); setPaths((previous) => previous.slice(0, -1)); };
-  const redo = () => { if (!redoPaths.length) return; setPaths((previous) => [...previous, redoPaths[redoPaths.length - 1]]); setRedoPaths((previous) => previous.slice(0, -1)); };
+  const undo = () => {
+    const nextHistory = undoHistory(pathHistoryRef.current);
+    if (nextHistory === pathHistoryRef.current) return;
+    pathHistoryRef.current = nextHistory;
+    setPathHistory(nextHistory);
+    pathsRef.current = nextHistory.present;
+    setPaths(nextHistory.present);
+    setRedoPaths([]);
+  };
+  const redo = () => {
+    const nextHistory = redoHistory(pathHistoryRef.current);
+    if (nextHistory === pathHistoryRef.current) return;
+    pathHistoryRef.current = nextHistory;
+    setPathHistory(nextHistory);
+    pathsRef.current = nextHistory.present;
+    setPaths(nextHistory.present);
+    setRedoPaths([]);
+  };
   const save = () => {
     const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths, text: pageText, background: pageBackground } : page);
     onSave({ ...document, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
@@ -408,10 +456,10 @@ function EditorScreen({ document, onSave, onChange }) {
         <Pressable onPress={save} style={styles.saveButton}><Text style={styles.saveButtonText}>Salvar</Text></Pressable>
       </View>
       <View style={styles.editorToolbar}>
-        <Pressable onPress={undo} disabled={!paths.length} style={[styles.toolButton, !paths.length && styles.toolDisabled]}><Text style={styles.toolGlyph}>↶</Text><Text style={styles.toolLabel}>Desfazer</Text></Pressable>
-        <Pressable onPress={redo} disabled={!redoPaths.length} style={[styles.toolButton, !redoPaths.length && styles.toolDisabled]}><Text style={styles.toolGlyph}>↷</Text><Text style={styles.toolLabel}>Refazer</Text></Pressable>
+        <Pressable onPress={undo} disabled={pathHistory.past.length <= 1} style={[styles.toolButton, pathHistory.past.length <= 1 && styles.toolDisabled]}><Text style={styles.toolGlyph}>↶</Text><Text style={styles.toolLabel}>Desfazer</Text></Pressable>
+        <Pressable onPress={redo} disabled={!pathHistory.future.length} style={[styles.toolButton, !pathHistory.future.length && styles.toolDisabled]}><Text style={styles.toolGlyph}>↷</Text><Text style={styles.toolLabel}>Refazer</Text></Pressable>
         <View style={styles.toolbarDivider} />
-        <Pressable onPress={() => { setPaths([]); setRedoPaths([]); setSelectedStrokeIds([]); }} style={styles.toolButton}><Text style={styles.toolGlyph}>⌫</Text><Text style={styles.toolLabel}>Limpar</Text></Pressable>
+        <Pressable onPress={() => { if (pathsRef.current.length) applyPathChange([]); setSelectedStrokeIds([]); }} style={styles.toolButton}><Text style={styles.toolGlyph}>⌫</Text><Text style={styles.toolLabel}>Limpar</Text></Pressable>
         <View style={styles.editorSpacer} />
         <View style={styles.pageCounter}><Text style={styles.pageCounterText}>{String(pageIndex + 1).padStart(2, '0')} / {String(pages.length).padStart(2, '0')}</Text></View>
       </View>
@@ -461,7 +509,7 @@ function EditorScreen({ document, onSave, onChange }) {
           {tool === 'highlighter' && <View style={styles.markerTypes}><Text style={styles.markerLabel}>ESTILO</Text>{[['classic','Clássico'],['pastel','Pastel'],['bold','Forte'],['underline','Sublinhado']].map(([id,label]) => <Pressable key={id} onPress={() => setMarkerType(id)} style={[styles.markerType, markerType === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, markerType === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View>}
           <View style={styles.markerTypes}><Text style={styles.markerLabel}>FUNDO</Text>{[['plain','Branco'],['ruled','Pautado'],['grid','Quadriculado'],['dotted','Pontilhado']].map(([id,label]) => <Pressable key={id} onPress={() => setPageBackground(id)} style={[styles.markerType, pageBackground === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, pageBackground === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View>
         </View>}
-        {selectedStrokeIds.length>0&&<View style={styles.selectionActionRow}><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,1.15));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Aumentar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,0.87));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Diminuir</Text></Pressable><Pressable onPress={()=>{setPaths(old=>rotateStrokes(old,selectedStrokeIds,Math.PI/12));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Girar</Text></Pressable><Pressable onPress={()=>{const picked=paths.filter(path=>selectedStrokeIds.includes(path.id));setSelectedClipboard(picked);setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={styles.selectionActionText}>Recortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(path=>({...path,id:`${Date.now()}-${Math.random()}`,points:path.points.map(p=>({x:p.x+24,y:p.y+24}))}));setPaths(old=>[...old,...pasted]);setSelectedStrokeIds(pasted.map(path=>path.id));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Colar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={[styles.selectionActionText,{color:COLORS.rose}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedStrokeIds([])}><Text style={styles.selectionActionText}>Desmarcar</Text></Pressable></View>}<View style={styles.colorRow}><Text style={styles.colorLabel}>COR</Text><ScrollView horizontal style={{ flex: 1 }} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorScroll}>{PALETTE.map((item) => <Pressable key={item} onPress={() => setColor(item)} style={[styles.colorButton, color === item && styles.colorButtonSelected]}><View style={[styles.colorDot, { backgroundColor: item, borderWidth: item === '#FFFFFF' ? 1 : 0, borderColor: '#AEB5AE' }]} /></Pressable>)}</ScrollView><Text style={styles.annotationCount}>{paths.length} traços</Text></View>
+        {selectedStrokeIds.length>0&&<View style={styles.selectionActionRow}><Pressable onPress={()=>applyPathChange(resizeStrokes(pathsRef.current,selectedStrokeIds,1.15))}><Text style={styles.selectionActionText}>Aumentar</Text></Pressable><Pressable onPress={()=>applyPathChange(resizeStrokes(pathsRef.current,selectedStrokeIds,0.87))}><Text style={styles.selectionActionText}>Diminuir</Text></Pressable><Pressable onPress={()=>applyPathChange(rotateStrokes(pathsRef.current,selectedStrokeIds,Math.PI/12))}><Text style={styles.selectionActionText}>Girar</Text></Pressable><Pressable onPress={()=>{const picked=pathsRef.current.filter(path=>selectedStrokeIds.includes(path.id));setSelectedClipboard(picked);applyPathChange(pathsRef.current.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);}}><Text style={styles.selectionActionText}>Recortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(path=>({...path,id:`${Date.now()}-${Math.random()}`,points:path.points.map(p=>({x:p.x+24,y:p.y+24}))}));applyPathChange([...pathsRef.current,...pasted]);setSelectedStrokeIds(pasted.map(path=>path.id));}}><Text style={styles.selectionActionText}>Colar</Text></Pressable><Pressable onPress={()=>{applyPathChange(pathsRef.current.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);}}><Text style={[styles.selectionActionText,{color:COLORS.rose}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedStrokeIds([])}><Text style={styles.selectionActionText}>Desmarcar</Text></Pressable></View>}<View style={styles.colorRow}><Text style={styles.colorLabel}>COR</Text><ScrollView horizontal style={{ flex: 1 }} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorScroll}>{PALETTE.map((item) => <Pressable key={item} onPress={() => setColor(item)} style={[styles.colorButton, color === item && styles.colorButtonSelected]}><View style={[styles.colorDot, { backgroundColor: item, borderWidth: item === '#FFFFFF' ? 1 : 0, borderColor: '#AEB5AE' }]} /></Pressable>)}</ScrollView><Text style={styles.annotationCount}>{paths.length} traços</Text></View>
       </ScrollView>
     </SafeAreaView>
   );
