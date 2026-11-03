@@ -389,26 +389,34 @@ export default function RedacaoMode({ onExit }) {
               <Pressable onPress={() => { if (redo.length) { setPaths(old => [...old, redo[redo.length - 1]]); setRedo(old => old.slice(0, -1)); } }}><Text style={styles.toolText}>↷ Refazer</Text></Pressable>
               <Pressable onPress={() => Alert.alert('Limpar folha?', 'Apagar todos os traços desta folha?', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Limpar', style: 'destructive', onPress: () => { setPaths([]); setRedo([]); } }])}><Text style={styles.toolText}>Limpar</Text></Pressable>
             </View>
+            <View style={styles.canvasModeBar}>
+              {[
+                ['draw', '✎ Caneta'], ['highlighter', '▰ Marca-texto'], ['eraser', '⌫ Borracha'],
+                ['select', '⌁ Laço'], ['move', '✥ Mover folha'],
+              ].map(([id, label]) => <Pressable key={id} onPress={() => { canvasToolRef.current = id; setCanvasTool(id); activePath.current = null; if (id !== 'select') { setSelectedIds([]); setLasso([]); } }} style={[styles.canvasModeButton, canvasTool === id && styles.canvasModeSelected]}><Text style={[styles.canvasModeText, canvasTool === id && styles.canvasModeTextSelected]}>{label}</Text></Pressable>)}
+            </View>
+            {canvasTool === 'select' && <View style={styles.selectionToolbar}>
+              <Text style={styles.selectionHint}>{selectedIds.length ? 'Seleção ativa: arraste para mover ou use as ações.' : 'Contorne a escrita com o dedo para selecionar.'}</Text>
+              {selectedIds.length > 0 && <View style={styles.selectionActions}>
+                <Pressable onPress={() => { const next = transformSelected(paths, selectedIds, 1.15); pathsRef.current = next; setPaths(next); setRedo([]); }}><Text style={styles.toolText}>Aumentar</Text></Pressable>
+                <Pressable onPress={() => { const next = transformSelected(paths, selectedIds, 0.87); pathsRef.current = next; setPaths(next); setRedo([]); }}><Text style={styles.toolText}>Diminuir</Text></Pressable>
+                <Pressable onPress={() => { const next = transformSelected(paths, selectedIds, 1, Math.PI / 12); pathsRef.current = next; setPaths(next); setRedo([]); }}><Text style={styles.toolText}>Girar</Text></Pressable>
+                <Pressable onPress={() => { setClipboard(paths.filter(path => selectedIds.includes(path.id))); const next = paths.filter(path => !selectedIds.includes(path.id)); pathsRef.current = next; setPaths(next); setSelectedIds([]); setRedo([]); }}><Text style={styles.toolText}>Recortar</Text></Pressable>
+                <Pressable onPress={() => { if (!clipboard.length) return; const pasted = clipboard.map(path => ({ ...path, id: String(Date.now()) + Math.random(), points: path.points.map(p => ({ x: p.x + 24, y: p.y + 24 })) })); const next = [...paths, ...pasted]; pathsRef.current = next; setPaths(next); setSelectedIds(pasted.map(path => path.id)); setRedo([]); }}><Text style={styles.toolText}>Colar</Text></Pressable>
+                <Pressable onPress={() => { const next = paths.filter(path => !selectedIds.includes(path.id)); pathsRef.current = next; setPaths(next); setSelectedIds([]); setRedo([]); }}><Text style={[styles.toolText, { color: '#B44D45' }]}>Excluir</Text></Pressable>
+                <Pressable onPress={() => setSelectedIds([])}><Text style={styles.toolText}>Desmarcar</Text></Pressable>
+              </View>}
+            </View>}
+            {canvasTool === 'highlighter' && <View style={styles.markerTypes}>
+              <Text style={styles.markerLabel}>ESTILO</Text>
+              {[['classic','Clássico'],['pastel','Pastel'],['bold','Forte'],['underline','Sublinhado']].map(([id,label]) => <Pressable key={id} onPress={() => setMarkerType(id)} style={[styles.markerType, markerType === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, markerType === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}
+            </View>}
             <View style={styles.drawToolsRow}>
-              <View style={styles.palette}>
-                {COLORS.map(item => <Pressable key={item} onPress={() => setColor(item)} style={[styles.swatch, { backgroundColor: item }, color === item && styles.swatchSelected]} />)}
-              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.palette}>
+                {COLORS.map(item => <Pressable key={item} onPress={() => setColor(item)} style={[styles.swatch, { backgroundColor: item, borderWidth: item === '#FFFFFF' ? 1 : 0, borderColor: '#AEB5AE' }, color === item && styles.swatchSelected]} />)}
+              </ScrollView>
               <Pressable onPress={() => setShowLines(value => !value)} style={[styles.linesToggle, showLines && styles.linesToggleActive]}>
                 <Text style={[styles.linesToggleText, showLines && styles.linesToggleTextActive]}>{showLines ? '☷ Linhas' : '□ Sem linhas'}</Text>
-              </Pressable>
-            </View>
-            <View style={styles.canvasModeBar}>
-              <Pressable
-                onPress={() => { canvasToolRef.current = 'draw'; setCanvasTool('draw'); }}
-                style={[styles.canvasModeButton, canvasTool === 'draw' && styles.canvasModeSelected]}
-              >
-                <Text style={[styles.canvasModeText, canvasTool === 'draw' && styles.canvasModeTextSelected]}>✎ Desenhar</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => { canvasToolRef.current = 'move'; setCanvasTool('move'); activePath.current = null; }}
-                style={[styles.canvasModeButton, canvasTool === 'move' && styles.canvasModeSelected]}
-              >
-                <Text style={[styles.canvasModeText, canvasTool === 'move' && styles.canvasModeTextSelected]}>✋ Mover</Text>
               </Pressable>
             </View>
             <View style={styles.zoomToolbar}>
@@ -434,7 +442,7 @@ export default function RedacaoMode({ onExit }) {
                   {showLines && Array.from({ length: 70 }, (_, index) => (
                     <Line key={index} x1="0" y1={32 + index * 28} x2="1200" y2={32 + index * 28} stroke="#E5EBE5" strokeWidth="1" />
                   ))}
-                  {paths.map(path => <Path key={path.id} d={pathData(path.points)} stroke={path.color} strokeWidth={path.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}
+                  {paths.map(path => <Path key={path.id} d={pathData(path.points)} stroke={path.color} strokeOpacity={path.opacity ?? 1} strokeWidth={path.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lasso.length > 1 && <Path d={pathData(lasso)} stroke={GREEN} strokeWidth={2} strokeDasharray="6 4" fill="none" />}{selectedIds.length > 0 && (() => { const b = getBounds(paths.filter(path => selectedIds.includes(path.id))); return b ? <><Rect x={b.minX - 7} y={b.minY - 7} width={Math.max(20, b.maxX - b.minX + 14)} height={Math.max(20, b.maxY - b.minY + 14)} stroke={GREEN} strokeWidth={1.5} strokeDasharray="5 4" fill="none" /><Rect x={b.maxX + 1} y={b.maxY + 1} width={12} height={12} rx={3} fill={GREEN} /></> : null; })()}
                 </G>
               </Svg>
             </View>
@@ -511,10 +519,20 @@ const styles = StyleSheet.create({
   correctionButtonSubSecondary: { color: '#718477' },
   correctionButtonDisabled: { opacity: 0.55 },
   drawArea: { flex: 1, paddingHorizontal: 14, paddingBottom: 12 },
+  selectionToolbar: { backgroundColor: '#F7F9F5', borderRadius: 10, padding: 9, marginTop: 7, marginBottom: 6 },
+  selectionHint: { color: '#77847A', fontSize: 10, marginBottom: 7 },
+  selectionActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  markerTypes: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 7 },
+  markerLabel: { color: GREEN, fontSize: 9, fontWeight: '800', marginRight: 3 },
+  markerType: { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 8, backgroundColor: '#F1F2EE', borderWidth: 1, borderColor: '#E3E6DF' },
+  markerTypeActive: { backgroundColor: '#DCEBDD', borderColor: GREEN },
+  markerTypeText: { color: '#667269', fontSize: 9, fontWeight: '600' },
+  markerTypeTextActive: { color: GREEN, fontWeight: '800' },
+
   drawToolbar: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 10, backgroundColor: '#FFF', borderRadius: 11, marginBottom: 8 },
   toolText: { color: GREEN, fontSize: 11, fontWeight: '700' },
   drawToolsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  palette: { flexDirection: 'row', gap: 13, paddingVertical: 9 },
+  palette: { flexDirection: 'row', gap: 10, paddingVertical: 9, alignItems: 'center' },
   linesToggle: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 9, backgroundColor: '#EAEDE6' },
   linesToggleActive: { backgroundColor: '#DDE9DF' },
   linesToggleText: { color: '#7C887E', fontSize: 10, fontWeight: '700' },
