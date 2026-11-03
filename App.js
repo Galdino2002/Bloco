@@ -287,6 +287,7 @@ function EditorScreen({ document, onSave }) {
         <Pressable onPress={redo} disabled={!redoPaths.length} style={[styles.toolButton, !redoPaths.length && styles.toolDisabled]}><Text style={styles.toolGlyph}>↷</Text><Text style={styles.toolLabel}>Refazer</Text></Pressable>
         <View style={styles.toolbarDivider} />
         <Pressable onPress={() => { setPaths([]); setRedoPaths([]); setSelectedStrokeIds([]); }} style={styles.toolButton}><Text style={styles.toolGlyph}>⌫</Text><Text style={styles.toolLabel}>Limpar</Text></Pressable>
+        <Pressable onPress={() => { setTool("select"); setSelectedStrokeIds([]); }} style={[styles.lassoTopButton, tool === "select" && styles.lassoTopButtonActive]}><Text style={styles.lassoTopButtonText}>⌁ LAÇO</Text></Pressable>
         <View style={styles.editorSpacer} />
         <View style={styles.pageCounter}><Text style={styles.pageCounterText}>{String(pageIndex + 1).padStart(2, '0')} / {String(pages.length).padStart(2, '0')}</Text></View>
       </View>
@@ -455,6 +456,9 @@ const styles = StyleSheet.create({
   saveButton: { backgroundColor: COLORS.ink, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
   saveButtonText: { color: 'white', fontWeight: '700', fontSize: 11 },
   editorToolbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 10, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: COLORS.line },
+  lassoTopButton: { backgroundColor: '#E1EFE2', borderWidth: 1, borderColor: '#8EAF91', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, marginLeft: 8 },
+  lassoTopButtonActive: { backgroundColor: '#CDE5D0', borderColor: COLORS.green },
+  lassoTopButtonText: { color: COLORS.green, fontSize: 10, fontWeight: '900' },
   toolButton: { alignItems: 'center', justifyContent: 'center', minWidth: 48, paddingHorizontal: 4 },
   toolDisabled: { opacity: 0.3 },
   toolGlyph: { color: COLORS.ink, fontSize: 20, lineHeight: 23 },
