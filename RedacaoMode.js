@@ -72,6 +72,9 @@ export default function RedacaoMode({ onExit }) {
   const [redo, setRedo] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [sharingDrawing, setSharingDrawing] = useState(false);
+  const [saveState, setSaveState] = useState('saved');
+  const autosaveTimer = useRef(null);
+  const persistenceQueue = useRef(Promise.resolve());
   const canvasRef = useRef(null);
   const [zoom, setZoom] = useState(1);
   const [showLines, setShowLines] = useState(true);
@@ -115,12 +118,34 @@ export default function RedacaoMode({ onExit }) {
     setDrafts(items);
   };
 
+  const queuePersistDraft = (draft) => {
+    if (!draft?.id) return;
+    setSaveState('saving');
+    persistenceQueue.current = persistenceQueue.current
+      .catch(() => undefined)
+      .then(async () => {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const current = raw ? JSON.parse(raw) : [];
+        const next = current.some(item => item.id === draft.id)
+          ? current.map(item => item.id === draft.id ? draft : item)
+          : [draft, ...current];
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        setDrafts(next);
+        setSaveState('saved');
+      })
+      .catch(error => {
+        console.error('Erro no salvamento automático da redação:', error);
+        setSaveState('error');
+      });
+  };
+
   const openDraft = (draft) => {
     setActive(draft);
     setMode(draft.mode || 'write');
     setPaths(draft.paths || []);
     pathsRef.current = draft.paths || [];
     setRedo([]);
+    setSaveState('saved');
   };
 
   const createDraft = () => {
@@ -130,10 +155,29 @@ export default function RedacaoMode({ onExit }) {
     setPaths([]);
     pathsRef.current = [];
     setRedo([]);
+    setSaveState('saving');
   };
+
+  useEffect(() => {
+    if (!active) return undefined;
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    setSaveState('pending');
+    autosaveTimer.current = setTimeout(() => {
+      queuePersistDraft({
+        ...active,
+        mode,
+        paths,
+        updatedAt: Date.now(),
+      });
+    }, 700);
+    return () => {
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    };
+  }, [active, mode, paths]);
 
   const saveDraft = async () => {
     if (!active) return;
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     const updated = { ...active, mode, paths, updatedAt: Date.now() };
     const next = drafts.some(item => item.id === updated.id)
       ? drafts.map(item => item.id === updated.id ? updated : item)
@@ -141,6 +185,7 @@ export default function RedacaoMode({ onExit }) {
     try {
       await persist(next);
       setActive(null);
+      setSaveState('saved');
       Alert.alert('Redação salva', 'Seu rascunho foi salvo neste aparelho.');
     } catch {
       Alert.alert('Erro ao salvar', 'Não foi possível salvar. Verifique o espaço disponível no aparelho.');
@@ -345,7 +390,7 @@ export default function RedacaoMode({ onExit }) {
           <Pressable onPress={saveDraft} style={styles.back}><Text style={styles.backText}>‹</Text></Pressable>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>Ambiente de redação</Text>
-            <Text style={styles.headerSub}>Seu espaço para desenvolver ideias</Text>
+            <Text style={styles.headerSub}>{saveState === 'saving' || saveState === 'pending' ? 'Salvando automaticamente...' : saveState === 'error' ? 'Não foi possível salvar automaticamente' : 'Tudo salvo neste aparelho'}</Text>
           </View>
           <Pressable onPress={saveDraft} style={styles.save}><Text style={styles.saveText}>Salvar</Text></Pressable>
         </View>
