@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import Svg, { G, Line, Path, Rect } from 'react-native-svg';
-import { pathIntersectsPolygon } from './drawing';
+import { eraseAtPoint, pathIntersectsPolygon } from './drawing';
 
 const STORAGE_KEY = '@bloco:redacoes:v1';
 const INK = '#203B32';
@@ -267,7 +267,7 @@ export default function RedacaoMode({ onExit }) {
         return;
       }
       if (canvasToolRef.current === 'eraser') {
-        const next = pathsRef.current.filter(stroke => !stroke.points.some(p => Math.hypot(p.x - point.x, p.y - point.y) < 24));
+        const next = eraseAtPoint(pathsRef.current, point, 24);
         pathsRef.current = next; setPaths(next); setRedo([]); return;
       }
       const isMarker = canvasToolRef.current === 'highlighter';
@@ -313,7 +313,7 @@ export default function RedacaoMode({ onExit }) {
         pathsRef.current = resized; setPaths(resized); return;
       }
       if (canvasToolRef.current === 'eraser') {
-        const next = pathsRef.current.filter(stroke => !stroke.points.some(p => Math.hypot(p.x - point.x, p.y - point.y) < 24));
+        const next = eraseAtPoint(pathsRef.current, point, 24);
         if (next.length !== pathsRef.current.length) { pathsRef.current = next; setPaths(next); }
         return;
       }

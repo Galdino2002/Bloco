@@ -9,7 +9,7 @@ import { File } from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
 import Svg, { Path, Rect } from 'react-native-svg';
-import { pathIntersectsPolygon } from './drawing';
+import { eraseAtPoint, pathIntersectsPolygon } from './drawing';
 
 const STORAGE_KEY = '@bloco:exams:v1';
 const DIR = FileSystem.documentDirectory + 'bloco-exams/';
@@ -345,7 +345,7 @@ function ExamEditor({ exam, onSave, onBack }) {
       }
       if (toolRef.current === 'eraser') {
         const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
-        const next = pathsRef.current.filter(stroke => !stroke.points.some(q => Math.hypot(q.x - p.x, q.y - p.y) < 24));
+        const next = eraseAtPoint(pathsRef.current, p, 24);
         pathsRef.current = next; setPaths(next); setRedo([]); return;
       }
       const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
@@ -408,8 +408,13 @@ function ExamEditor({ exam, onSave, onBack }) {
         }
         return;
       }
-      if (toolRef.current === 'eraser' || !activePath.current) return;
       const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
+      if (toolRef.current === 'eraser') {
+        const next = eraseAtPoint(pathsRef.current, p, 24);
+        if (next.length !== pathsRef.current.length) { pathsRef.current = next; setPaths(next); }
+        return;
+      }
+      if (!activePath.current) return;
       const next = { ...activePath.current, points: [...activePath.current.points, p] };
       activePath.current = next; setPaths(old => [...old.slice(0, -1), next]);
     },

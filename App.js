@@ -18,7 +18,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect } from 'react-native-svg';
 import ExamMode from './ExamMode';
 import RedacaoMode from './RedacaoMode';
-import { pathIntersectsPolygon } from './drawing';
+import { eraseAtPoint, pathIntersectsPolygon } from './drawing';
 
 const NOTEBOOKS_STORAGE_KEY = '@bloco:notebooks:v1';
 
@@ -251,11 +251,7 @@ function EditorScreen({ document, onSave, onChange }) {
       if (toolRef.current === 'move') { moveStart.current = { x: panOffsetRef.current.x, y: panOffsetRef.current.y }; return; }
       const point = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY };
       if (toolRef.current === 'eraser') {
-        const next = pathsRef.current.filter((path) => {
-          if (path.points.length === 1) return Math.hypot(path.points[0].x - point.x, path.points[0].y - point.y) > 22;
-          for (let i = 1; i < path.points.length; i += 1) if (distanceToSegment(point, path.points[i - 1], path.points[i]) < 22) return false;
-          return true;
-        });
+        const next = eraseAtPoint(pathsRef.current, point, 22);
         pathsRef.current = next; setPaths(next); setRedoPaths([]); return;
       }
       const highlighter = toolRef.current === 'highlighter';
@@ -291,7 +287,7 @@ function EditorScreen({ document, onSave, onChange }) {
       }
       const point = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY };
       if (toolRef.current === 'eraser') {
-        const next = pathsRef.current.filter((path) => !path.points.some((p) => Math.hypot(p.x - point.x, p.y - point.y) < 22));
+        const next = eraseAtPoint(pathsRef.current, point, 22);
         if (next.length !== pathsRef.current.length) { pathsRef.current = next; setPaths(next); }
         return;
       }

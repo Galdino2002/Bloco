@@ -82,9 +82,32 @@ export function transformPaths(paths, transform) {
 }
 
 export function eraseAtPoint(paths, point, radius = 22) {
-  return paths.filter(path => !path.points.some((item, index) => index === 0
-    ? Math.hypot(item.x - point.x, item.y - point.y) < radius
-    : distanceToSegment(point, path.points[index - 1], item) < radius));
+  return paths.flatMap(path => {
+    const points = path.points || [];
+    if (points.length < 2) {
+      return points.length && Math.hypot(points[0].x - point.x, points[0].y - point.y) >= radius ? [path] : [];
+    }
+    const chunks = [];
+    let chunk = [];
+    const flush = () => {
+      if (chunk.length) chunks.push({ ...path, id: chunks.length ? `${path.id}-${chunks.length}` : path.id, points: chunk });
+      chunk = [];
+    };
+    points.forEach((current, index) => {
+      const previous = points[index - 1];
+      const touched = index === 0
+        ? Math.hypot(current.x - point.x, current.y - point.y) < radius
+        : distanceToSegment(point, previous, current) < radius;
+      if (touched) {
+        flush();
+      } else {
+        if (!chunk.length && previous && Math.hypot(previous.x - point.x, previous.y - point.y) >= radius) chunk.push(previous);
+        chunk.push(current);
+      }
+    });
+    flush();
+    return chunks.filter(item => item.points.length > 1 || Math.hypot(item.points[0].x - point.x, item.points[0].y - point.y) >= radius);
+  });
 }
 
 export function copyPaths(paths) {
