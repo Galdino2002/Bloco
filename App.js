@@ -181,8 +181,13 @@ function EditorScreen({ document, onSave }) {
       if (toolRef.current === 'select') {
         activePath.current=null;
         const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
-        if(selectedIdsRef.current.length) selectionGestureRef.current={type:'move',start:point,original:pathsRef.current};
-        else {selectionGestureRef.current={type:'lasso'};lassoRef.current=[point];setLassoPoints([point]);}
+        if(selectedIdsRef.current.length){
+          const box=getStrokeBounds(pathsRef.current.filter(stroke=>selectedIdsRef.current.includes(stroke.id)));
+          const center=box?{x:(box.minX+box.maxX)/2,y:(box.minY+box.maxY)/2}:point;
+          const handle=box?{x:box.maxX+7,y:box.maxY+7}:point;
+          if(box&&Math.hypot(point.x-handle.x,point.y-handle.y)<28)selectionGestureRef.current={type:'resize',startDistance:Math.max(1,Math.hypot(handle.x-center.x,handle.y-center.y)),original:pathsRef.current,factor:1};
+          else selectionGestureRef.current={type:'move',start:point,original:pathsRef.current};
+        }else{selectionGestureRef.current={type:'lasso'};lassoRef.current=[point];setLassoPoints([point]);}
         return;
       }
       if (toolRef.current === 'move') { moveStart.current = { x: panOffsetRef.current.x, y: panOffsetRef.current.y }; return; }
@@ -203,6 +208,16 @@ function EditorScreen({ document, onSave }) {
       if(toolRef.current==='select' && selectionGestureRef.current?.type==='lasso'){
         const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
         const next=[...lassoRef.current,point];lassoRef.current=next;setLassoPoints(next);return;
+      }
+      if(toolRef.current==='select' && selectionGestureRef.current?.type==='resize'){
+        const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
+        const box=getStrokeBounds(selectionGestureRef.current.original.filter(stroke=>selectedIdsRef.current.includes(stroke.id)));
+        if(!box)return;
+        const cx=(box.minX+box.maxX)/2,cy=(box.minY+box.maxY)/2;
+        const factor=Math.max(0.25,Math.min(4,Math.hypot(point.x-cx,point.y-cy)/selectionGestureRef.current.startDistance));
+        selectionGestureRef.current.factor=factor;
+        const resized=resizeStrokes(selectionGestureRef.current.original,selectedIdsRef.current,factor);
+        pathsRef.current=resized;setPaths(resized);return;
       }
       if(toolRef.current==='select' && selectionGestureRef.current?.type==='move'){
         const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
@@ -229,6 +244,9 @@ function EditorScreen({ document, onSave }) {
         const polygon=lassoRef.current;
         const ids=polygon.length>=3?pathsRef.current.filter(stroke=>(stroke.points||[]).some(point=>isInsideLasso(point,polygon))).map(stroke=>stroke.id):[];
         selectedIdsRef.current=ids;setSelectedStrokeIds(ids);lassoRef.current=[];setLassoPoints([]);
+      }else if(toolRef.current==='select' && selectionGestureRef.current?.type==='resize'){
+        const resized=resizeStrokes(selectionGestureRef.current.original,selectedIdsRef.current,selectionGestureRef.current.factor||1);
+        pathsRef.current=resized;setPaths(resized);setRedoPaths([]);
       }else if(toolRef.current==='select' && selectionGestureRef.current?.type==='move'){
         const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
         const dx=point.x-selectionGestureRef.current.start.x,dy=point.y-selectionGestureRef.current.start.y;
@@ -278,7 +296,7 @@ function EditorScreen({ document, onSave }) {
             <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" />
             <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers}>
               <Svg width={canvasSize.width} height={canvasSize.height}>
-                {paths.map((path) => <Path key={path.id} d={pathToSvg(path.points)} stroke={path.color} strokeWidth={path.width} strokeOpacity={path.opacity ?? 1} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lassoPoints.length>1&&<Path d={pathToSvg(lassoPoints)} stroke={COLORS.green} strokeWidth={2} strokeDasharray="6 4" fill="none"/>}{selectedStrokeIds.length>0&&(()=>{const b=getStrokeBounds(paths.filter(path=>selectedStrokeIds.includes(path.id)));return b?<Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={COLORS.green} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/>:null;})()}
+                {paths.map((path) => <Path key={path.id} d={pathToSvg(path.points)} stroke={path.color} strokeWidth={path.width} strokeOpacity={path.opacity ?? 1} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lassoPoints.length>1&&<Path d={pathToSvg(lassoPoints)} stroke={COLORS.green} strokeWidth={2} strokeDasharray="6 4" fill="none"/>}{selectedStrokeIds.length>0&&(()=>{const b=getStrokeBounds(paths.filter(path=>selectedStrokeIds.includes(path.id)));return b?<><Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={COLORS.green} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/><Rect x={b.maxX+1} y={b.maxY+1} width={12} height={12} rx={3} fill={COLORS.green}/></>:null;})()}
               </Svg>
             </View>
           </View>
