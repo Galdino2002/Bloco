@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -11,10 +11,13 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect } from 'react-native-svg';
 import ExamMode from './ExamMode';
 import RedacaoMode from './RedacaoMode';
+
+const NOTEBOOKS_STORAGE_KEY = '@bloco:notebooks:v1';
 
 const COLORS = {
   ink: '#203B32',
@@ -144,7 +147,7 @@ function HomeScreen({ documents, onImport, onOpen, onDelete, onExam, onRedacao }
   );
 }
 
-function EditorScreen({ document, onSave }) {
+function EditorScreen({ document, onSave, onChange }) {
   const initialPages = document.pages?.length ? document.pages : [{ id: 'page-1', uri: document.uri, paths: document.paths || [] }];
   const [pages, setPages] = useState(initialPages);
   const [pageIndex, setPageIndex] = useState(0);
@@ -276,6 +279,10 @@ function EditorScreen({ document, onSave }) {
     onSave({ ...document, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
   };
   const currentPage = pages[pageIndex];
+  useEffect(() => {
+    const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths } : page);
+    onChange({ ...document, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
+  }, [pages, paths, pageIndex]);
 
   return (
     <SafeAreaView style={styles.editorSafe}>
@@ -338,9 +345,23 @@ function EditorScreen({ document, onSave }) {
 
 function BlocoApp() {
   const [documents, setDocuments] = useState([]);
+  const [documentsLoaded, setDocumentsLoaded] = useState(false);
   const [activeDocument, setActiveDocument] = useState(null);
   const [examMode, setExamMode] = useState(false);
   const [redacaoMode, setRedacaoMode] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(NOTEBOOKS_STORAGE_KEY)
+      .then(raw => setDocuments(raw ? JSON.parse(raw) : []))
+      .catch(error => Alert.alert('Erro ao carregar cadernos', error?.message || 'Não foi possível recuperar suas anotações.'))
+      .finally(() => setDocumentsLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    if (!documentsLoaded) return;
+    AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, JSON.stringify(documents))
+      .catch(error => Alert.alert('Erro ao salvar cadernos', error?.message || 'Não foi possível salvar suas anotações.'));
+  }, [documents, documentsLoaded]);
 
   const importImages = async () => {
     try {
@@ -374,9 +395,14 @@ function BlocoApp() {
     });
     setActiveDocument(null);
   };
+  const updateDocument = (document) => setDocuments(previous => {
+    const exists = previous.some(item => item.id === document.id);
+    return exists ? previous.map(item => item.id === document.id ? document : item) : [document, ...previous];
+  });
   const deleteDocument = (documentId) => setDocuments((previous) => previous.filter((item) => item.id !== documentId));
 
-  if (activeDocument) return <EditorScreen key={activeDocument.id} document={activeDocument} onSave={saveDocument} />;
+  if (!documentsLoaded) return <SafeAreaView style={styles.safeArea}><Text style={styles.loadingText}>Recuperando seus cadernos...</Text></SafeAreaView>;
+  if (activeDocument) return <EditorScreen key={activeDocument.id} document={activeDocument} onSave={saveDocument} onChange={updateDocument} />;
   if (examMode) return <ExamMode onExit={() => setExamMode(false)} />;
   if (redacaoMode) return <RedacaoMode onExit={() => setRedacaoMode(false)} />;
   return <HomeScreen documents={documents} onImport={importImages} onOpen={setActiveDocument} onDelete={deleteDocument} onExam={() => setExamMode(true)} onRedacao={() => setRedacaoMode(true)} />;
@@ -391,6 +417,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  loadingText: { flex: 1, textAlign: 'center', textAlignVertical: 'center', color: COLORS.muted, fontSize: 14 },
   pageNavigation: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, paddingVertical: 8, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderBottomWidth: 1, borderColor: COLORS.line },
   pageNavButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: COLORS.greenLight },
   pageNavText: { color: COLORS.green, fontSize: 10, fontWeight: '700' },
