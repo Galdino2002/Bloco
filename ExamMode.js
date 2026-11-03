@@ -303,6 +303,8 @@ function ExamEditor({ exam, onSave, onBack }) {
       const touches = e.nativeEvent.touches || [];
       if (touches.length >= 2) {
         activePath.current = null;
+        selectionGesture.current = null;
+        lassoRef.current = []; setLasso([]);
         panStart.current = null;
         const [a, b] = touches;
         pinchStart.current = {
@@ -348,6 +350,8 @@ function ExamEditor({ exam, onSave, onBack }) {
       const touches = e.nativeEvent.touches || [];
       if (touches.length >= 2) {
         activePath.current = null;
+        selectionGesture.current = null;
+        lassoRef.current = []; setLasso([]);
         const [a, b] = touches;
         const distance = Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
         if (!pinchStart.current && distance > 0) {
