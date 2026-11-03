@@ -268,6 +268,8 @@ function ExamEditor({ exam, onSave, onBack }) {
   const [remaining, setRemaining] = useState(exam.remaining ?? exam.duration);
   const [finished, setFinished] = useState(false);
   const remainingRef = useRef(remaining);
+  const endAtRef = useRef(exam.endAt || (Date.now() + remaining * 1000));
+  const endAt = endAtRef.current;
   const activePath = useRef(null);
   const pathsRef = useRef(paths);
   const toolRef = useRef(tool);
@@ -289,11 +291,11 @@ function ExamEditor({ exam, onSave, onBack }) {
   remainingRef.current = remaining;
   useEffect(() => {
     const id = setInterval(() => {
-      const next = exam.endAt ? Math.max(0, Math.ceil((exam.endAt - Date.now()) / 1000)) : Math.max(0, remainingRef.current - 1);
+      const next = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
       setRemaining(next);
     }, 1000);
     return () => clearInterval(id);
-  }, [exam.endAt]);
+  }, [endAt]);
   useEffect(() => { if (remaining <= 0) setFinished(true); }, [remaining]);
   useEffect(() => {
     const id = setInterval(() => {
@@ -302,7 +304,7 @@ function ExamEditor({ exam, onSave, onBack }) {
       const elapsed = Math.max(0, exam.duration - snapshot.remaining);
       AsyncStorage.getItem(STORAGE_KEY).then(raw => {
         const list = raw ? JSON.parse(raw) : [];
-        const next = list.map(item => item.id === exam.id ? { ...item, pages: current, remaining: snapshot.remaining, elapsed, updatedAt: Date.now() } : item);
+        const next = list.map(item => item.id === exam.id ? { ...item, pages: current, remaining: snapshot.remaining, endAt, elapsed, updatedAt: Date.now() } : item);
         return AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       }).catch(() => {});
     }, 10000);
@@ -449,7 +451,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const saveAndExit = () => {
     const updatedPages = pages.map((page, i) => i === index ? { ...page, paths } : page);
     const elapsed = Math.max(0, exam.duration - remaining);
-    onSave({ ...exam, pages: updatedPages, remaining, elapsed, endAt: exam.endAt, status: remaining === 0 ? 'Tempo encerrado' : 'Em andamento' });
+    onSave({ ...exam, pages: updatedPages, remaining, elapsed, endAt, status: remaining === 0 ? 'Tempo encerrado' : 'Em andamento' });
   };
   const current = pages[index];
 
