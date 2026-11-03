@@ -286,6 +286,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const lassoRef = useRef([]);
   const selectionGesture = useRef(null);
   const pathHistoryRef = useRef(pathHistory);
+  const persistenceQueueRef = useRef(Promise.resolve());
   pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType; penWidthRef.current = penWidth;
   selectedRef.current = selectedIds; lassoRef.current = lasso;
   pathHistoryRef.current = pathHistory;
@@ -323,11 +324,15 @@ function ExamEditor({ exam, onSave, onBack }) {
       const snapshot = snapshotRef.current;
       const current = snapshot.pages.map((page, i) => i === snapshot.index ? { ...page, paths: snapshot.paths } : page);
       const elapsed = Math.max(0, exam.duration - snapshot.remaining);
-      AsyncStorage.getItem(STORAGE_KEY).then(raw => {
-        const list = raw ? JSON.parse(raw) : [];
-        const next = list.map(item => item.id === exam.id ? { ...item, pages: current, remaining: snapshot.remaining, endAt, elapsed, updatedAt: Date.now() } : item);
-        return AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      }).catch(() => {});
+      persistenceQueueRef.current = persistenceQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          const raw = await AsyncStorage.getItem(STORAGE_KEY);
+          const list = raw ? JSON.parse(raw) : [];
+          const next = list.map(item => item.id === exam.id ? { ...item, pages: current, remaining: snapshot.remaining, endAt, elapsed, updatedAt: Date.now() } : item);
+          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        })
+        .catch(error => console.error('Erro no salvamento automático da prova:', error));
     }, 10000);
     return () => clearInterval(id);
   }, []);
