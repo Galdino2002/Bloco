@@ -21,6 +21,7 @@ import ExamMode from './ExamMode';
 import RedacaoMode from './RedacaoMode';
 import { eraseAtPoint, pathIntersectsPolygon, screenToDocument } from './drawing';
 import { commitHistory, createHistory, redoHistory, undoHistory } from './drawingHistory';
+import { ContextToolbar, IconButton, ScreenTitle } from './designSystem';
 
 const NOTEBOOKS_STORAGE_KEY = '@bloco:notebooks:v1';
 const NOTEBOOKS_FILES_DIRECTORY = `${FileSystem.documentDirectory}bloco-notebooks/`;
@@ -151,15 +152,11 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.paper} />
       <ScrollView contentContainerStyle={styles.homeContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View><Text style={styles.brand}>Bloco</Text><Text style={styles.headerSubtitle}>seu caderno digital</Text></View>
-          <View style={styles.avatar}><Text style={styles.avatarText}>B</Text></View>
-        </View>
+        <ScreenTitle eyebrow="BLOCO · ESTUDOS E IDEIAS" title="Seu espaço de foco" subtitle="Notas, provas e redações em um só lugar" right={<IconButton label="＋" accessibilityLabel="Criar ou importar documento" onPress={() => setQuickMenuOpen(true)} />} />
         <View style={styles.welcomeRow}>
-          <View><Text style={styles.eyebrow}>SEU CANTINHO DE ESTUDOS</Text><Text style={styles.welcomeTitle}>Sua prova, suas anotações.</Text></View>
-          <Pressable onPress={() => setQuickMenuOpen(true)} accessibilityRole="button" accessibilityLabel="Criar ou importar documento" style={styles.quickAddButton}><Text style={styles.quickAddGlyph}>＋</Text></Pressable>
+          <View><Text style={styles.eyebrow}>CONTINUE DE ONDE PAROU</Text><Text style={styles.welcomeTitle}>Sua prova, suas anotações.</Text></View>
         </View>
-        <View style={styles.searchBox}><Text style={styles.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="Pesquisar cadernos" placeholderTextColor={COLORS.muted} style={styles.searchInput} returnKeyType="search" /><Text style={styles.searchShortcut}>⌘</Text></View>
+        <View style={styles.searchBox}><Text style={styles.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="Buscar por título ou conteúdo" placeholderTextColor={COLORS.muted} style={styles.searchInput} returnKeyType="search" /></View>
         <View style={styles.heroCard}>
           <View style={styles.heroTopLine}><View style={styles.heroTag}><Text style={styles.heroTagText}>NOVO CADERNO</Text></View><Text style={styles.heroArrow}>↗</Text></View>
           <View style={styles.heroIllustration}>
@@ -475,14 +472,13 @@ function EditorScreen({ document, onSave, onChange }) {
         <View style={styles.editorTitleWrap}><TextInput value={document.title || 'Minha nota'} onChangeText={title => onChange({ ...document, title, updatedAt: Date.now() })} style={styles.editorTitleInput} maxLength={70} /><Text style={styles.editorSubtitle}>Texto e escrita manual salvos automaticamente</Text></View>
         <Pressable onPress={save} style={styles.saveButton}><Text style={styles.saveButtonText}>Salvar</Text></Pressable>
       </View>
-      <View style={styles.editorToolbar}>
-        <Pressable onPress={undo} disabled={pathHistory.past.length <= 1} style={[styles.toolButton, pathHistory.past.length <= 1 && styles.toolDisabled]}><Text style={styles.toolGlyph}>↶</Text><Text style={styles.toolLabel}>Desfazer</Text></Pressable>
-        <Pressable onPress={redo} disabled={!pathHistory.future.length} style={[styles.toolButton, !pathHistory.future.length && styles.toolDisabled]}><Text style={styles.toolGlyph}>↷</Text><Text style={styles.toolLabel}>Refazer</Text></Pressable>
-        <View style={styles.toolbarDivider} />
-        <Pressable onPress={() => { if (pathsRef.current.length) applyPathChange([]); setSelectedStrokeIds([]); }} style={styles.toolButton}><Text style={styles.toolGlyph}>⌫</Text><Text style={styles.toolLabel}>Limpar</Text></Pressable>
+      <ContextToolbar>
+        <IconButton label="↶" accessibilityLabel="Desfazer" onPress={undo} disabled={pathHistory.past.length <= 1} />
+        <IconButton label="↷" accessibilityLabel="Refazer" onPress={redo} disabled={!pathHistory.future.length} />
+        <IconButton label="⌫" accessibilityLabel="Limpar página" onPress={() => { if (pathsRef.current.length) applyPathChange([]); setSelectedStrokeIds([]); }} />
         <View style={styles.editorSpacer} />
         <View style={styles.pageCounter}><Text style={styles.pageCounterText}>{String(pageIndex + 1).padStart(2, '0')} / {String(pages.length).padStart(2, '0')}</Text></View>
-      </View>
+      </ContextToolbar>
       <View style={styles.canvasArea}>
         <View style={styles.canvasPaper} onLayout={(event) => setCanvasSize(event.nativeEvent.layout)}>
           <View style={[styles.zoomContent, { transform: [{ scale: zoom }, { translateX: panOffset.x / zoom }, { translateY: panOffset.y / zoom }] }]}>

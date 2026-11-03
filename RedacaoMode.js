@@ -9,6 +9,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import Svg, { G, Line, Path, Rect } from 'react-native-svg';
 import { eraseAtPoint, pathIntersectsPolygon } from './drawing';
+import { ContextToolbar, design, IconButton } from './designSystem';
 
 const STORAGE_KEY = '@bloco:redacoes:v1';
 const INK = '#203B32';
@@ -386,13 +387,13 @@ export default function RedacaoMode({ onExit }) {
     return (
       <SafeAreaView style={styles.safe}>
         <StatusBar barStyle="dark-content" backgroundColor={PAPER} />
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: design.colors.ink, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 16 }]}>
           <Pressable onPress={saveDraft} style={styles.back}><Text style={styles.backText}>‹</Text></Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Ambiente de redação</Text>
+            <Text style={[styles.headerTitle, { color: design.colors.white }]}>Ambiente de redação</Text>
             <Text style={styles.headerSub}>{saveState === 'saving' || saveState === 'pending' ? 'Salvando automaticamente...' : saveState === 'error' ? 'Não foi possível salvar automaticamente' : 'Tudo salvo neste aparelho'}</Text>
           </View>
-          <Pressable onPress={saveDraft} style={styles.save}><Text style={styles.saveText}>Salvar</Text></Pressable>
+          <IconButton label="✓" accessibilityLabel="Salvar redação" onPress={saveDraft} active />
         </View>
         <TextInput
           value={active.title}
@@ -436,11 +437,11 @@ export default function RedacaoMode({ onExit }) {
           </View>
         ) : (
           <View style={styles.drawArea}>
-            <View style={styles.drawToolbar}>
-              <Pressable onPress={() => { if (paths.length) { setRedo(old => [...old, paths[paths.length - 1]]); setPaths(old => old.slice(0, -1)); } }}><Text style={styles.toolText}>↶ Desfazer</Text></Pressable>
-              <Pressable onPress={() => { if (redo.length) { setPaths(old => [...old, redo[redo.length - 1]]); setRedo(old => old.slice(0, -1)); } }}><Text style={styles.toolText}>↷ Refazer</Text></Pressable>
+            <ContextToolbar>
+              <IconButton label="↶" accessibilityLabel="Desfazer" onPress={() => { if (paths.length) { setRedo(old => [...old, paths[paths.length - 1]]); setPaths(old => old.slice(0, -1)); } }} disabled={!paths.length} />
+              <IconButton label="↷" accessibilityLabel="Refazer" onPress={() => { if (redo.length) { setPaths(old => [...old, redo[redo.length - 1]]); setRedo(old => old.slice(0, -1)); } }} disabled={!redo.length} />
               <Pressable onPress={() => Alert.alert('Limpar folha?', 'Apagar todos os traços desta folha?', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Limpar', style: 'destructive', onPress: () => { setPaths([]); setRedo([]); } }])}><Text style={styles.toolText}>Limpar</Text></Pressable>
-            </View>
+            </ContextToolbar>
             <View style={styles.canvasModeBar}>
               {[
                 ['draw', '✎ Caneta'], ['highlighter', '▰ Marca-texto'], ['eraser', '⌫ Borracha'],
