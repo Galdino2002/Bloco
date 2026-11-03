@@ -6,14 +6,14 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import Svg, { G, Line, Path } from 'react-native-svg';
+import Svg, { G, Line, Path, Rect } from 'react-native-svg';
 
 const STORAGE_KEY = '@bloco:redacoes:v1';
 const INK = '#203B32';
 const GREEN = '#315C49';
 const PAPER = '#F7F6F1';
 const LINE = '#E7E8E1';
-const COLORS = ['#203B32', '#D85D52', '#477BA8', '#7659A6'];
+const COLORS = ['#202124','#5F6368','#B3261E','#E67C73','#E8710A','#F9AB00','#188038','#34A853','#00796B','#12A594','#1A73E8','#4285F4','#3F51B5','#673AB7','#A142F4','#D81B60','#8D6E63','#FFFFFF'];
 
 function makeDraft() {
   return {
@@ -28,6 +28,29 @@ function makeDraft() {
 
 function pathData(points) {
   return points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
+}
+
+function getBounds(strokes) {
+  const points = strokes.flatMap(stroke => stroke.points || []);
+  if (!points.length) return null;
+  return { minX: Math.min(...points.map(p => p.x)), minY: Math.min(...points.map(p => p.y)), maxX: Math.max(...points.map(p => p.x)), maxY: Math.max(...points.map(p => p.y)) };
+}
+function pointInPolygon(point, polygon) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[i], b = polygon[j];
+    if (((a.y > point.y) !== (b.y > point.y)) && point.x < ((b.x - a.x) * (point.y - a.y)) / ((b.y - a.y) || 0.00001) + a.x) inside = !inside;
+  }
+  return inside;
+}
+function transformSelected(strokes, ids, factor = 1, angle = 0) {
+  const box = getBounds(strokes.filter(stroke => ids.includes(stroke.id)));
+  if (!box) return strokes;
+  const cx = (box.minX + box.maxX) / 2, cy = (box.minY + box.maxY) / 2;
+  return strokes.map(stroke => ids.includes(stroke.id) ? { ...stroke, width: stroke.width * factor, points: stroke.points.map(p => {
+    const x = (p.x - cx) * factor, y = (p.y - cy) * factor;
+    return { x: cx + x * Math.cos(angle) - y * Math.sin(angle), y: cy + x * Math.sin(angle) + y * Math.cos(angle) };
+  }) } : stroke);
 }
 
 function Action({ label, onPress, secondary = false }) {
@@ -52,6 +75,14 @@ export default function RedacaoMode({ onExit }) {
   const [showLines, setShowLines] = useState(true);
   const [canvasTool, setCanvasTool] = useState('draw');
   const canvasToolRef = useRef('draw');
+  const [markerType, setMarkerType] = useState('classic');
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [clipboard, setClipboard] = useState([]);
+  const [lasso, setLasso] = useState([]);
+  const markerTypeRef = useRef('classic');
+  const selectedIdsRef = useRef([]);
+  const lassoRef = useRef([]);
+  const selectionRef = useRef(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const panRef = useRef({ x: 0, y: 0 });
   const moveStart = useRef(null);
@@ -63,6 +94,9 @@ export default function RedacaoMode({ onExit }) {
   const colorRef = useRef(color);
   pathsRef.current = paths;
   colorRef.current = color;
+  markerTypeRef.current = markerType;
+  selectedIdsRef.current = selectedIds;
+  lassoRef.current = lasso;
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
@@ -202,24 +236,40 @@ export default function RedacaoMode({ onExit }) {
     onPanResponderGrant: event => {
       const touches = event.nativeEvent.touches || [];
       if (touches.length >= 2) {
+        activePath.current = null;
         const [a, b] = touches;
         pinchStart.current = { distance: Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY), zoom: zoomRef.current, centerX: (a.pageX + b.pageX) / 2, centerY: (a.pageY + b.pageY) / 2, pan: panRef.current };
         return;
       }
+      const point = { x: (event.nativeEvent.locationX - panRef.current.x) / zoomRef.current, y: (event.nativeEvent.locationY - panRef.current.y) / zoomRef.current };
       if (canvasToolRef.current === 'move') {
         moveStart.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY, pan: panRef.current };
         return;
       }
-      const point = { x: (event.nativeEvent.locationX - panRef.current.x) / zoomRef.current, y: (event.nativeEvent.locationY - panRef.current.y) / zoomRef.current };
-      const stroke = {
-        id: String(Date.now()) + Math.random(),
-        points: [point],
-        color: colorRef.current,
-        width: 3.5,
-      };
-      activePath.current = stroke;
-      setPaths(old => [...old, stroke]);
-      setRedo([]);
+      if (canvasToolRef.current === 'select') {
+        activePath.current = null;
+        if (selectedIdsRef.current.length) {
+          const box = getBounds(pathsRef.current.filter(stroke => selectedIdsRef.current.includes(stroke.id)));
+          const center = box ? { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 } : point;
+          const handle = box ? { x: box.maxX + 7, y: box.maxY + 7 } : point;
+          if (box && Math.hypot(point.x - handle.x, point.y - handle.y) < 28) {
+            selectionRef.current = { type: 'resize', center, startDistance: Math.max(1, Math.hypot(handle.x - center.x, handle.y - center.y)), original: pathsRef.current, factor: 1 };
+          } else selectionRef.current = { type: 'move', start: point, original: pathsRef.current };
+        } else {
+          selectionRef.current = { type: 'lasso' };
+          lassoRef.current = [point]; setLasso([point]);
+        }
+        return;
+      }
+      if (canvasToolRef.current === 'eraser') {
+        const next = pathsRef.current.filter(stroke => !stroke.points.some(p => Math.hypot(p.x - point.x, p.y - point.y) < 24));
+        pathsRef.current = next; setPaths(next); setRedo([]); return;
+      }
+      const isMarker = canvasToolRef.current === 'highlighter';
+      const marker = markerTypeRef.current;
+      const markerStyle = marker === 'pastel' ? { width: 24, opacity: 0.22 } : marker === 'underline' ? { width: 5, opacity: 0.95 } : marker === 'bold' ? { width: 13, opacity: 0.58 } : { width: 19, opacity: 0.32 };
+      const stroke = { id: String(Date.now()) + Math.random(), points: [point], color: colorRef.current, width: isMarker ? markerStyle.width : 3.5, opacity: isMarker ? markerStyle.opacity : 1 };
+      activePath.current = stroke; pathsRef.current = [...pathsRef.current, stroke]; setPaths(pathsRef.current); setRedo([]);
     },
     onPanResponderMove: event => {
       const touches = event.nativeEvent.touches || [];
@@ -230,34 +280,54 @@ export default function RedacaoMode({ onExit }) {
         if (!pinchStart.current && distance > 0) pinchStart.current = { distance, zoom: zoomRef.current, centerX: (a.pageX + b.pageX) / 2, centerY: (a.pageY + b.pageY) / 2, pan: panRef.current };
         if (pinchStart.current?.distance && distance > 0) {
           const nextZoom = Math.max(0.25, Math.min(3, pinchStart.current.zoom * distance / pinchStart.current.distance));
-          zoomRef.current = nextZoom;
-          setZoom(nextZoom);
-          const centerX = (a.pageX + b.pageX) / 2;
-          const centerY = (a.pageY + b.pageY) / 2;
+          zoomRef.current = nextZoom; setZoom(nextZoom);
+          const centerX = (a.pageX + b.pageX) / 2, centerY = (a.pageY + b.pageY) / 2;
           const nextPan = { x: pinchStart.current.pan.x + centerX - pinchStart.current.centerX, y: pinchStart.current.pan.y + centerY - pinchStart.current.centerY };
-          panRef.current = nextPan;
-          setPan(nextPan);
+          panRef.current = nextPan; setPan(nextPan);
         }
         return;
       }
       pinchStart.current = null;
+      const point = { x: (event.nativeEvent.locationX - panRef.current.x) / zoomRef.current, y: (event.nativeEvent.locationY - panRef.current.y) / zoomRef.current };
       if (canvasToolRef.current === 'move' && moveStart.current) {
-        const nextPan = {
-          x: moveStart.current.pan.x + event.nativeEvent.pageX - moveStart.current.x,
-          y: moveStart.current.pan.y + event.nativeEvent.pageY - moveStart.current.y,
-        };
-        panRef.current = nextPan;
-        setPan(nextPan);
+        const nextPan = { x: moveStart.current.pan.x + event.nativeEvent.pageX - moveStart.current.x, y: moveStart.current.pan.y + event.nativeEvent.pageY - moveStart.current.y };
+        panRef.current = nextPan; setPan(nextPan); return;
+      }
+      if (canvasToolRef.current === 'select' && selectionRef.current?.type === 'lasso') {
+        const next = [...lassoRef.current, point]; lassoRef.current = next; setLasso(next); return;
+      }
+      if (canvasToolRef.current === 'select' && selectionRef.current?.type === 'move') {
+        const dx = point.x - selectionRef.current.start.x, dy = point.y - selectionRef.current.start.y;
+        const moved = selectionRef.current.original.map(stroke => selectedIdsRef.current.includes(stroke.id) ? { ...stroke, points: stroke.points.map(p => ({ x: p.x + dx, y: p.y + dy })) } : stroke);
+        pathsRef.current = moved; setPaths(moved); return;
+      }
+      if (canvasToolRef.current === 'select' && selectionRef.current?.type === 'resize') {
+        const factor = Math.max(0.25, Math.min(4, Math.hypot(point.x - selectionRef.current.center.x, point.y - selectionRef.current.center.y) / selectionRef.current.startDistance));
+        selectionRef.current.factor = factor;
+        const resized = transformSelected(selectionRef.current.original, selectedIdsRef.current, factor);
+        pathsRef.current = resized; setPaths(resized); return;
+      }
+      if (canvasToolRef.current === 'eraser') {
+        const next = pathsRef.current.filter(stroke => !stroke.points.some(p => Math.hypot(p.x - point.x, p.y - point.y) < 24));
+        if (next.length !== pathsRef.current.length) { pathsRef.current = next; setPaths(next); }
         return;
       }
       if (!activePath.current) return;
-      const point = { x: (event.nativeEvent.locationX - panRef.current.x) / zoomRef.current, y: (event.nativeEvent.locationY - panRef.current.y) / zoomRef.current };
       const updated = { ...activePath.current, points: [...activePath.current.points, point] };
-      activePath.current = updated;
-      setPaths(old => [...old.slice(0, -1), updated]);
+      activePath.current = updated; pathsRef.current = [...pathsRef.current.slice(0, -1), updated]; setPaths(pathsRef.current);
     },
-    onPanResponderRelease: () => { activePath.current = null; pinchStart.current = null; moveStart.current = null; },
-    onPanResponderTerminate: () => { activePath.current = null; pinchStart.current = null; moveStart.current = null; },
+    onPanResponderRelease: () => {
+      if (canvasToolRef.current === 'select' && selectionRef.current?.type === 'lasso') {
+        const polygon = lassoRef.current;
+        const ids = polygon.length >= 3 ? pathsRef.current.filter(stroke => (stroke.points || []).some(point => pointInPolygon(point, polygon))).map(stroke => stroke.id) : [];
+        selectedIdsRef.current = ids; setSelectedIds(ids); lassoRef.current = []; setLasso([]);
+      } else if (canvasToolRef.current === 'select' && selectionRef.current?.type === 'resize') {
+        const resized = transformSelected(selectionRef.current.original, selectedIdsRef.current, selectionRef.current.factor || 1);
+        pathsRef.current = resized; setPaths(resized); setRedo([]);
+      }
+      selectionRef.current = null; activePath.current = null; pinchStart.current = null; moveStart.current = null;
+    },
+    onPanResponderTerminate: () => { activePath.current = null; pinchStart.current = null; moveStart.current = null; selectionRef.current = null; lassoRef.current = []; setLasso([]); },
   }), []);
 
   if (active) {
