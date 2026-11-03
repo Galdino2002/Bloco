@@ -209,7 +209,11 @@ function EditorScreen({ document, onSave, onChange }) {
   const [pageText, setPageText] = useState(initialPages[0]?.text || '');
   const [pageBackground, setPageBackground] = useState(initialPages[0]?.background || 'plain');
   const [redoPaths, setRedoPaths] = useState([]);
-  const [pathHistory, setPathHistory] = useState(() => createHistory(initialPages[0]?.paths || []));
+  const [pathHistory, setPathHistory] = useState(() => createHistory({
+    paths: initialPages[0]?.paths || [],
+    text: initialPages[0]?.text || '',
+    background: initialPages[0]?.background || 'plain',
+  }));
   const [tool, setTool] = useState('pen');
   const [selectedStrokeIds, setSelectedStrokeIds] = useState([]);
   const [selectedClipboard, setSelectedClipboard] = useState([]);
@@ -241,20 +245,34 @@ function EditorScreen({ document, onSave, onChange }) {
   selectedIdsRef.current=selectedStrokeIds; lassoRef.current=lassoPoints;
   pathHistoryRef.current = pathHistory;
 
+  const currentSnapshot = (overrides = {}) => ({
+    paths: pathsRef.current,
+    text: pageText,
+    background: pageBackground,
+    ...overrides,
+  });
+  const applySnapshot = (snapshot) => {
+    const nextPaths = snapshot?.paths || [];
+    pathsRef.current = nextPaths;
+    setPaths(nextPaths);
+    setPageText(snapshot?.text || '');
+    setPageBackground(snapshot?.background || 'plain');
+  };
   const applyPathChange = (nextPaths, record = true) => {
     pathsRef.current = nextPaths;
     setPaths(nextPaths);
     if (record) {
-      const nextHistory = commitHistory(pathHistoryRef.current, nextPaths);
+      const nextHistory = commitHistory(pathHistoryRef.current, currentSnapshot({ paths: nextPaths }));
       pathHistoryRef.current = nextHistory;
       setPathHistory(nextHistory);
     }
     setRedoPaths([]);
   };
 
-  const recordPathSnapshot = () => {
-    if (JSON.stringify(pathHistoryRef.current.present) === JSON.stringify(pathsRef.current)) return;
-    const nextHistory = commitHistory(pathHistoryRef.current, pathsRef.current);
+  const recordPathSnapshot = (overrides = {}) => {
+    const nextSnapshot = currentSnapshot(overrides);
+    if (JSON.stringify(pathHistoryRef.current.present) === JSON.stringify(nextSnapshot)) return;
+    const nextHistory = commitHistory(pathHistoryRef.current, nextSnapshot);
     pathHistoryRef.current = nextHistory;
     setPathHistory(nextHistory);
     setRedoPaths([]);
@@ -411,7 +429,7 @@ function EditorScreen({ document, onSave, onChange }) {
     lassoRef.current = [];
     setPageText(nextPage.text || '');
     setPageBackground(nextPage.background || 'plain');
-    const nextHistory = createHistory(nextPaths);
+    const nextHistory = createHistory({ paths: nextPaths, text: nextPage.text || '', background: nextPage.background || 'plain' });
     pathHistoryRef.current = nextHistory;
     setPathHistory(nextHistory);
     setZoom(1); setPanOffset({ x: 0, y: 0 });
@@ -421,8 +439,7 @@ function EditorScreen({ document, onSave, onChange }) {
     if (nextHistory === pathHistoryRef.current) return;
     pathHistoryRef.current = nextHistory;
     setPathHistory(nextHistory);
-    pathsRef.current = nextHistory.present;
-    setPaths(nextHistory.present);
+    applySnapshot(nextHistory.present);
     setRedoPaths([]);
   };
   const redo = () => {
@@ -430,8 +447,7 @@ function EditorScreen({ document, onSave, onChange }) {
     if (nextHistory === pathHistoryRef.current) return;
     pathHistoryRef.current = nextHistory;
     setPathHistory(nextHistory);
-    pathsRef.current = nextHistory.present;
-    setPaths(nextHistory.present);
+    applySnapshot(nextHistory.present);
     setRedoPaths([]);
   };
   const save = () => {
@@ -466,7 +482,7 @@ function EditorScreen({ document, onSave, onChange }) {
       <View style={styles.canvasArea}>
         <View style={styles.canvasPaper} onLayout={(event) => setCanvasSize(event.nativeEvent.layout)}>
           <View style={[styles.zoomContent, { transform: [{ scale: zoom }, { translateX: panOffset.x / zoom }, { translateY: panOffset.y / zoom }] }]}>
-            {currentPage.uri ? <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" /> : <View style={styles.blankPage}><PageBackground type={pageBackground} /><TextInput value={pageText} onChangeText={setPageText} placeholder="Digite nesta página..." placeholderTextColor="#A0AAA1" multiline textAlignVertical="top" style={styles.pageTextInput} /></View>}
+            {currentPage.uri ? <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" /> : <View style={styles.blankPage}><PageBackground type={pageBackground} /><TextInput value={pageText} onChangeText={setPageText} onEndEditing={() => recordPathSnapshot()} placeholder="Digite nesta página..." placeholderTextColor="#A0AAA1" multiline textAlignVertical="top" style={styles.pageTextInput} /></View>}
             <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers}>
               <Svg width={canvasSize.width} height={canvasSize.height}>
                 {paths.map((path) => <Path key={path.id} d={pathToSvg(path.points)} stroke={path.color} strokeWidth={path.width} strokeOpacity={path.opacity ?? 1} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lassoPoints.length>1&&<Path d={pathToSvg(lassoPoints)} stroke={COLORS.green} strokeWidth={2} strokeDasharray="6 4" fill="none"/>}{selectedStrokeIds.length>0&&(()=>{const b=getStrokeBounds(paths.filter(path=>selectedStrokeIds.includes(path.id)));return b?<><Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={COLORS.green} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/><Rect x={b.maxX+1} y={b.maxY+1} width={12} height={12} rx={3} fill={COLORS.green}/></>:null;})()}
@@ -485,12 +501,12 @@ function EditorScreen({ document, onSave, onChange }) {
         </View>
       </View>
       <View style={styles.pageNavigation}>
-        <Pressable onPress={() => { const newPage = { id: `page-${Date.now()}`, paths: [], text: '', background: 'plain' }; setPages(old => [...old, newPage]); setPageIndex(pages.length); setPaths([]); pathsRef.current = []; const nextHistory = createHistory([]); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); setPageText(''); setPageBackground('plain'); }} style={styles.pageNavButton}><Text style={styles.pageNavText}>＋ Página</Text></Pressable>
-        <Pressable onPress={() => { const source = pages[pageIndex] || {}; const copy = { ...source, id: `page-${Date.now()}`, paths: JSON.parse(JSON.stringify(paths)), text: pageText, background: pageBackground }; setPages(old => [...old.slice(0, pageIndex + 1), copy, ...old.slice(pageIndex + 1)]); setPageIndex(pageIndex + 1); setPaths(copy.paths); pathsRef.current = copy.paths; const nextHistory = createHistory(copy.paths); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); setPageText(copy.text); }} style={styles.pageNavButton}><Text style={styles.pageNavText}>Duplicar</Text></Pressable>
+        <Pressable onPress={() => { const newPage = { id: `page-${Date.now()}`, paths: [], text: '', background: 'plain' }; setPages(old => [...old, newPage]); setPageIndex(pages.length); setPaths([]); pathsRef.current = []; const nextHistory = createHistory({ paths: [], text: '', background: 'plain' }); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); setPageText(''); setPageBackground('plain'); }} style={styles.pageNavButton}><Text style={styles.pageNavText}>＋ Página</Text></Pressable>
+        <Pressable onPress={() => { const source = pages[pageIndex] || {}; const copy = { ...source, id: `page-${Date.now()}`, paths: JSON.parse(JSON.stringify(paths)), text: pageText, background: pageBackground }; setPages(old => [...old.slice(0, pageIndex + 1), copy, ...old.slice(pageIndex + 1)]); setPageIndex(pageIndex + 1); setPaths(copy.paths); pathsRef.current = copy.paths; const nextHistory = createHistory({ paths: copy.paths, text: copy.text, background: copy.background }); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); setPageText(copy.text); setPageBackground(copy.background); }} style={styles.pageNavButton}><Text style={styles.pageNavText}>Duplicar</Text></Pressable>
         <Pressable disabled={pageIndex === 0} onPress={() => changePage(pageIndex - 1)} style={[styles.pageNavButton, pageIndex === 0 && styles.toolDisabled]}><Text style={styles.pageNavText}>‹ Anterior</Text></Pressable>
         <Text style={styles.pageNavLabel}>Página {pageIndex + 1} de {pages.length}</Text>
         <Pressable disabled={pageIndex === pages.length - 1} onPress={() => changePage(pageIndex + 1)} style={[styles.pageNavButton, pageIndex === pages.length - 1 && styles.toolDisabled]}><Text style={styles.pageNavText}>Próxima ›</Text></Pressable>
-        <Pressable disabled={pages.length <= 1} onPress={() => Alert.alert('Excluir página?', 'O conteúdo desta página será removido.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Excluir', style: 'destructive', onPress: () => { const next = pages.filter((_, index) => index !== pageIndex); const nextIndex = Math.max(0, pageIndex - 1); const nextPaths = next[nextIndex]?.paths || []; setPages(next); setPageIndex(nextIndex); setPaths(nextPaths); pathsRef.current = nextPaths; const nextHistory = createHistory(nextPaths); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); setPageText(next[nextIndex]?.text || ''); setPageBackground(next[nextIndex]?.background || 'plain'); } }])} style={[styles.pageNavButton, pages.length <= 1 && styles.toolDisabled]}><Text style={styles.pageNavText}>Excluir</Text></Pressable>
+        <Pressable disabled={pages.length <= 1} onPress={() => Alert.alert('Excluir página?', 'O conteúdo desta página será removido.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Excluir', style: 'destructive', onPress: () => { const next = pages.filter((_, index) => index !== pageIndex); const nextIndex = Math.max(0, pageIndex - 1); const nextPage = next[nextIndex] || {}; const nextPaths = nextPage.paths || []; setPages(next); setPageIndex(nextIndex); setPaths(nextPaths); pathsRef.current = nextPaths; const nextHistory = createHistory({ paths: nextPaths, text: nextPage.text || '', background: nextPage.background || 'plain' }); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); setPageText(nextPage.text || ''); setPageBackground(nextPage.background || 'plain'); } }])} style={[styles.pageNavButton, pages.length <= 1 && styles.toolDisabled]}><Text style={styles.pageNavText}>Excluir</Text></Pressable>
       </View>
       <ScrollView style={[styles.drawingPanel, { maxHeight: 285 }]} contentContainerStyle={{ paddingBottom: 10 }} showsVerticalScrollIndicator={false}>
         <View style={styles.compactToolRow}>
@@ -507,7 +523,7 @@ function EditorScreen({ document, onSave, onChange }) {
           </View>
           <View style={styles.toolSettingsRow}><Text style={styles.toolSettingsLabel}>Espessura</Text><View style={styles.widthOptions}>{[2, 4, 7].map((width) => <Pressable key={width} onPress={() => { setStrokeWidth(width); setTool('pen'); }} style={[styles.widthButton, strokeWidth === width && tool === 'pen' && styles.widthButtonActive]}><View style={[styles.widthDot, { width: width + 3, height: width + 3 }]} /></Pressable>)}</View></View>
           {tool === 'highlighter' && <View style={styles.markerTypes}><Text style={styles.markerLabel}>ESTILO</Text>{[['classic','Clássico'],['pastel','Pastel'],['bold','Forte'],['underline','Sublinhado']].map(([id,label]) => <Pressable key={id} onPress={() => setMarkerType(id)} style={[styles.markerType, markerType === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, markerType === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View>}
-          <View style={styles.markerTypes}><Text style={styles.markerLabel}>FUNDO</Text>{[['plain','Branco'],['ruled','Pautado'],['grid','Quadriculado'],['dotted','Pontilhado']].map(([id,label]) => <Pressable key={id} onPress={() => setPageBackground(id)} style={[styles.markerType, pageBackground === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, pageBackground === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View>
+          <View style={styles.markerTypes}><Text style={styles.markerLabel}>FUNDO</Text>{[['plain','Branco'],['ruled','Pautado'],['grid','Quadriculado'],['dotted','Pontilhado']].map(([id,label]) => <Pressable key={id} onPress={() => { setPageBackground(id); recordPathSnapshot({ background: id }); }} style={[styles.markerType, pageBackground === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, pageBackground === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View>
         </View>}
         {selectedStrokeIds.length>0&&<View style={styles.selectionActionRow}><Pressable onPress={()=>applyPathChange(resizeStrokes(pathsRef.current,selectedStrokeIds,1.15))}><Text style={styles.selectionActionText}>Aumentar</Text></Pressable><Pressable onPress={()=>applyPathChange(resizeStrokes(pathsRef.current,selectedStrokeIds,0.87))}><Text style={styles.selectionActionText}>Diminuir</Text></Pressable><Pressable onPress={()=>applyPathChange(rotateStrokes(pathsRef.current,selectedStrokeIds,Math.PI/12))}><Text style={styles.selectionActionText}>Girar</Text></Pressable><Pressable onPress={()=>{const picked=pathsRef.current.filter(path=>selectedStrokeIds.includes(path.id));setSelectedClipboard(picked);applyPathChange(pathsRef.current.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);}}><Text style={styles.selectionActionText}>Recortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(path=>({...path,id:`${Date.now()}-${Math.random()}`,points:path.points.map(p=>({x:p.x+24,y:p.y+24}))}));applyPathChange([...pathsRef.current,...pasted]);setSelectedStrokeIds(pasted.map(path=>path.id));}}><Text style={styles.selectionActionText}>Colar</Text></Pressable><Pressable onPress={()=>{applyPathChange(pathsRef.current.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);}}><Text style={[styles.selectionActionText,{color:COLORS.rose}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedStrokeIds([])}><Text style={styles.selectionActionText}>Desmarcar</Text></Pressable></View>}<View style={styles.colorRow}><Text style={styles.colorLabel}>COR</Text><ScrollView horizontal style={{ flex: 1 }} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorScroll}>{PALETTE.map((item) => <Pressable key={item} onPress={() => setColor(item)} style={[styles.colorButton, color === item && styles.colorButtonSelected]}><View style={[styles.colorDot, { backgroundColor: item, borderWidth: item === '#FFFFFF' ? 1 : 0, borderColor: '#AEB5AE' }]} /></Pressable>)}</ScrollView><Text style={styles.annotationCount}>{paths.length} traços</Text></View>
       </ScrollView>
