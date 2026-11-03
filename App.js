@@ -5,13 +5,13 @@ import {
   PanResponder,
   Pressable,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect } from 'react-native-svg';
 import ExamMode from './ExamMode';
 import RedacaoMode from './RedacaoMode';
@@ -383,7 +383,11 @@ function BlocoApp() {
 }
 
 export default function App() {
-  return <BlocoApp />;
+  return (
+    <SafeAreaProvider>
+      <BlocoApp />
+    </SafeAreaProvider>
+  );
 }
 
 const styles = StyleSheet.create({

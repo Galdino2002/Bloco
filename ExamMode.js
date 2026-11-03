@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Image, PanResponder, Pressable, SafeAreaView, ScrollView,
+  Alert, Image, PanResponder, Pressable, ScrollView,
   StatusBar, StyleSheet, Text, View, ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
 import { File } from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
