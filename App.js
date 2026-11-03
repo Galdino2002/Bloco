@@ -287,6 +287,10 @@ function EditorScreen({ document, onSave, onChange }) {
         activePath.current = null;
         const [first, second] = touches;
         const distance = Math.hypot(first.pageX - second.pageX, first.pageY - second.pageY);
+        if (!pinchStart.current && distance > 0) {
+          pinchStart.current = { distance, zoom: zoomRef.current };
+          return;
+        }
         if (pinchStart.current?.distance > 0) {
           const nextZoom = Math.min(3, Math.max(0.5, pinchStart.current.zoom * distance / pinchStart.current.distance));
           zoomRef.current = nextZoom;
