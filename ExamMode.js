@@ -7,7 +7,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { File } from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Rect } from 'react-native-svg';
 
 const STORAGE_KEY = '@bloco:exams:v1';
 const DIR = FileSystem.documentDirectory + 'bloco-exams/';
@@ -60,8 +60,28 @@ function formatTime(seconds) {
   const s = safe % 60;
   return [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
 }
-function svgPath(points) {
-  return points.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ');
+function svgPath(points, close = false) {
+  if (!points || !points.length) return '';
+  return points.map((p, i) => (i ? 'L ' : 'M ') + p.x + ' ' + p.y).join(' ') + (close ? ' Z' : '');
+}
+function insidePolygon(p, polygon) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[i], b = polygon[j];
+    if (((a.y > p.y) !== (b.y > p.y)) && p.x < ((b.x-a.x)*(p.y-a.y))/((b.y-a.y)||0.00001)+a.x) inside = !inside;
+  }
+  return inside;
+}
+function boundsFor(strokes) {
+  const pts = strokes.flatMap(stroke => stroke.points || []);
+  if (!pts.length) return null;
+  return { minX:Math.min(...pts.map(p=>p.x)), minY:Math.min(...pts.map(p=>p.y)), maxX:Math.max(...pts.map(p=>p.x)), maxY:Math.max(...pts.map(p=>p.y)) };
+}
+function scaleSelected(strokes, ids, factor) {
+  const box = boundsFor(strokes.filter(stroke => ids.includes(stroke.id)));
+  if (!box) return strokes;
+  const cx=(box.minX+box.maxX)/2, cy=(box.minY+box.maxY)/2;
+  return strokes.map(stroke => ids.includes(stroke.id) ? {...stroke,width:stroke.width*factor,points:stroke.points.map(p=>({x:cx+(p.x-cx)*factor,y:cy+(p.y-cy)*factor}))} : stroke);
 }
 function Button({ title, onPress, secondary = false, disabled = false }) {
   return <Pressable disabled={disabled} onPress={onPress} style={({ pressed }) => [s.button, secondary && s.buttonSecondary, disabled && { opacity: 0.4 }, pressed && { opacity: 0.75 }]}><Text style={[s.buttonText, secondary && s.buttonTextSecondary]}>{title}</Text></Pressable>;
@@ -227,6 +247,8 @@ function ExamEditor({ exam, onSave, onBack }) {
   const [paths, setPaths] = useState(exam.pages?.[0]?.paths || []);
   const [redo, setRedo] = useState([]);
   const [tool, setTool] = useState('pen');
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [lasso, setLasso] = useState([]);
   const [color, setColor] = useState(COLORS[0]);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -240,7 +262,11 @@ function ExamEditor({ exam, onSave, onBack }) {
   const pinchStart = useRef(null);
   const panStart = useRef(null);
   const panRef = useRef({ x: 0, y: 0 });
+  const selectedRef = useRef([]);
+  const lassoRef = useRef([]);
+  const selectionGesture = useRef(null);
   pathsRef.current = paths; toolRef.current = tool; colorRef.current = color;
+  selectedRef.current = selectedIds; lassoRef.current = lasso;
 
   const snapshotRef = useRef({ pages, index, paths, remaining });
   snapshotRef.current = { pages, index, paths, remaining };
@@ -276,6 +302,13 @@ function ExamEditor({ exam, onSave, onBack }) {
           distance: Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY),
           zoom: zoomRef.current,
         };
+        return;
+      }
+      if (toolRef.current === 'select') {
+        activePath.current = null;
+        const point = { x:e.nativeEvent.locationX, y:e.nativeEvent.locationY };
+        if (selectedRef.current.length) selectionGesture.current = { type:'move', start:point, original:pathsRef.current };
+        else { selectionGesture.current = { type:'lasso' }; lassoRef.current=[point]; setLasso([point]); }
         return;
       }
       if (toolRef.current === 'move') {
@@ -318,6 +351,17 @@ function ExamEditor({ exam, onSave, onBack }) {
         return;
       }
       pinchStart.current = null;
+      if (toolRef.current === 'select' && selectionGesture.current?.type === 'lasso') {
+        const point={x:e.nativeEvent.locationX,y:e.nativeEvent.locationY};
+        const next=[...lassoRef.current,point]; lassoRef.current=next; setLasso(next); return;
+      }
+      if (toolRef.current === 'select' && selectionGesture.current?.type === 'move') {
+        const point={x:e.nativeEvent.locationX,y:e.nativeEvent.locationY};
+        const dx=point.x-selectionGesture.current.start.x, dy=point.y-selectionGesture.current.start.y;
+        const original=selectionGesture.current.original;
+        const moved=original.map(stroke=>selectedRef.current.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>({x:p.x+dx,y:p.y+dy}))}:stroke);
+        pathsRef.current=moved; setPaths(moved); return;
+      }
       if (toolRef.current === 'move') {
         if (panStart.current) {
           const next = { x: panStart.current.pan.x + e.nativeEvent.pageX - panStart.current.x, y: panStart.current.pan.y + e.nativeEvent.pageY - panStart.current.y };
@@ -332,11 +376,23 @@ function ExamEditor({ exam, onSave, onBack }) {
       activePath.current = next; setPaths(old => [...old.slice(0, -1), next]);
     },
     onPanResponderRelease: e => {
+      if (toolRef.current === 'select' && selectionGesture.current?.type === 'lasso') {
+        const polygon=lassoRef.current;
+        const ids=polygon.length>=3 ? pathsRef.current.filter(stroke=>(stroke.points||[]).some(point=>insidePolygon(point,polygon))).map(stroke=>stroke.id) : [];
+        selectedRef.current=ids; setSelectedIds(ids); lassoRef.current=[]; setLasso([]);
+      } else if (toolRef.current === 'select' && selectionGesture.current?.type === 'move') {
+        const point={x:e.nativeEvent.locationX,y:e.nativeEvent.locationY};
+        const dx=point.x-selectionGesture.current.start.x, dy=point.y-selectionGesture.current.start.y;
+        const original=selectionGesture.current.original;
+        const moved=original.map(stroke=>selectedRef.current.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>({x:p.x+dx,y:p.y+dy}))}:stroke);
+        pathsRef.current=moved; setPaths(moved); setRedo([]);
+      }
+      selectionGesture.current=null;
       activePath.current = null;
       panStart.current = null;
       if ((e.nativeEvent.touches?.length || 0) < 2) pinchStart.current = null;
     },
-    onPanResponderTerminate: () => { activePath.current = null; pinchStart.current = null; panStart.current = null; },
+    onPanResponderTerminate: () => { activePath.current = null; pinchStart.current = null; panStart.current = null; selectionGesture.current=null; lassoRef.current=[]; setLasso([]); },
   }), []);
 
   const changePage = (next) => {
@@ -355,10 +411,10 @@ function ExamEditor({ exam, onSave, onBack }) {
     <StatusBar barStyle="dark-content" backgroundColor={PAPER} />
     <View style={s.editorHead}><Pressable onPress={saveAndExit} style={s.back}><Text style={s.backText}>‹</Text></Pressable><View style={{ flex: 1 }}><Text style={s.editorTitle}>{exam.title}</Text><Text style={s.examDescription}>Página {index + 1} de {pages.length}</Text></View><View style={s.timerPill}><Text style={s.timerText}>{formatTime(remaining)}</Text></View></View>
     {finished && <View style={s.finishedBanner}><Text style={s.finishedText}>Tempo encerrado. Você ainda pode salvar suas anotações.</Text></View>}
-    <View style={s.examToolbar}><Pressable onPress={() => { if (paths.length) { setRedo(old => [...old, paths[paths.length - 1]]); setPaths(old => old.slice(0, -1)); } }}><Text style={s.toolbarText}>↶ Desfazer</Text></Pressable><Pressable onPress={() => { if (redo.length) { setPaths(old => [...old, redo[redo.length - 1]]); setRedo(old => old.slice(0, -1)); } }}><Text style={s.toolbarText}>↷ Refazer</Text></Pressable><Pressable onPress={() => { setPaths([]); setRedo([]); }}><Text style={s.toolbarText}>Limpar</Text></Pressable></View>
-    <View style={s.examCanvas}><View style={[StyleSheet.absoluteFill, { transform: [{ scale: zoom }, { translateX: pan.x / zoom }, { translateY: pan.y / zoom }] }]}><Image source={{ uri: current?.uri }} style={StyleSheet.absoluteFill} resizeMode="contain" /><View style={StyleSheet.absoluteFill} {...responder.panHandlers}><Svg width="100%" height="100%">{paths.map(stroke => <Path key={stroke.id} d={svgPath(stroke.points)} stroke={stroke.color} strokeOpacity={stroke.opacity ?? 1} strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}</Svg></View></View></View>
+    <View style={s.examToolbar}><Pressable onPress={() => { if (paths.length) { setRedo(old => [...old, paths[paths.length - 1]]); setPaths(old => old.slice(0, -1)); } }}><Text style={s.toolbarText}>↶ Desfazer</Text></Pressable><Pressable onPress={() => { if (redo.length) { setPaths(old => [...old, redo[redo.length - 1]]); setRedo(old => old.slice(0, -1)); } }}><Text style={s.toolbarText}>↷ Refazer</Text></Pressable><Pressable onPress={() => { setPaths([]); setRedo([]); setSelectedIds([]); }}><Text style={s.toolbarText}>Limpar</Text></Pressable></View>
+    <View style={s.examCanvas}><View style={[StyleSheet.absoluteFill, { transform: [{ scale: zoom }, { translateX: pan.x / zoom }, { translateY: pan.y / zoom }] }]}><Image source={{ uri: current?.uri }} style={StyleSheet.absoluteFill} resizeMode="contain" /><View style={StyleSheet.absoluteFill} {...responder.panHandlers}><Svg width="100%" height="100%">{paths.map(stroke => <Path key={stroke.id} d={svgPath(stroke.points)} stroke={stroke.color} strokeOpacity={stroke.opacity ?? 1} strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lasso.length>1 && <Path d={svgPath(lasso)} stroke={GREEN} strokeWidth={2} strokeDasharray="6 4" fill="none" />}{selectedIds.length>0 && (()=>{const b=boundsFor(paths.filter(stroke=>selectedIds.includes(stroke.id)));return b?<Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={GREEN} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/>:null;})()}</Svg></View></View></View>
     <View style={s.pageControls}><Pressable disabled={index === 0} onPress={() => changePage(index - 1)}><Text style={s.toolbarText}>‹ Anterior</Text></Pressable><Text style={s.pageText}>{index + 1} / {pages.length}</Text><Pressable disabled={index === pages.length - 1} onPress={() => changePage(index + 1)}><Text style={s.toolbarText}>Próxima ›</Text></Pressable></View>
-    <View style={s.drawPanel}><View style={s.drawTools}><Pressable onPress={() => setTool('pen')} style={[s.tool, tool === 'pen' && s.toolActive]}><Text style={s.toolText}>Caneta</Text></Pressable><Pressable onPress={() => setTool('highlighter')} style={[s.tool, tool === 'highlighter' && s.toolActive]}><Text style={s.toolText}>Marca-texto</Text></Pressable><Pressable onPress={() => setTool('eraser')} style={[s.tool, tool === 'eraser' && s.toolActive]}><Text style={s.toolText}>Borracha</Text></Pressable><Pressable onPress={() => setTool('move')} style={[s.tool, tool === 'move' && s.toolActive]}><Text style={s.toolText}>Mover</Text></Pressable></View><View style={s.paletteRow}><View style={s.palette}>{COLORS.map(c => <Pressable key={c} onPress={() => { setColor(c); if (tool === 'eraser') setTool('pen'); }} style={[s.swatch, { backgroundColor: c }, color === c && s.swatchSelected]} />)}</View><View style={s.zoomControls}><Pressable style={s.zoomButton} onPress={() => { const next = Math.max(1, Number((zoom - 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>−</Text></Pressable><Text style={s.zoomValue}>{Math.round(zoom * 100)}%</Text><Pressable style={s.zoomButton} onPress={() => { const next = Math.min(3, Number((zoom + 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>+</Text></Pressable><Pressable style={s.zoomReset} onPress={() => { zoomRef.current = 1; setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); }}><Text style={s.zoomResetText}>Ajustar</Text></Pressable></View></View><Button title="Salvar e sair" onPress={saveAndExit} /></View>
+    <View style={s.drawPanel}><Text style={s.selectionHint}>{tool==='select'?(selectedIds.length?'Arraste a seleção para mover. Use A+ e A− para redimensionar.':'Contorne a escrita com o dedo para selecionar.'):'Escreva na página ou escolha uma ferramenta.'}</Text>{selectedIds.length>0 && <View style={s.selectionActions}><Pressable onPress={()=>{setPaths(old=>scaleSelected(old,selectedIds,1.15));setRedo([]);}}><Text style={s.toolbarText}>Aumentar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>scaleSelected(old,selectedIds,0.87));setRedo([]);}}><Text style={s.toolbarText}>Diminuir</Text></Pressable><Pressable onPress={()=>{setPaths(old=>old.filter(stroke=>!selectedIds.includes(stroke.id)));setSelectedIds([]);setRedo([]);}}><Text style={[s.toolbarText,{color:'#B44D45'}]}>Excluir seleção</Text></Pressable><Pressable onPress={()=>setSelectedIds([])}><Text style={s.toolbarText}>Desmarcar</Text></Pressable></View>}<View style={s.drawTools}><Pressable onPress={() => setTool('pen')} style={[s.tool, tool === 'pen' && s.toolActive]}><Text style={s.toolText}>Caneta</Text></Pressable><Pressable onPress={() => setTool('highlighter')} style={[s.tool, tool === 'highlighter' && s.toolActive]}><Text style={s.toolText}>Marca-texto</Text></Pressable><Pressable onPress={() => setTool('eraser')} style={[s.tool, tool === 'eraser' && s.toolActive]}><Text style={s.toolText}>Borracha</Text></Pressable><Pressable onPress={() => {setTool('select');setSelectedIds([]);}} style={[s.tool, tool === 'select' && s.toolActive]}><Text style={s.toolText}>Laço</Text></Pressable><Pressable onPress={() => setTool('move')} style={[s.tool, tool === 'move' && s.toolActive]}><Text style={s.toolText}>Mover folha</Text></Pressable></View><View style={s.paletteRow}><View style={s.palette}>{COLORS.map(c => <Pressable key={c} onPress={() => { setColor(c); if (tool === 'eraser') setTool('pen'); }} style={[s.swatch, { backgroundColor: c }, color === c && s.swatchSelected]} />)}</View><View style={s.zoomControls}><Pressable style={s.zoomButton} onPress={() => { const next = Math.max(1, Number((zoom - 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>−</Text></Pressable><Text style={s.zoomValue}>{Math.round(zoom * 100)}%</Text><Pressable style={s.zoomButton} onPress={() => { const next = Math.min(3, Number((zoom + 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>+</Text></Pressable><Pressable style={s.zoomReset} onPress={() => { zoomRef.current = 1; setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); }}><Text style={s.zoomResetText}>Ajustar</Text></Pressable></View></View><Button title="Salvar e sair" onPress={saveAndExit} /></View>
   </SafeAreaView>;
 }
 
@@ -392,6 +448,8 @@ const s = StyleSheet.create({
   toolbarText: { color: GREEN, fontSize: 11, fontWeight: '700' }, examCanvas: { flex: 1, margin: 10, backgroundColor: '#FFF', borderRadius: 10, overflow: 'hidden' },
   pageControls: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 9, backgroundColor: '#FFF' },
   pageText: { color: '#89938A', fontSize: 10, fontWeight: '700' }, drawPanel: { padding: 12, backgroundColor: '#FFF', borderTopWidth: 1, borderColor: LINE },
+  selectionHint: { color:'#77847A', fontSize:10, marginBottom:7 },
+  selectionActions: { flexDirection:'row', flexWrap:'wrap', gap:16, marginBottom:9 },
   drawTools: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
   paletteRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   zoomControls: { flexDirection: 'row', alignItems: 'center', gap: 7 },
