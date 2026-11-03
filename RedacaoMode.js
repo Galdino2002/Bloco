@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import Svg, { G, Line, Path, Rect } from 'react-native-svg';
-import { eraseAtPoint, pathIntersectsPolygon } from './drawing';
+import { eraseAtPoint, getHighlighterStyle, pathIntersectsPolygon } from './drawing';
 import { ContextToolbar, design, IconButton } from './designSystem';
 
 const STORAGE_KEY = '@bloco:redacoes:v1';
@@ -82,11 +82,13 @@ export default function RedacaoMode({ onExit }) {
   const [canvasTool, setCanvasTool] = useState('draw');
   const canvasToolRef = useRef('draw');
   const [markerType, setMarkerType] = useState('classic');
+  const [markerWidth, setMarkerWidth] = useState(18);
   const [penWidth, setPenWidth] = useState(4);
   const [selectedIds, setSelectedIds] = useState([]);
   const [clipboard, setClipboard] = useState([]);
   const [lasso, setLasso] = useState([]);
   const markerTypeRef = useRef('classic');
+  const markerWidthRef = useRef(18);
   const penWidthRef = useRef(4);
   const selectedIdsRef = useRef([]);
   const lassoRef = useRef([]);
@@ -103,6 +105,7 @@ export default function RedacaoMode({ onExit }) {
   pathsRef.current = paths;
   colorRef.current = color;
   markerTypeRef.current = markerType;
+  markerWidthRef.current = markerWidth;
   penWidthRef.current = penWidth;
   selectedIdsRef.current = selectedIds;
   lassoRef.current = lasso;
@@ -318,8 +321,8 @@ export default function RedacaoMode({ onExit }) {
       }
       const isMarker = canvasToolRef.current === 'highlighter';
       const marker = markerTypeRef.current;
-      const markerStyle = marker === 'pastel' ? { width: 24, opacity: 0.22 } : marker === 'underline' ? { width: 5, opacity: 0.95 } : marker === 'bold' ? { width: 13, opacity: 0.58 } : { width: 19, opacity: 0.32 };
-      const stroke = { id: String(Date.now()) + Math.random(), points: [point], color: colorRef.current, width: isMarker ? markerStyle.width : penWidthRef.current, opacity: isMarker ? markerStyle.opacity : 1 };
+      const markerStyle = getHighlighterStyle(marker, markerWidthRef.current);
+      const stroke = { id: String(Date.now()) + Math.random(), points: [point], color: colorRef.current, width: isMarker ? markerStyle.width : penWidthRef.current, opacity: isMarker ? markerStyle.opacity : 1, kind: isMarker ? 'highlighter' : 'pen' };
       activePath.current = stroke; pathsRef.current = [...pathsRef.current, stroke]; setPaths(pathsRef.current); setRedo([]);
     },
     onPanResponderMove: event => {
@@ -457,11 +460,12 @@ export default function RedacaoMode({ onExit }) {
                 <Pressable style={styles.selectionAction} onPress={() => { setClipboard(paths.filter(path => selectedIds.includes(path.id))); const next = paths.filter(path => !selectedIds.includes(path.id)); pathsRef.current = next; setPaths(next); setSelectedIds([]); setRedo([]); }}><Text style={styles.toolText}>Cortar</Text></Pressable>
                 <Pressable style={styles.selectionAction} onPress={() => { if (!clipboard.length) return; const pasted = clipboard.map(path => ({ ...path, id: String(Date.now()) + Math.random(), points: path.points.map(p => ({ x: p.x + 24, y: p.y + 24 })) })); const next = [...paths, ...pasted]; pathsRef.current = next; setPaths(next); setSelectedIds(pasted.map(path => path.id)); setRedo([]); }}><Text style={styles.toolText}>Colar</Text></Pressable>
                 <Pressable style={styles.selectionAction} onPress={() => { const next = paths.filter(path => !selectedIds.includes(path.id)); pathsRef.current = next; setPaths(next); setSelectedIds([]); setRedo([]); }}><Text style={[styles.toolText, { color: '#B44D45' }]}>Excluir</Text></Pressable>
-                <Pressable style={styles.selectionAction} onPress={() => setSelectedIds([])}><Text style={styles.toolText}>Concluir</Text></Pressable>
+                <Pressable style={styles.selectionAction} onPress={() => setSelectedIds([])}><Text style={styles.toolText}>Nova seleção</Text></Pressable>
               </View>}
             </View>}
             {canvasTool === 'draw' && <View style={styles.penWidths}><Text style={styles.markerLabel}>ESPESSURA</Text>{[2,4,7].map(width => <Pressable key={width} onPress={() => setPenWidth(width)} style={[styles.penWidthButton, penWidth === width && styles.penWidthButtonActive]}><View style={{ width: width + 3, height: width + 3, borderRadius: 10, backgroundColor: INK }} /></Pressable>)}</View>}
             {canvasTool === 'highlighter' && <View style={styles.markerTypes}>
+              <View style={styles.markerWidthRow}><Text style={styles.markerLabel}>ESPESSURA</Text>{[10, 18, 28].map(width => <Pressable key={width} onPress={() => setMarkerWidth(width)} style={[styles.markerWidthButton, markerWidth === width && styles.markerWidthButtonActive]}><View style={[styles.markerWidthPreview, { height: Math.min(18, Math.max(6, width / 1.5)) }]} /></Pressable>)}</View>
               <Text style={styles.markerLabel}>ESTILO</Text>
               {[['classic','Clássico'],['pastel','Pastel'],['bold','Forte'],['underline','Sublinhado']].map(([id,label]) => <Pressable key={id} onPress={() => setMarkerType(id)} style={[styles.markerType, markerType === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, markerType === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}
             </View>}
@@ -578,6 +582,10 @@ const styles = StyleSheet.create({
   selectionActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   selectionAction: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, backgroundColor: '#E8F0E9', borderWidth: 1, borderColor: '#D4E2D6' },
   markerTypes: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 7 },
+  markerWidthRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  markerWidthButton: { width: 50, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F2EE', borderWidth: 1, borderColor: '#E3E6DF' },
+  markerWidthButtonActive: { backgroundColor: '#DCEBDD', borderColor: GREEN },
+  markerWidthPreview: { width: 30, borderRadius: 10, backgroundColor: '#E4B83F', opacity: 0.55 },
   penWidths: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 7 },
   penWidthButton: { width: 29, height: 27, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
   penWidthButtonActive: { borderColor: '#B8CDBB', backgroundColor: '#F4F7F2' },
