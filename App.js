@@ -153,6 +153,7 @@ function EditorScreen({ document, onSave }) {
   const [redoPaths, setRedoPaths] = useState([]);
   const [tool, setTool] = useState('pen');
   const [selectedStrokeIds, setSelectedStrokeIds] = useState([]);
+  const [selectedClipboard, setSelectedClipboard] = useState([]);
   const [lassoPoints, setLassoPoints] = useState([]);
   const [color, setColor] = useState(PALETTE[0]);
   const [strokeWidth, setStrokeWidth] = useState(4);
@@ -243,7 +244,7 @@ function EditorScreen({ document, onSave }) {
     if (nextIndex < 0 || nextIndex >= pages.length) return;
     setPages((previous) => previous.map((page, index) => index === pageIndex ? { ...page, paths } : page));
     const nextPage = pages[nextIndex];
-    setPageIndex(nextIndex); setPaths(nextPage.paths || []); setRedoPaths([]);
+    setPageIndex(nextIndex); setPaths(nextPage.paths || []); setRedoPaths([]); setSelectedStrokeIds([]); setLassoPoints([]);
     pathsRef.current = nextPage.paths || [];
     setZoom(1); setPanOffset({ x: 0, y: 0 });
   };
@@ -306,7 +307,7 @@ function EditorScreen({ document, onSave }) {
           <View style={styles.panelDivider} />
           <View style={styles.widthOptions}>{[2, 4, 7].map((width) => <Pressable key={width} onPress={() => { setStrokeWidth(width); setTool('pen'); }} style={[styles.widthButton, strokeWidth === width && tool === 'pen' && styles.widthButtonActive]}><View style={[styles.widthDot, { width: width + 3, height: width + 3 }]} /></Pressable>)}</View>
         </View>
-        {selectedStrokeIds.length>0&&<View style={styles.selectionActionRow}><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,1.15));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Aumentar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,0.87));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Diminuir</Text></Pressable><Pressable onPress={()=>{setPaths(old=>rotateStrokes(old,selectedStrokeIds,Math.PI/12));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Girar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={[styles.selectionActionText,{color:COLORS.rose}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedStrokeIds([])}><Text style={styles.selectionActionText}>Desmarcar</Text></Pressable></View>}<View style={styles.colorRow}><Text style={styles.colorLabel}>COR</Text>{PALETTE.map((item) => <Pressable key={item} onPress={() => { setColor(item); setTool('pen'); }} style={[styles.colorButton, color === item && tool === 'pen' && styles.colorButtonSelected]}><View style={[styles.colorDot, { backgroundColor: item }]} /></Pressable>)}<View style={styles.panelSpacer} /><Text style={styles.annotationCount}>{paths.length} traços nesta página</Text></View>
+        {selectedStrokeIds.length>0&&<View style={styles.selectionActionRow}><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,1.15));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Aumentar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,0.87));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Diminuir</Text></Pressable><Pressable onPress={()=>{setPaths(old=>rotateStrokes(old,selectedStrokeIds,Math.PI/12));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Girar</Text></Pressable><Pressable onPress={()=>{const picked=paths.filter(path=>selectedStrokeIds.includes(path.id));setSelectedClipboard(picked);setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={styles.selectionActionText}>Recortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(path=>({...path,id:`${Date.now()}-${Math.random()}`,points:path.points.map(p=>({x:p.x+24,y:p.y+24}))}));setPaths(old=>[...old,...pasted]);setSelectedStrokeIds(pasted.map(path=>path.id));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Colar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={[styles.selectionActionText,{color:COLORS.rose}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedStrokeIds([])}><Text style={styles.selectionActionText}>Desmarcar</Text></Pressable></View>}<View style={styles.colorRow}><Text style={styles.colorLabel}>COR</Text>{PALETTE.map((item) => <Pressable key={item} onPress={() => { setColor(item); setTool('pen'); }} style={[styles.colorButton, color === item && tool === 'pen' && styles.colorButtonSelected]}><View style={[styles.colorDot, { backgroundColor: item }]} /></Pressable>)}<View style={styles.panelSpacer} /><Text style={styles.annotationCount}>{paths.length} traços nesta página</Text></View>
       </View>
     </SafeAreaView>
   );
