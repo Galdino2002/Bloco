@@ -253,10 +253,11 @@ export default function ExamMode({ onExit }) {
 
 function ExamEditor({ exam, onSave, onBack }) {
   const [pages, setPages] = useState(exam.pages || []);
-  const [index, setIndex] = useState(0);
-  const [paths, setPaths] = useState(exam.pages?.[0]?.paths || []);
+  const [index, setIndex] = useState(Math.min(exam.currentPage || 0, Math.max(0, (exam.pages?.length || 1) - 1)));
+  const initialPage = exam.pages?.[Math.min(exam.currentPage || 0, Math.max(0, (exam.pages?.length || 1) - 1))] || exam.pages?.[0];
+  const [paths, setPaths] = useState(initialPage?.paths || []);
   const [redo, setRedo] = useState([]);
-  const [pathHistory, setPathHistory] = useState(() => createHistory(exam.pages?.[0]?.paths || []));
+  const [pathHistory, setPathHistory] = useState(() => createHistory(initialPage?.paths || []));
   const [tool, setTool] = useState('pen');
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedClipboard, setSelectedClipboard] = useState([]);
@@ -265,8 +266,8 @@ function ExamEditor({ exam, onSave, onBack }) {
   const [markerType, setMarkerType] = useState('classic');
   const [toolsExpanded, setToolsExpanded] = useState(false);
   const [penWidth, setPenWidth] = useState(4);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(exam.zoom || 1);
+  const [pan, setPan] = useState(exam.pan || { x: 0, y: 0 });
   const [remaining, setRemaining] = useState(exam.remaining ?? exam.duration);
   const [finished, setFinished] = useState(false);
   const [finalized, setFinalized] = useState(exam.status === 'Finalizada');
@@ -280,10 +281,10 @@ function ExamEditor({ exam, onSave, onBack }) {
   const colorRef = useRef(color);
   const markerTypeRef = useRef(markerType);
   const penWidthRef = useRef(penWidth);
-  const zoomRef = useRef(1);
+  const zoomRef = useRef(exam.zoom || 1);
   const pinchStart = useRef(null);
   const panStart = useRef(null);
-  const panRef = useRef({ x: 0, y: 0 });
+  const panRef = useRef(exam.pan || { x: 0, y: 0 });
   const selectedRef = useRef([]);
   const lassoRef = useRef([]);
   const selectionGesture = useRef(null);
@@ -310,8 +311,8 @@ function ExamEditor({ exam, onSave, onBack }) {
     setRedo([]);
   };
 
-  const snapshotRef = useRef({ pages, index, paths, remaining });
-  snapshotRef.current = { pages, index, paths, remaining };
+  const snapshotRef = useRef({ pages, index, paths, remaining, zoom, pan });
+  snapshotRef.current = { pages, index, paths, remaining, zoom, pan };
   remainingRef.current = remaining;
   useEffect(() => {
     if (paused || finalized) return undefined;
@@ -332,7 +333,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         .then(async () => {
           const raw = await AsyncStorage.getItem(STORAGE_KEY);
           const list = raw ? JSON.parse(raw) : [];
-          const next = list.map(item => item.id === exam.id ? { ...item, pages: current, remaining: snapshot.remaining, endAt, elapsed, status: finalized ? 'Finalizada' : (paused ? 'Pausada' : 'Em andamento'), updatedAt: Date.now() } : item);
+          const next = list.map(item => item.id === exam.id ? { ...item, pages: current, currentPage: snapshot.index, zoom: snapshot.zoom, pan: snapshot.pan, remaining: snapshot.remaining, endAt, elapsed, status: finalized ? 'Finalizada' : (paused ? 'Pausada' : 'Em andamento'), updatedAt: Date.now() } : item);
           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         })
         .catch(error => console.error('Erro no salvamento automático da prova:', error));
@@ -354,7 +355,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         const list = raw ? JSON.parse(raw) : [];
         const next = list.map(item => item.id === exam.id
-          ? { ...item, pages: currentPages, remaining: nextRemaining, endAt: nextEndAt, elapsed, status: nextStatus, updatedAt: Date.now() }
+          ? { ...item, pages: currentPages, currentPage: index, zoom, pan, remaining: nextRemaining, endAt: nextEndAt, elapsed, status: nextStatus, updatedAt: Date.now() }
           : item);
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       })
@@ -532,7 +533,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const saveAndExit = () => {
     const updatedPages = pages.map((page, i) => i === index ? { ...page, paths } : page);
     const elapsed = Math.max(0, exam.duration - remaining);
-    onSave({ ...exam, pages: updatedPages, remaining, elapsed, endAt, status: finalized ? 'Finalizada' : (paused ? 'Pausada' : (remaining === 0 ? 'Tempo encerrado' : 'Em andamento')) });
+    onSave({ ...exam, pages: updatedPages, currentPage: index, zoom, pan, remaining, elapsed, endAt, status: finalized ? 'Finalizada' : (paused ? 'Pausada' : (remaining === 0 ? 'Tempo encerrado' : 'Em andamento')) });
   };
   const togglePause = () => {
     if (finalized || finished) return;
@@ -553,7 +554,7 @@ function ExamEditor({ exam, onSave, onBack }) {
       setFinalized(true);
       const updatedPages = pages.map((page, i) => i === index ? { ...page, paths } : page);
       persistExamState({ status: 'Finalizada' });
-      onSave({ ...exam, pages: updatedPages, remaining, elapsed: Math.max(0, exam.duration - remaining), endAt, status: 'Finalizada' });
+      onSave({ ...exam, pages: updatedPages, currentPage: index, zoom, pan, remaining, elapsed: Math.max(0, exam.duration - remaining), endAt, status: 'Finalizada' });
     } },
   ]);
   const current = pages[index];
