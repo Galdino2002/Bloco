@@ -99,6 +99,24 @@ function ActionButton({ label, onPress, secondary = false, compact = false }) {
   );
 }
 
+function PageBackground({ type }) {
+  if (type === 'plain') return null;
+  if (type === 'ruled') {
+    return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {Array.from({ length: 28 }, (_, index) => <View key={index} style={[styles.pageRule, { top: 28 + index * 27 }]} />)}
+    </View>;
+  }
+  if (type === 'grid') {
+    return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {Array.from({ length: 24 }, (_, index) => <View key={`h-${index}`} style={[styles.pageRule, { top: index * 27 }]} />)}
+      {Array.from({ length: 16 }, (_, index) => <View key={`v-${index}`} style={[styles.pageGridColumn, { left: index * 27 }]} />)}
+    </View>;
+  }
+  return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    {Array.from({ length: 320 }, (_, index) => <View key={index} style={[styles.pageDot, { left: 10 + (index % 16) * 27, top: 10 + Math.floor(index / 16) * 27 }]} />)}
+  </View>;
+}
+
 function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExam, onRedacao, onUpdate, onDuplicate }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
@@ -186,6 +204,7 @@ function EditorScreen({ document, onSave, onChange }) {
   const [pageIndex, setPageIndex] = useState(0);
   const [paths, setPaths] = useState(initialPages[0]?.paths || []);
   const [pageText, setPageText] = useState(initialPages[0]?.text || '');
+  const [pageBackground, setPageBackground] = useState(initialPages[0]?.background || 'plain');
   const [redoPaths, setRedoPaths] = useState([]);
   const [tool, setTool] = useState('pen');
   const [selectedStrokeIds, setSelectedStrokeIds] = useState([]);
@@ -305,18 +324,19 @@ function EditorScreen({ document, onSave, onChange }) {
     const nextPage = pages[nextIndex];
     setPageIndex(nextIndex); setPaths(nextPage.paths || []); setRedoPaths([]); setSelectedStrokeIds([]); setLassoPoints([]);
     setPageText(nextPage.text || '');
+    setPageBackground(nextPage.background || 'plain');
     pathsRef.current = nextPage.paths || [];
     setZoom(1); setPanOffset({ x: 0, y: 0 });
   };
   const undo = () => { if (!paths.length) return; setRedoPaths((previous) => [...previous, paths[paths.length - 1]]); setPaths((previous) => previous.slice(0, -1)); };
   const redo = () => { if (!redoPaths.length) return; setPaths((previous) => [...previous, redoPaths[redoPaths.length - 1]]); setRedoPaths((previous) => previous.slice(0, -1)); };
   const save = () => {
-    const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths, text: pageText } : page);
+    const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths, text: pageText, background: pageBackground } : page);
     onSave({ ...document, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
   };
   const currentPage = pages[pageIndex];
   useEffect(() => {
-    const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths, text: pageText } : page);
+    const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths, text: pageText, background: pageBackground } : page);
     const timer = setTimeout(() => {
       onChange({ ...document, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
     }, 350);
@@ -342,7 +362,7 @@ function EditorScreen({ document, onSave, onChange }) {
       <View style={styles.canvasArea}>
         <View style={styles.canvasPaper} onLayout={(event) => setCanvasSize(event.nativeEvent.layout)}>
           <View style={[styles.zoomContent, { transform: [{ translateX: panOffset.x }, { translateY: panOffset.y }, { scale: zoom }] }]}>
-            {currentPage.uri ? <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" /> : <View style={styles.blankPage}><TextInput value={pageText} onChangeText={setPageText} placeholder="Digite nesta página..." placeholderTextColor="#A0AAA1" multiline textAlignVertical="top" style={styles.pageTextInput} /></View>}
+            {currentPage.uri ? <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" /> : <View style={styles.blankPage}><PageBackground type={pageBackground} /><TextInput value={pageText} onChangeText={setPageText} placeholder="Digite nesta página..." placeholderTextColor="#A0AAA1" multiline textAlignVertical="top" style={styles.pageTextInput} /></View>}
             <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers}>
               <Svg width={canvasSize.width} height={canvasSize.height}>
                 {paths.map((path) => <Path key={path.id} d={pathToSvg(path.points)} stroke={path.color} strokeWidth={path.width} strokeOpacity={path.opacity ?? 1} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lassoPoints.length>1&&<Path d={pathToSvg(lassoPoints)} stroke={COLORS.green} strokeWidth={2} strokeDasharray="6 4" fill="none"/>}{selectedStrokeIds.length>0&&(()=>{const b=getStrokeBounds(paths.filter(path=>selectedStrokeIds.includes(path.id)));return b?<><Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={COLORS.green} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/><Rect x={b.maxX+1} y={b.maxY+1} width={12} height={12} rx={3} fill={COLORS.green}/></>:null;})()}
@@ -361,7 +381,8 @@ function EditorScreen({ document, onSave, onChange }) {
         </View>
       </View>
       <View style={styles.pageNavigation}>
-        <Pressable onPress={() => { const newPage = { id: `page-${Date.now()}`, paths: [], text: '' }; setPages(old => [...old, newPage]); setPageIndex(pages.length); setPaths([]); setPageText(''); }} style={styles.pageNavButton}><Text style={styles.pageNavText}>＋ Página</Text></Pressable>
+        <Pressable onPress={() => { const newPage = { id: `page-${Date.now()}`, paths: [], text: '', background: 'plain' }; setPages(old => [...old, newPage]); setPageIndex(pages.length); setPaths([]); setPageText(''); setPageBackground('plain'); }} style={styles.pageNavButton}><Text style={styles.pageNavText}>＋ Página</Text></Pressable>
+        <Pressable onPress={() => { const source = pages[pageIndex] || {}; const copy = { ...source, id: `page-${Date.now()}`, paths: JSON.parse(JSON.stringify(paths)), text: pageText, background: pageBackground }; setPages(old => [...old.slice(0, pageIndex + 1), copy, ...old.slice(pageIndex + 1)]); setPageIndex(pageIndex + 1); setPaths(copy.paths); setPageText(copy.text); }} style={styles.pageNavButton}><Text style={styles.pageNavText}>Duplicar</Text></Pressable>
         <Pressable disabled={pageIndex === 0} onPress={() => changePage(pageIndex - 1)} style={[styles.pageNavButton, pageIndex === 0 && styles.toolDisabled]}><Text style={styles.pageNavText}>‹ Anterior</Text></Pressable>
         <Text style={styles.pageNavLabel}>Página {pageIndex + 1} de {pages.length}</Text>
         <Pressable disabled={pageIndex === pages.length - 1} onPress={() => changePage(pageIndex + 1)} style={[styles.pageNavButton, pageIndex === pages.length - 1 && styles.toolDisabled]}><Text style={styles.pageNavText}>Próxima ›</Text></Pressable>
@@ -382,6 +403,7 @@ function EditorScreen({ document, onSave, onChange }) {
           </View>
           <View style={styles.toolSettingsRow}><Text style={styles.toolSettingsLabel}>Espessura</Text><View style={styles.widthOptions}>{[2, 4, 7].map((width) => <Pressable key={width} onPress={() => { setStrokeWidth(width); setTool('pen'); }} style={[styles.widthButton, strokeWidth === width && tool === 'pen' && styles.widthButtonActive]}><View style={[styles.widthDot, { width: width + 3, height: width + 3 }]} /></Pressable>)}</View></View>
           {tool === 'highlighter' && <View style={styles.markerTypes}><Text style={styles.markerLabel}>ESTILO</Text>{[['classic','Clássico'],['pastel','Pastel'],['bold','Forte'],['underline','Sublinhado']].map(([id,label]) => <Pressable key={id} onPress={() => setMarkerType(id)} style={[styles.markerType, markerType === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, markerType === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View>}
+          <View style={styles.markerTypes}><Text style={styles.markerLabel}>FUNDO</Text>{[['plain','Branco'],['ruled','Pautado'],['grid','Quadriculado'],['dotted','Pontilhado']].map(([id,label]) => <Pressable key={id} onPress={() => setPageBackground(id)} style={[styles.markerType, pageBackground === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, pageBackground === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View>
         </View>}
         {selectedStrokeIds.length>0&&<View style={styles.selectionActionRow}><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,1.15));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Aumentar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,0.87));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Diminuir</Text></Pressable><Pressable onPress={()=>{setPaths(old=>rotateStrokes(old,selectedStrokeIds,Math.PI/12));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Girar</Text></Pressable><Pressable onPress={()=>{const picked=paths.filter(path=>selectedStrokeIds.includes(path.id));setSelectedClipboard(picked);setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={styles.selectionActionText}>Recortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(path=>({...path,id:`${Date.now()}-${Math.random()}`,points:path.points.map(p=>({x:p.x+24,y:p.y+24}))}));setPaths(old=>[...old,...pasted]);setSelectedStrokeIds(pasted.map(path=>path.id));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Colar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={[styles.selectionActionText,{color:COLORS.rose}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedStrokeIds([])}><Text style={styles.selectionActionText}>Desmarcar</Text></Pressable></View>}<View style={styles.colorRow}><Text style={styles.colorLabel}>COR</Text><ScrollView horizontal style={{ flex: 1 }} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorScroll}>{PALETTE.map((item) => <Pressable key={item} onPress={() => setColor(item)} style={[styles.colorButton, color === item && styles.colorButtonSelected]}><View style={[styles.colorDot, { backgroundColor: item, borderWidth: item === '#FFFFFF' ? 1 : 0, borderColor: '#AEB5AE' }]} /></Pressable>)}</ScrollView><Text style={styles.annotationCount}>{paths.length} traços</Text></View>
       </View>
@@ -611,6 +633,9 @@ const styles = StyleSheet.create({
   canvasPaper: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, overflow: 'hidden', elevation: 2, shadowColor: '#23392E', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
   examImage: { width: '100%', height: '100%' },
   blankPage: { flex: 1, backgroundColor: '#FFFDF8', padding: 22 },
+  pageRule: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: '#DDE8DD' },
+  pageGridColumn: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: '#E8EEE7' },
+  pageDot: { position: 'absolute', width: 2, height: 2, borderRadius: 1, backgroundColor: '#C8D6C9' },
   pageTextInput: { flex: 1, color: COLORS.ink, fontSize: 17, lineHeight: 27 },
   zoomContent: { width: '100%', height: '100%' },
   canvasHintRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 7 },
