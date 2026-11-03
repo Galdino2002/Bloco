@@ -270,6 +270,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const [remaining, setRemaining] = useState(exam.remaining ?? exam.duration);
   const [finished, setFinished] = useState(false);
   const [finalized, setFinalized] = useState(exam.status === 'Finalizada');
+  const [paused, setPaused] = useState(exam.status === 'Pausada');
   const remainingRef = useRef(remaining);
   const endAtRef = useRef(exam.endAt || (Date.now() + remaining * 1000));
   const endAt = endAtRef.current;
@@ -313,12 +314,13 @@ function ExamEditor({ exam, onSave, onBack }) {
   snapshotRef.current = { pages, index, paths, remaining };
   remainingRef.current = remaining;
   useEffect(() => {
+    if (paused || finalized) return undefined;
     const id = setInterval(() => {
       const next = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
       setRemaining(next);
     }, 1000);
     return () => clearInterval(id);
-  }, [endAt]);
+  }, [endAt, paused, finalized]);
   useEffect(() => { if (remaining <= 0) setFinished(true); }, [remaining]);
   useEffect(() => {
     const id = setInterval(() => {
@@ -330,13 +332,13 @@ function ExamEditor({ exam, onSave, onBack }) {
         .then(async () => {
           const raw = await AsyncStorage.getItem(STORAGE_KEY);
           const list = raw ? JSON.parse(raw) : [];
-          const next = list.map(item => item.id === exam.id ? { ...item, pages: current, remaining: snapshot.remaining, endAt, elapsed, updatedAt: Date.now() } : item);
+          const next = list.map(item => item.id === exam.id ? { ...item, pages: current, remaining: snapshot.remaining, endAt, elapsed, status: finalized ? 'Finalizada' : (paused ? 'Pausada' : 'Em andamento'), updatedAt: Date.now() } : item);
           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         })
         .catch(error => console.error('Erro no salvamento automático da prova:', error));
     }, 10000);
     return () => clearInterval(id);
-  }, []);
+  }, [exam.id, exam.duration, endAt, finalized, paused]);
 
   const responder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => !finalized,
@@ -509,7 +511,18 @@ function ExamEditor({ exam, onSave, onBack }) {
   const saveAndExit = () => {
     const updatedPages = pages.map((page, i) => i === index ? { ...page, paths } : page);
     const elapsed = Math.max(0, exam.duration - remaining);
-    onSave({ ...exam, pages: updatedPages, remaining, elapsed, endAt, status: finalized ? 'Finalizada' : (remaining === 0 ? 'Tempo encerrado' : 'Em andamento') });
+    onSave({ ...exam, pages: updatedPages, remaining, elapsed, endAt, status: finalized ? 'Finalizada' : (paused ? 'Pausada' : (remaining === 0 ? 'Tempo encerrado' : 'Em andamento')) });
+  };
+  const togglePause = () => {
+    if (finalized || finished) return;
+    if (paused) {
+      endAtRef.current = Date.now() + remaining * 1000;
+      setPaused(false);
+    } else {
+      const currentRemaining = Math.max(0, Math.ceil((endAtRef.current - Date.now()) / 1000));
+      setRemaining(currentRemaining);
+      setPaused(true);
+    }
   };
   const finalizeExam = () => Alert.alert('Finalizar prova?', 'Depois de finalizar, as anotações ficarão somente para consulta.', [
     { text: 'Continuar editando', style: 'cancel' },
@@ -525,8 +538,9 @@ function ExamEditor({ exam, onSave, onBack }) {
     <StatusBar barStyle="dark-content" backgroundColor={PAPER} />
     <View style={s.editorHead}><Pressable onPress={saveAndExit} style={s.back}><Text style={s.backText}>‹</Text></Pressable><View style={{ flex: 1 }}><Text style={s.editorTitle}>{exam.title}</Text><Text style={s.examDescription}>Página {index + 1} de {pages.length}</Text></View><View style={s.timerPill}><Text style={s.timerText}>{formatTime(remaining)}</Text></View></View>
     {finished && <View style={s.finishedBanner}><Text style={s.finishedText}>Tempo encerrado. Você ainda pode consultar e salvar suas anotações.</Text></View>}
+    {paused && <View style={s.finishedBanner}><Text style={s.finishedText}>Prova pausada. O cronômetro será retomado quando você tocar em Continuar.</Text></View>}
     {finalized && <View style={s.finishedBanner}><Text style={s.finishedText}>Prova finalizada. As anotações estão disponíveis apenas para consulta.</Text></View>}
-    <View style={s.examToolbar}><Pressable disabled={finalized || pathHistory.past.length <= 1} onPress={() => { const nextHistory = undoHistory(pathHistoryRef.current); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); pathsRef.current = nextHistory.present; setPaths(nextHistory.present); }}><Text style={s.toolbarText}>↶ Desfazer</Text></Pressable><Pressable disabled={finalized || !pathHistory.future.length} onPress={() => { const nextHistory = redoHistory(pathHistoryRef.current); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); pathsRef.current = nextHistory.present; setPaths(nextHistory.present); }}><Text style={s.toolbarText}>↷ Refazer</Text></Pressable><Pressable disabled={finalized} onPress={() => setToolsExpanded(value => !value)} style={[s.moreToolsButton, toolsExpanded && s.moreToolsButtonActive, finalized && { opacity: 0.4 }]}><Text style={s.moreToolsGlyph}>{toolsExpanded ? '⌃' : '•••'}</Text><Text style={s.moreToolsText}>{finalized ? 'Consulta' : (toolsExpanded ? 'Fechar' : 'Ferramentas')}</Text></Pressable></View>
+    <View style={s.examToolbar}><Pressable disabled={finalized || pathHistory.past.length <= 1} onPress={() => { const nextHistory = undoHistory(pathHistoryRef.current); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); pathsRef.current = nextHistory.present; setPaths(nextHistory.present); }}><Text style={s.toolbarText}>↶ Desfazer</Text></Pressable><Pressable disabled={finalized || !pathHistory.future.length} onPress={() => { const nextHistory = redoHistory(pathHistoryRef.current); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); pathsRef.current = nextHistory.present; setPaths(nextHistory.present); }}><Text style={s.toolbarText}>↷ Refazer</Text></Pressable><Pressable disabled={finalized} onPress={() => setToolsExpanded(value => !value)} style={[s.moreToolsButton, toolsExpanded && s.moreToolsButtonActive, finalized && { opacity: 0.4 }]}><Text style={s.moreToolsGlyph}>{toolsExpanded ? '⌃' : '•••'}</Text><Text style={s.moreToolsText}>{finalized ? 'Consulta' : (toolsExpanded ? 'Fechar' : 'Ferramentas')}</Text></Pressable><Pressable disabled={finalized || finished} onPress={togglePause} style={s.moreToolsButton}><Text style={s.moreToolsText}>{paused ? 'Continuar' : 'Pausar'}</Text></Pressable></View>
     <View style={s.examCanvas}><View style={[StyleSheet.absoluteFill, { transform: [{ scale: zoom }, { translateX: pan.x / zoom }, { translateY: pan.y / zoom }] }]}><Image source={{ uri: current?.uri }} style={StyleSheet.absoluteFill} resizeMode="contain" /><View style={StyleSheet.absoluteFill} {...responder.panHandlers}><Svg width="100%" height="100%">{paths.map(stroke => <Path key={stroke.id} d={svgPath(stroke.points)} stroke={stroke.color} strokeOpacity={stroke.opacity ?? 1} strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lasso.length>1 && <Path d={svgPath(lasso)} stroke={GREEN} strokeWidth={2} strokeDasharray="6 4" fill="none" />}{selectedIds.length>0 && (()=>{const b=boundsFor(paths.filter(stroke=>selectedIds.includes(stroke.id)));return b?<><Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={GREEN} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/><Rect x={b.maxX+1} y={b.maxY+1} width={12} height={12} rx={3} fill={GREEN}/></>:null;})()}</Svg></View></View></View>
     <View style={s.pageControls}><Pressable disabled={index === 0} onPress={() => changePage(index - 1)}><Text style={s.toolbarText}>‹ Anterior</Text></Pressable><Text style={s.pageText}>{index + 1} / {pages.length}</Text><Pressable disabled={index === pages.length - 1} onPress={() => changePage(index + 1)}><Text style={s.toolbarText}>Próxima ›</Text></Pressable></View>
     <ScrollView pointerEvents={finalized ? 'none' : 'auto'} style={[s.drawPanel, { maxHeight: 300 }, finalized && { opacity: 0.55 }]} contentContainerStyle={{ paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
