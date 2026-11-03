@@ -9,7 +9,7 @@ import { File } from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
 import Svg, { Path, Rect } from 'react-native-svg';
-import { eraseAtPoint, pathIntersectsPolygon } from './drawing';
+import { eraseAtPoint, pathIntersectsPolygon, screenToDocument } from './drawing';
 import { commitHistory, createHistory, redoHistory, undoHistory } from './drawingHistory';
 
 const STORAGE_KEY = '@bloco:exams:v1';
@@ -351,7 +351,7 @@ function ExamEditor({ exam, onSave, onBack }) {
       }
       if (toolRef.current === 'select') {
         activePath.current = null;
-        const point = { x:e.nativeEvent.locationX, y:e.nativeEvent.locationY };
+        const point = screenToDocument({ x:e.nativeEvent.locationX, y:e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current });
         if (selectedRef.current.length) {
           const box=boundsFor(pathsRef.current.filter(stroke=>selectedRef.current.includes(stroke.id)));
           const center=box?{x:(box.minX+box.maxX)/2,y:(box.minY+box.maxY)/2}:point;
@@ -367,7 +367,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         return;
       }
       if (toolRef.current === 'eraser') {
-        const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
+        const p = screenToDocument({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current });
         const previous = pathsRef.current;
         const next = eraseAtPoint(previous, p, 24);
         const changed = next.length !== previous.length || next.some((path, index) => path !== previous[index]);
@@ -377,7 +377,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         }
         return;
       }
-      const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
+      const p = screenToDocument({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current });
       const isHighlighter = toolRef.current === 'highlighter';
       const marker = markerTypeRef.current;
       const markerStyle = marker === 'pastel' ? { width: 24, opacity: 0.22 } : marker === 'underline' ? { width: 5, opacity: 0.95 } : marker === 'bold' ? { width: 13, opacity: 0.58 } : { width: 19, opacity: 0.32 };
@@ -415,18 +415,18 @@ function ExamEditor({ exam, onSave, onBack }) {
       }
       pinchStart.current = null;
       if (toolRef.current === 'select' && selectionGesture.current?.type === 'lasso') {
-        const point={x:e.nativeEvent.locationX,y:e.nativeEvent.locationY};
+        const point=screenToDocument({x:e.nativeEvent.locationX,y:e.nativeEvent.locationY},{zoom: zoomRef.current, pan: panRef.current});
         const next=[...lassoRef.current,point]; lassoRef.current=next; setLasso(next); return;
       }
       if (toolRef.current === 'select' && selectionGesture.current?.type === 'resize') {
-        const point={x:e.nativeEvent.locationX,y:e.nativeEvent.locationY};
+        const point=screenToDocument({x:e.nativeEvent.locationX,y:e.nativeEvent.locationY},{zoom: zoomRef.current, pan: panRef.current});
         const factor=Math.max(0.25,Math.min(4,Math.hypot(point.x-selectionGesture.current.center.x,point.y-selectionGesture.current.center.y)/selectionGesture.current.startDistance));
         selectionGesture.current.factor=factor;
         const resized=scaleSelected(selectionGesture.current.original,selectedRef.current,factor);
         pathsRef.current=resized;setPaths(resized);return;
       }
       if (toolRef.current === 'select' && selectionGesture.current?.type === 'move') {
-        const point={x:e.nativeEvent.locationX,y:e.nativeEvent.locationY};
+        const point=screenToDocument({x:e.nativeEvent.locationX,y:e.nativeEvent.locationY},{zoom: zoomRef.current, pan: panRef.current});
         const dx=point.x-selectionGesture.current.start.x, dy=point.y-selectionGesture.current.start.y;
         const original=selectionGesture.current.original;
         const moved=original.map(stroke=>selectedRef.current.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>({x:p.x+dx,y:p.y+dy}))}:stroke);
@@ -440,7 +440,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         }
         return;
       }
-      const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
+      const p = screenToDocument({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current });
       if (toolRef.current === 'eraser') {
         const previous = pathsRef.current;
         const next = eraseAtPoint(previous, p, 24);
@@ -466,7 +466,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         const resized=scaleSelected(selectionGesture.current.original,selectedRef.current,selectionGesture.current.factor||1);
         pathsRef.current=resized;setPaths(resized);setRedo([]);
       } else if (toolRef.current === 'select' && selectionGesture.current?.type === 'move') {
-        const point={x:e.nativeEvent.locationX,y:e.nativeEvent.locationY};
+        const point=screenToDocument({x:e.nativeEvent.locationX,y:e.nativeEvent.locationY},{zoom: zoomRef.current, pan: panRef.current});
         const dx=point.x-selectionGesture.current.start.x, dy=point.y-selectionGesture.current.start.y;
         const original=selectionGesture.current.original;
         const moved=original.map(stroke=>selectedRef.current.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>({x:p.x+dx,y:p.y+dy}))}:stroke);
