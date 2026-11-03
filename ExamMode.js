@@ -373,7 +373,8 @@ function ExamEditor({ exam, onSave, onBack }) {
         const changed = next.length !== previous.length || next.some((path, index) => path !== previous[index]);
         if (changed) {
           pathsRef.current = next;
-          applyPathChange(next);
+          setPaths(next);
+          setRedo([]);
         }
         return;
       }
