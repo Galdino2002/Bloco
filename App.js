@@ -316,12 +316,19 @@ function EditorScreen({ document, onSave, onChange }) {
 
   const changePage = (nextIndex) => {
     if (nextIndex < 0 || nextIndex >= pages.length) return;
-    setPages((previous) => previous.map((page, index) => index === pageIndex ? { ...page, paths, text: pageText } : page));
+    setPages((previous) => previous.map((page, index) => index === pageIndex ? { ...page, paths, text: pageText, background: pageBackground } : page));
     const nextPage = pages[nextIndex];
-    setPageIndex(nextIndex); setPaths(nextPage.paths || []); setRedoPaths([]); setSelectedStrokeIds([]); setLassoPoints([]);
+    const nextPaths = nextPage.paths || [];
+    setPageIndex(nextIndex);
+    pathsRef.current = nextPaths;
+    setPaths(nextPaths);
+    setRedoPaths([]);
+    setSelectedStrokeIds([]);
+    selectedIdsRef.current = [];
+    setLassoPoints([]);
+    lassoRef.current = [];
     setPageText(nextPage.text || '');
     setPageBackground(nextPage.background || 'plain');
-    pathsRef.current = nextPage.paths || [];
     setZoom(1); setPanOffset({ x: 0, y: 0 });
   };
   const undo = () => { if (!paths.length) return; setRedoPaths((previous) => [...previous, paths[paths.length - 1]]); setPaths((previous) => previous.slice(0, -1)); };
@@ -337,7 +344,7 @@ function EditorScreen({ document, onSave, onChange }) {
       onChange({ ...document, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
     }, 350);
     return () => clearTimeout(timer);
-  }, [pages, paths, pageText, pageIndex]);
+  }, [pages, paths, pageText, pageBackground, pageIndex]);
 
   return (
     <SafeAreaView style={styles.editorSafe}>
@@ -384,7 +391,7 @@ function EditorScreen({ document, onSave, onChange }) {
         <Pressable disabled={pageIndex === pages.length - 1} onPress={() => changePage(pageIndex + 1)} style={[styles.pageNavButton, pageIndex === pages.length - 1 && styles.toolDisabled]}><Text style={styles.pageNavText}>Próxima ›</Text></Pressable>
         <Pressable disabled={pages.length <= 1} onPress={() => Alert.alert('Excluir página?', 'O conteúdo desta página será removido.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Excluir', style: 'destructive', onPress: () => { const next = pages.filter((_, index) => index !== pageIndex); const nextIndex = Math.max(0, pageIndex - 1); setPages(next); setPageIndex(nextIndex); setPaths(next[nextIndex]?.paths || []); setPageText(next[nextIndex]?.text || ''); } }])} style={[styles.pageNavButton, pages.length <= 1 && styles.toolDisabled]}><Text style={styles.pageNavText}>Excluir</Text></Pressable>
       </View>
-      <View style={styles.drawingPanel}>
+      <ScrollView style={[styles.drawingPanel, { maxHeight: 285 }]} contentContainerStyle={{ paddingBottom: 10 }} showsVerticalScrollIndicator={false}>
         <View style={styles.compactToolRow}>
           <Pressable onPress={() => setTool('pen')} style={[styles.compactTool, tool === 'pen' && styles.compactToolActive]}><Text style={styles.compactToolGlyph}>✎</Text><Text style={styles.compactToolText}>{tool === 'pen' ? 'Caneta' : tool === 'highlighter' ? 'Marca-texto' : tool === 'eraser' ? 'Borracha' : tool === 'move' ? 'Mover folha' : 'Laço'}</Text></Pressable>
           <Pressable onPress={() => { setTool('select'); setSelectedStrokeIds([]); }} style={[styles.compactTool, tool === 'select' && styles.compactToolActive]}><Text style={styles.compactToolGlyph}>⌁</Text><Text style={styles.compactToolText}>Laço</Text></Pressable>
@@ -402,7 +409,7 @@ function EditorScreen({ document, onSave, onChange }) {
           <View style={styles.markerTypes}><Text style={styles.markerLabel}>FUNDO</Text>{[['plain','Branco'],['ruled','Pautado'],['grid','Quadriculado'],['dotted','Pontilhado']].map(([id,label]) => <Pressable key={id} onPress={() => setPageBackground(id)} style={[styles.markerType, pageBackground === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, pageBackground === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View>
         </View>}
         {selectedStrokeIds.length>0&&<View style={styles.selectionActionRow}><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,1.15));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Aumentar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>resizeStrokes(old,selectedStrokeIds,0.87));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Diminuir</Text></Pressable><Pressable onPress={()=>{setPaths(old=>rotateStrokes(old,selectedStrokeIds,Math.PI/12));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Girar</Text></Pressable><Pressable onPress={()=>{const picked=paths.filter(path=>selectedStrokeIds.includes(path.id));setSelectedClipboard(picked);setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={styles.selectionActionText}>Recortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(path=>({...path,id:`${Date.now()}-${Math.random()}`,points:path.points.map(p=>({x:p.x+24,y:p.y+24}))}));setPaths(old=>[...old,...pasted]);setSelectedStrokeIds(pasted.map(path=>path.id));setRedoPaths([]);}}><Text style={styles.selectionActionText}>Colar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>old.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);setRedoPaths([]);}}><Text style={[styles.selectionActionText,{color:COLORS.rose}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedStrokeIds([])}><Text style={styles.selectionActionText}>Desmarcar</Text></Pressable></View>}<View style={styles.colorRow}><Text style={styles.colorLabel}>COR</Text><ScrollView horizontal style={{ flex: 1 }} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorScroll}>{PALETTE.map((item) => <Pressable key={item} onPress={() => setColor(item)} style={[styles.colorButton, color === item && styles.colorButtonSelected]}><View style={[styles.colorDot, { backgroundColor: item, borderWidth: item === '#FFFFFF' ? 1 : 0, borderColor: '#AEB5AE' }]} /></Pressable>)}</ScrollView><Text style={styles.annotationCount}>{paths.length} traços</Text></View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
