@@ -522,6 +522,7 @@ function BlocoApp() {
   const [examMode, setExamMode] = useState(false);
   const [redacaoMode, setRedacaoMode] = useState(false);
   const persistenceTimer = useRef(null);
+  const persistenceQueue = useRef(Promise.resolve());
 
   useEffect(() => {
     AsyncStorage.getItem(NOTEBOOKS_STORAGE_KEY)
@@ -534,8 +535,13 @@ function BlocoApp() {
     if (!documentsLoaded) return;
     clearTimeout(persistenceTimer.current);
     persistenceTimer.current = setTimeout(() => {
-      AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, JSON.stringify(documents))
-        .catch(error => Alert.alert('Erro ao salvar cadernos', error?.message || 'Não foi possível salvar suas anotações.'));
+      persistenceQueue.current = persistenceQueue.current
+        .catch(() => undefined)
+        .then(() => AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, JSON.stringify(documents)))
+        .catch(error => {
+          console.error('Erro ao salvar cadernos:', error);
+          Alert.alert('Erro ao salvar cadernos', error?.message || 'Não foi possível salvar suas anotações.');
+        });
     }, 350);
     return () => clearTimeout(persistenceTimer.current);
   }, [documents, documentsLoaded]);
