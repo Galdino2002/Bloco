@@ -15,7 +15,7 @@ const GREEN = '#315C49';
 const INK = '#203B32';
 const PAPER = '#F7F6F1';
 const LINE = '#E7E8E1';
-const COLORS = ['#203B32', '#D85D52', '#477BA8', '#D99A35', '#7659A6'];
+const COLORS = ['#202124','#5F6368','#B3261E','#E67C73','#E8710A','#F9AB00','#188038','#34A853','#00796B','#12A594','#1A73E8','#4285F4','#3F51B5','#673AB7','#A142F4','#D81B60','#8D6E63','#FFFFFF'];
 
 const EXAMS = [
   { id: 'URCA', name: 'URCA', description: 'Universidade Regional do Cariri', duration: 4 * 60 * 60, durationLabel: '4 horas' },
@@ -257,6 +257,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const [selectedClipboard, setSelectedClipboard] = useState([]);
   const [lasso, setLasso] = useState([]);
   const [color, setColor] = useState(COLORS[0]);
+  const [markerType, setMarkerType] = useState('classic');
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [remaining, setRemaining] = useState(exam.remaining ?? exam.duration);
@@ -265,6 +266,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const pathsRef = useRef(paths);
   const toolRef = useRef(tool);
   const colorRef = useRef(color);
+  const markerTypeRef = useRef(markerType);
   const zoomRef = useRef(1);
   const pinchStart = useRef(null);
   const panStart = useRef(null);
@@ -272,7 +274,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const selectedRef = useRef([]);
   const lassoRef = useRef([]);
   const selectionGesture = useRef(null);
-  pathsRef.current = paths; toolRef.current = tool; colorRef.current = color;
+  pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType;
   selectedRef.current = selectedIds; lassoRef.current = lasso;
 
   const snapshotRef = useRef({ pages, index, paths, remaining });
@@ -337,12 +339,14 @@ function ExamEditor({ exam, onSave, onBack }) {
       }
       const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
       const isHighlighter = toolRef.current === 'highlighter';
+      const marker = markerTypeRef.current;
+      const markerStyle = marker === 'pastel' ? { width: 24, opacity: 0.22 } : marker === 'underline' ? { width: 5, opacity: 0.95 } : marker === 'bold' ? { width: 13, opacity: 0.58 } : { width: 19, opacity: 0.32 };
       const stroke = {
         id: String(Date.now()) + Math.random(),
         points: [p],
         color: colorRef.current,
-        width: isHighlighter ? 17 : 4,
-        opacity: isHighlighter ? 0.28 : 1,
+        width: isHighlighter ? markerStyle.width : 4,
+        opacity: isHighlighter ? markerStyle.opacity : 1,
       };
       activePath.current = stroke; setPaths(old => [...old, stroke]); setRedo([]);
     },
@@ -441,7 +445,13 @@ function ExamEditor({ exam, onSave, onBack }) {
     <View style={s.quickSelectRow}><Pressable onPress={() => { setTool("select"); setSelectedIds([]); }} style={[s.quickSelectButton, tool === "select" && s.quickSelectButtonActive]}><Text style={[s.quickSelectText, tool === "select" && s.quickSelectTextActive]}>⌁ TOQUE AQUI PARA SELECIONAR A ESCRITA (LAÇO)</Text></Pressable></View>
     <View style={s.examCanvas}><View style={[StyleSheet.absoluteFill, { transform: [{ scale: zoom }, { translateX: pan.x / zoom }, { translateY: pan.y / zoom }] }]}><Image source={{ uri: current?.uri }} style={StyleSheet.absoluteFill} resizeMode="contain" /><View style={StyleSheet.absoluteFill} {...responder.panHandlers}><Svg width="100%" height="100%">{paths.map(stroke => <Path key={stroke.id} d={svgPath(stroke.points)} stroke={stroke.color} strokeOpacity={stroke.opacity ?? 1} strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lasso.length>1 && <Path d={svgPath(lasso)} stroke={GREEN} strokeWidth={2} strokeDasharray="6 4" fill="none" />}{selectedIds.length>0 && (()=>{const b=boundsFor(paths.filter(stroke=>selectedIds.includes(stroke.id)));return b?<><Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={GREEN} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/><Rect x={b.maxX+1} y={b.maxY+1} width={12} height={12} rx={3} fill={GREEN}/></>:null;})()}</Svg></View></View></View>
     <View style={s.pageControls}><Pressable disabled={index === 0} onPress={() => changePage(index - 1)}><Text style={s.toolbarText}>‹ Anterior</Text></Pressable><Text style={s.pageText}>{index + 1} / {pages.length}</Text><Pressable disabled={index === pages.length - 1} onPress={() => changePage(index + 1)}><Text style={s.toolbarText}>Próxima ›</Text></Pressable></View>
-    <View style={s.drawPanel}><Text style={s.selectionHint}>{tool==='select'?(selectedIds.length?'Arraste a seleção para mover. Use A+ e A− para redimensionar.':'Contorne a escrita com o dedo para selecionar.'):'Escreva na página ou escolha uma ferramenta.'}</Text>{selectedIds.length>0 && <View style={s.selectionActions}><Pressable onPress={()=>{setPaths(old=>scaleSelected(old,selectedIds,1.15));setRedo([]);}}><Text style={s.toolbarText}>Aumentar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>scaleSelected(old,selectedIds,0.87));setRedo([]);}}><Text style={s.toolbarText}>Diminuir</Text></Pressable><Pressable onPress={()=>{setPaths(old=>rotateSelected(old,selectedIds,Math.PI/12));setRedo([]);}}><Text style={s.toolbarText}>Girar</Text></Pressable><Pressable onPress={()=>{const picked=paths.filter(stroke=>selectedIds.includes(stroke.id));setSelectedClipboard(picked);setPaths(old=>old.filter(stroke=>!selectedIds.includes(stroke.id)));setSelectedIds([]);setRedo([]);}}><Text style={s.toolbarText}>Recortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(stroke=>({...stroke,id:String(Date.now())+Math.random(),points:stroke.points.map(p=>({x:p.x+24,y:p.y+24}))}));setPaths(old=>[...old,...pasted]);setSelectedIds(pasted.map(stroke=>stroke.id));setRedo([]);}}><Text style={s.toolbarText}>Colar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>old.filter(stroke=>!selectedIds.includes(stroke.id)));setSelectedIds([]);setRedo([]);}}><Text style={[s.toolbarText,{color:'#B44D45'}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedIds([])}><Text style={s.toolbarText}>Desmarcar</Text></Pressable></View>}<View style={s.drawTools}><Pressable onPress={() => setTool('pen')} style={[s.tool, tool === 'pen' && s.toolActive]}><Text style={s.toolText}>Caneta</Text></Pressable><Pressable onPress={() => setTool('highlighter')} style={[s.tool, tool === 'highlighter' && s.toolActive]}><Text style={s.toolText}>Marca-texto</Text></Pressable><Pressable onPress={() => setTool('eraser')} style={[s.tool, tool === 'eraser' && s.toolActive]}><Text style={s.toolText}>Borracha</Text></Pressable><Pressable onPress={() => {setTool('select');setSelectedIds([]);}} style={[s.tool, tool === 'select' && s.toolActive]}><Text style={s.toolText}>Laço</Text></Pressable><Pressable onPress={() => setTool('move')} style={[s.tool, tool === 'move' && s.toolActive]}><Text style={s.toolText}>Mover folha</Text></Pressable></View><View style={s.paletteRow}><View style={s.palette}>{COLORS.map(c => <Pressable key={c} onPress={() => { setColor(c); if (tool === 'eraser') setTool('pen'); }} style={[s.swatch, { backgroundColor: c }, color === c && s.swatchSelected]} />)}</View><View style={s.zoomControls}><Pressable style={s.zoomButton} onPress={() => { const next = Math.max(1, Number((zoom - 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>−</Text></Pressable><Text style={s.zoomValue}>{Math.round(zoom * 100)}%</Text><Pressable style={s.zoomButton} onPress={() => { const next = Math.min(3, Number((zoom + 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>+</Text></Pressable><Pressable style={s.zoomReset} onPress={() => { zoomRef.current = 1; setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); }}><Text style={s.zoomResetText}>Ajustar</Text></Pressable></View></View><Button title="Salvar e sair" onPress={saveAndExit} /></View>
+    <View style={s.drawPanel}>
+      <Pressable onPress={() => { setTool('select'); setSelectedIds([]); setLasso([]); }} style={[s.lassoMainButton, tool === 'select' && s.lassoMainButtonActive]}>
+        <Text style={s.lassoMainGlyph}>⌁</Text><View style={{ flex: 1 }}><Text style={s.lassoMainTitle}>SELECIONAR ESCRITA • LAÇO</Text><Text style={s.lassoMainSubtitle}>Contorne, mova e redimensione somente sua escrita</Text></View><Text style={s.lassoMainChevron}>›</Text>
+      </Pressable>
+      <Text style={s.selectionHint}>{tool==='select'?(selectedIds.length?'Arraste a seleção para mover. Use A+ e A− para redimensionar.':'Contorne a escrita com o dedo para selecionar.'):'Escreva na página ou escolha uma ferramenta.'}</Text>{selectedIds.length>0 && <View style={s.selectionActions}><Pressable onPress={()=>{setPaths(old=>scaleSelected(old,selectedIds,1.15));setRedo([]);}}><Text style={s.toolbarText}>Aumentar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>scaleSelected(old,selectedIds,0.87));setRedo([]);}}><Text style={s.toolbarText}>Diminuir</Text></Pressable><Pressable onPress={()=>{setPaths(old=>rotateSelected(old,selectedIds,Math.PI/12));setRedo([]);}}><Text style={s.toolbarText}>Girar</Text></Pressable><Pressable onPress={()=>{const picked=paths.filter(stroke=>selectedIds.includes(stroke.id));setSelectedClipboard(picked);setPaths(old=>old.filter(stroke=>!selectedIds.includes(stroke.id)));setSelectedIds([]);setRedo([]);}}><Text style={s.toolbarText}>Recortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(stroke=>({...stroke,id:String(Date.now())+Math.random(),points:stroke.points.map(p=>({x:p.x+24,y:p.y+24}))}));setPaths(old=>[...old,...pasted]);setSelectedIds(pasted.map(stroke=>stroke.id));setRedo([]);}}><Text style={s.toolbarText}>Colar</Text></Pressable><Pressable onPress={()=>{setPaths(old=>old.filter(stroke=>!selectedIds.includes(stroke.id)));setSelectedIds([]);setRedo([]);}}><Text style={[s.toolbarText,{color:'#B44D45'}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedIds([])}><Text style={s.toolbarText}>Desmarcar</Text></Pressable></View>}<View style={s.drawTools}><Pressable onPress={() => setTool('pen')} style={[s.tool, tool === 'pen' && s.toolActive]}><Text style={s.toolText}>✎ Caneta</Text></Pressable><Pressable onPress={() => setTool('highlighter')} style={[s.tool, tool === 'highlighter' && s.toolActive]}><Text style={s.toolText}>▰ Marca-texto</Text></Pressable><Pressable onPress={() => setTool('eraser')} style={[s.tool, tool === 'eraser' && s.toolActive]}><Text style={s.toolText}>⌫ Borracha</Text></Pressable><Pressable onPress={() => setTool('move')} style={[s.tool, tool === 'move' && s.toolActive]}><Text style={s.toolText}>✥ Mover folha</Text></Pressable></View>
+      {tool === 'highlighter' && <View style={s.markerTypes}><Text style={s.paletteTitle}>ESTILO</Text>{[{id:'classic',label:'Clássico'},{id:'pastel',label:'Pastel'},{id:'bold',label:'Forte'},{id:'underline',label:'Sublinhado'}].map(item=><Pressable key={item.id} onPress={()=>setMarkerType(item.id)} style={[s.markerType,markerType===item.id&&s.markerTypeActive]}><Text style={[s.markerTypeText,markerType===item.id&&s.markerTypeTextActive]}>{item.label}</Text></Pressable>)}</View>}
+      <View style={s.paletteSection}><Text style={s.paletteTitle}>CORES</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.palette}>{COLORS.map(c => <Pressable key={c} onPress={() => { setColor(c); if (tool === 'eraser') setTool('pen'); }} style={[s.swatch, { backgroundColor: c, borderColor: c === '#FFFFFF' ? '#AEB5AE' : c }, color === c && s.swatchSelected]} />)}</ScrollView></View><View style={s.paletteRow}><View style={s.zoomControls}><Pressable style={s.zoomButton} onPress={() => { const next = Math.max(1, Number((zoom - 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>−</Text></Pressable><Text style={s.zoomValue}>{Math.round(zoom * 100)}%</Text><Pressable style={s.zoomButton} onPress={() => { const next = Math.min(3, Number((zoom + 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>+</Text></Pressable><Pressable style={s.zoomReset} onPress={() => { zoomRef.current = 1; setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); }}><Text style={s.zoomResetText}>Ajustar</Text></Pressable></View></View><Button title="Salvar e sair" onPress={saveAndExit} /></View>
   </SafeAreaView>;
 }
 
@@ -473,6 +483,12 @@ const s = StyleSheet.create({
   timerText: { color: '#FFF', fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] }, finishedBanner: { padding: 9, backgroundColor: '#FBEFED' },
   finishedText: { color: '#A64F48', textAlign: 'center', fontSize: 10, fontWeight: '700' }, examToolbar: { flexDirection: 'row', justifyContent: 'space-around', padding: 10, backgroundColor: '#FFF' },
   quickSelectRow: { paddingHorizontal: 12, paddingBottom: 8, backgroundColor: '#FFF' },
+  lassoMainButton: { flexDirection:'row', alignItems:'center', backgroundColor:'#E8F1E8', borderWidth:1.5, borderColor:'#9AB99D', borderRadius:13, paddingHorizontal:13, paddingVertical:11, marginBottom:9 },
+  lassoMainButtonActive: { backgroundColor:'#CDE5D0', borderColor:GREEN, borderWidth:2 },
+  lassoMainGlyph: { fontSize:27, color:GREEN, fontWeight:'800', marginRight:11 },
+  lassoMainTitle: { color:INK, fontSize:12, fontWeight:'900' },
+  lassoMainSubtitle: { color:'#58705E', fontSize:9, marginTop:3 },
+  lassoMainChevron: { color:GREEN, fontSize:25, marginLeft:7 },
   quickSelectButton: { backgroundColor:'#E8F1E8', borderRadius:9, paddingHorizontal:11, paddingVertical:7, borderWidth:1, borderColor:'#C9DCCB' },
   quickSelectButtonActive: { backgroundColor:'#D6E9D8', borderColor:'#5A8B62' },
   quickSelectText: { color:'#426B49', fontSize:11, fontWeight:'700' },
@@ -483,6 +499,13 @@ const s = StyleSheet.create({
   selectionHint: { color:'#77847A', fontSize:10, marginBottom:7 },
   selectionActions: { flexDirection:'row', flexWrap:'wrap', gap:16, marginBottom:9 },
   drawTools: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  markerTypes: { flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:6, marginBottom:9 },
+  markerType: { paddingHorizontal:10, paddingVertical:7, borderRadius:8, backgroundColor:'#F1F2EE', borderWidth:1, borderColor:'#E3E6DF' },
+  markerTypeActive: { backgroundColor:'#DCEBDD', borderColor:GREEN },
+  markerTypeText: { color:'#667269', fontSize:10, fontWeight:'600' },
+  markerTypeTextActive: { color:GREEN, fontWeight:'800' },
+  paletteSection: { marginBottom:8 },
+  paletteTitle: { color:'#718078', fontSize:9, fontWeight:'800', letterSpacing:0.8, marginBottom:6 },
   paletteRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   zoomControls: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   zoomButton: { width: 30, height: 30, borderRadius: 9, backgroundColor: '#E8F0E9', alignItems: 'center', justifyContent: 'center' },
