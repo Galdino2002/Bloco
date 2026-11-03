@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect } from 'react-native-svg';
@@ -21,6 +22,7 @@ import RedacaoMode from './RedacaoMode';
 import { eraseAtPoint, pathIntersectsPolygon, screenToDocument } from './drawing';
 
 const NOTEBOOKS_STORAGE_KEY = '@bloco:notebooks:v1';
+const NOTEBOOKS_FILES_DIRECTORY = `${FileSystem.documentDirectory}bloco-notebooks/`;
 
 const COLORS = {
   ink: '#203B32',
@@ -501,13 +503,22 @@ function BlocoApp() {
         quality: 1,
       });
       if (result.canceled || !result.assets?.length) return;
-      const pages = result.assets.map((asset, index) => ({
-        id: `page-${index + 1}-${Date.now()}`,
-        uri: asset.uri,
-        paths: [],
-        fileName: asset.fileName || `Página ${index + 1}`,
+      const directory = await FileSystem.getInfoAsync(NOTEBOOKS_FILES_DIRECTORY);
+      if (!directory.exists) await FileSystem.makeDirectoryAsync(NOTEBOOKS_FILES_DIRECTORY, { intermediates: true });
+      const importedAt = Date.now();
+      const pages = await Promise.all(result.assets.map(async (asset, index) => {
+        const extension = (asset.fileName || asset.uri).split('.').pop()?.toLowerCase() || 'jpg';
+        const destination = `${NOTEBOOKS_FILES_DIRECTORY}page-${importedAt}-${index}.${extension}`;
+        await FileSystem.copyAsync({ from: asset.uri, to: destination });
+        return {
+          id: `page-${index + 1}-${importedAt}`,
+          uri: destination,
+          originalUri: asset.uri,
+          paths: [],
+          fileName: asset.fileName || `Página ${index + 1}`,
+        };
       }));
-      const newDocument = { id: `${Date.now()}`, title: 'Minha prova', pages, createdAt: Date.now() };
+      const newDocument = { id: `${importedAt}`, title: 'Minha prova', pages, createdAt: importedAt, updatedAt: importedAt };
       setActiveDocument(newDocument);
     } catch (error) {
       console.error('Erro ao importar páginas:', error);
