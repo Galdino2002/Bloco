@@ -18,7 +18,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect } from 'react-native-svg';
 import ExamMode from './ExamMode';
 import RedacaoMode from './RedacaoMode';
-import { eraseAtPoint, pathIntersectsPolygon } from './drawing';
+import { eraseAtPoint, pathIntersectsPolygon, screenToDocument } from './drawing';
 
 const NOTEBOOKS_STORAGE_KEY = '@bloco:notebooks:v1';
 
@@ -252,7 +252,7 @@ function EditorScreen({ document, onSave, onChange }) {
       }
       if (toolRef.current === 'select') {
         activePath.current=null;
-        const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
+        const point=screenToDocument({x:event.nativeEvent.locationX,y:event.nativeEvent.locationY},{zoom: zoomRef.current, pan: panOffsetRef.current});
         if(selectedIdsRef.current.length){
           const box=getStrokeBounds(pathsRef.current.filter(stroke=>selectedIdsRef.current.includes(stroke.id)));
           const center=box?{x:(box.minX+box.maxX)/2,y:(box.minY+box.maxY)/2}:point;
@@ -263,7 +263,7 @@ function EditorScreen({ document, onSave, onChange }) {
         return;
       }
       if (toolRef.current === 'move') { moveStart.current = { x: panOffsetRef.current.x, y: panOffsetRef.current.y }; return; }
-      const point = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY };
+      const point = screenToDocument({ x: event.nativeEvent.locationX, y: event.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panOffsetRef.current });
       if (toolRef.current === 'eraser') {
         const previous = pathsRef.current;
         const next = eraseAtPoint(previous, point, 22);
@@ -300,11 +300,11 @@ function EditorScreen({ document, onSave, onChange }) {
       }
       pinchStart.current = null;
       if(toolRef.current==='select' && selectionGestureRef.current?.type==='lasso'){
-        const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
+        const point=screenToDocument({x:event.nativeEvent.locationX,y:event.nativeEvent.locationY},{zoom: zoomRef.current, pan: panOffsetRef.current});
         const next=[...lassoRef.current,point];lassoRef.current=next;setLassoPoints(next);return;
       }
       if(toolRef.current==='select' && selectionGestureRef.current?.type==='resize'){
-        const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
+        const point=screenToDocument({x:event.nativeEvent.locationX,y:event.nativeEvent.locationY},{zoom: zoomRef.current, pan: panOffsetRef.current});
         const box=getStrokeBounds(selectionGestureRef.current.original.filter(stroke=>selectedIdsRef.current.includes(stroke.id)));
         if(!box)return;
         const cx=(box.minX+box.maxX)/2,cy=(box.minY+box.maxY)/2;
@@ -314,7 +314,7 @@ function EditorScreen({ document, onSave, onChange }) {
         pathsRef.current=resized;setPaths(resized);return;
       }
       if(toolRef.current==='select' && selectionGestureRef.current?.type==='move'){
-        const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
+        const point=screenToDocument({x:event.nativeEvent.locationX,y:event.nativeEvent.locationY},{zoom: zoomRef.current, pan: panOffsetRef.current});
         const dx=point.x-selectionGestureRef.current.start.x,dy=point.y-selectionGestureRef.current.start.y;
         const moved=selectionGestureRef.current.original.map(stroke=>selectedIdsRef.current.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>({x:p.x+dx,y:p.y+dy}))}:stroke);
         pathsRef.current=moved;setPaths(moved);return;
@@ -323,7 +323,7 @@ function EditorScreen({ document, onSave, onChange }) {
         const next = { x: moveStart.current.x + gestureState.dx, y: moveStart.current.y + gestureState.dy };
         panOffsetRef.current = next; setPanOffset(next); return;
       }
-      const point = { x: event.nativeEvent.locationX, y: event.nativeEvent.locationY };
+      const point = screenToDocument({ x: event.nativeEvent.locationX, y: event.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panOffsetRef.current });
       if (toolRef.current === 'eraser') {
         const previous = pathsRef.current;
         const next = eraseAtPoint(previous, point, 22);
@@ -347,7 +347,7 @@ function EditorScreen({ document, onSave, onChange }) {
         const resized=resizeStrokes(selectionGestureRef.current.original,selectedIdsRef.current,selectionGestureRef.current.factor||1);
         pathsRef.current=resized;setPaths(resized);setRedoPaths([]);
       }else if(toolRef.current==='select' && selectionGestureRef.current?.type==='move'){
-        const point={x:event.nativeEvent.locationX,y:event.nativeEvent.locationY};
+        const point = screenToDocument({ x: event.nativeEvent.locationX, y: event.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panOffsetRef.current });
         const dx=point.x-selectionGestureRef.current.start.x,dy=point.y-selectionGestureRef.current.start.y;
         const moved=selectionGestureRef.current.original.map(stroke=>selectedIdsRef.current.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>({x:p.x+dx,y:p.y+dy}))}:stroke);
         pathsRef.current=moved;setPaths(moved);setRedoPaths([]);
@@ -415,7 +415,7 @@ function EditorScreen({ document, onSave, onChange }) {
       </View>
       <View style={styles.canvasArea}>
         <View style={styles.canvasPaper} onLayout={(event) => setCanvasSize(event.nativeEvent.layout)}>
-          <View style={[styles.zoomContent, { transform: [{ translateX: panOffset.x }, { translateY: panOffset.y }, { scale: zoom }] }]}>
+          <View style={[styles.zoomContent, { transform: [{ scale: zoom }, { translateX: panOffset.x / zoom }, { translateY: panOffset.y / zoom }] }]}>
             {currentPage.uri ? <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" /> : <View style={styles.blankPage}><PageBackground type={pageBackground} /><TextInput value={pageText} onChangeText={setPageText} placeholder="Digite nesta página..." placeholderTextColor="#A0AAA1" multiline textAlignVertical="top" style={styles.pageTextInput} /></View>}
             <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers}>
               <Svg width={canvasSize.width} height={canvasSize.height}>

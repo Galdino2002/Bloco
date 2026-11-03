@@ -49,6 +49,24 @@ export function pathIntersectsPolygon(path, polygon) {
   return false;
 }
 
+export function screenToDocument(point, transform = {}) {
+  const zoom = transform.zoom || 1;
+  const pan = transform.pan || { x: 0, y: 0 };
+  return {
+    x: (point.x - pan.x) / zoom,
+    y: (point.y - pan.y) / zoom,
+  };
+}
+
+export function documentToScreen(point, transform = {}) {
+  const zoom = transform.zoom || 1;
+  const pan = transform.pan || { x: 0, y: 0 };
+  return {
+    x: point.x * zoom + pan.x,
+    y: point.y * zoom + pan.y,
+  };
+}
+
 export function pathIsSelected(path, polygon) {
   return pathIntersectsPolygon(path, polygon);
 }
