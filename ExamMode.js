@@ -269,6 +269,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [remaining, setRemaining] = useState(exam.remaining ?? exam.duration);
   const [finished, setFinished] = useState(false);
+  const [finalized, setFinalized] = useState(exam.status === 'Finalizada');
   const remainingRef = useRef(remaining);
   const endAtRef = useRef(exam.endAt || (Date.now() + remaining * 1000));
   const endAt = endAtRef.current;
@@ -338,8 +339,8 @@ function ExamEditor({ exam, onSave, onBack }) {
   }, []);
 
   const responder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: e => (e.nativeEvent.touches?.length || 0) >= 2 || true,
+    onStartShouldSetPanResponder: () => !finalized,
+    onMoveShouldSetPanResponder: e => !finalized && ((e.nativeEvent.touches?.length || 0) >= 2 || true),
     onPanResponderGrant: e => {
       const touches = e.nativeEvent.touches || [];
       if (touches.length >= 2) {
@@ -508,18 +509,27 @@ function ExamEditor({ exam, onSave, onBack }) {
   const saveAndExit = () => {
     const updatedPages = pages.map((page, i) => i === index ? { ...page, paths } : page);
     const elapsed = Math.max(0, exam.duration - remaining);
-    onSave({ ...exam, pages: updatedPages, remaining, elapsed, endAt, status: remaining === 0 ? 'Tempo encerrado' : 'Em andamento' });
+    onSave({ ...exam, pages: updatedPages, remaining, elapsed, endAt, status: finalized ? 'Finalizada' : (remaining === 0 ? 'Tempo encerrado' : 'Em andamento') });
   };
+  const finalizeExam = () => Alert.alert('Finalizar prova?', 'Depois de finalizar, as anotações ficarão somente para consulta.', [
+    { text: 'Continuar editando', style: 'cancel' },
+    { text: 'Finalizar', style: 'destructive', onPress: () => {
+      setFinalized(true);
+      const updatedPages = pages.map((page, i) => i === index ? { ...page, paths } : page);
+      onSave({ ...exam, pages: updatedPages, remaining, elapsed: Math.max(0, exam.duration - remaining), endAt, status: 'Finalizada' });
+    } },
+  ]);
   const current = pages[index];
 
   return <SafeAreaView style={s.editorSafe}>
     <StatusBar barStyle="dark-content" backgroundColor={PAPER} />
     <View style={s.editorHead}><Pressable onPress={saveAndExit} style={s.back}><Text style={s.backText}>‹</Text></Pressable><View style={{ flex: 1 }}><Text style={s.editorTitle}>{exam.title}</Text><Text style={s.examDescription}>Página {index + 1} de {pages.length}</Text></View><View style={s.timerPill}><Text style={s.timerText}>{formatTime(remaining)}</Text></View></View>
-    {finished && <View style={s.finishedBanner}><Text style={s.finishedText}>Tempo encerrado. Você ainda pode salvar suas anotações.</Text></View>}
-    <View style={s.examToolbar}><Pressable disabled={pathHistory.past.length <= 1} onPress={() => { const nextHistory = undoHistory(pathHistoryRef.current); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); pathsRef.current = nextHistory.present; setPaths(nextHistory.present); }}><Text style={s.toolbarText}>↶ Desfazer</Text></Pressable><Pressable disabled={!pathHistory.future.length} onPress={() => { const nextHistory = redoHistory(pathHistoryRef.current); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); pathsRef.current = nextHistory.present; setPaths(nextHistory.present); }}><Text style={s.toolbarText}>↷ Refazer</Text></Pressable><Pressable onPress={() => setToolsExpanded(value => !value)} style={[s.moreToolsButton, toolsExpanded && s.moreToolsButtonActive]}><Text style={s.moreToolsGlyph}>{toolsExpanded ? '⌃' : '•••'}</Text><Text style={s.moreToolsText}>{toolsExpanded ? 'Fechar' : 'Ferramentas'}</Text></Pressable></View>
+    {finished && <View style={s.finishedBanner}><Text style={s.finishedText}>Tempo encerrado. Você ainda pode consultar e salvar suas anotações.</Text></View>}
+    {finalized && <View style={s.finishedBanner}><Text style={s.finishedText}>Prova finalizada. As anotações estão disponíveis apenas para consulta.</Text></View>}
+    <View style={s.examToolbar}><Pressable disabled={finalized || pathHistory.past.length <= 1} onPress={() => { const nextHistory = undoHistory(pathHistoryRef.current); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); pathsRef.current = nextHistory.present; setPaths(nextHistory.present); }}><Text style={s.toolbarText}>↶ Desfazer</Text></Pressable><Pressable disabled={finalized || !pathHistory.future.length} onPress={() => { const nextHistory = redoHistory(pathHistoryRef.current); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); pathsRef.current = nextHistory.present; setPaths(nextHistory.present); }}><Text style={s.toolbarText}>↷ Refazer</Text></Pressable><Pressable disabled={finalized} onPress={() => setToolsExpanded(value => !value)} style={[s.moreToolsButton, toolsExpanded && s.moreToolsButtonActive, finalized && { opacity: 0.4 }]}><Text style={s.moreToolsGlyph}>{toolsExpanded ? '⌃' : '•••'}</Text><Text style={s.moreToolsText}>{finalized ? 'Consulta' : (toolsExpanded ? 'Fechar' : 'Ferramentas')}</Text></Pressable></View>
     <View style={s.examCanvas}><View style={[StyleSheet.absoluteFill, { transform: [{ scale: zoom }, { translateX: pan.x / zoom }, { translateY: pan.y / zoom }] }]}><Image source={{ uri: current?.uri }} style={StyleSheet.absoluteFill} resizeMode="contain" /><View style={StyleSheet.absoluteFill} {...responder.panHandlers}><Svg width="100%" height="100%">{paths.map(stroke => <Path key={stroke.id} d={svgPath(stroke.points)} stroke={stroke.color} strokeOpacity={stroke.opacity ?? 1} strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lasso.length>1 && <Path d={svgPath(lasso)} stroke={GREEN} strokeWidth={2} strokeDasharray="6 4" fill="none" />}{selectedIds.length>0 && (()=>{const b=boundsFor(paths.filter(stroke=>selectedIds.includes(stroke.id)));return b?<><Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={GREEN} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/><Rect x={b.maxX+1} y={b.maxY+1} width={12} height={12} rx={3} fill={GREEN}/></>:null;})()}</Svg></View></View></View>
     <View style={s.pageControls}><Pressable disabled={index === 0} onPress={() => changePage(index - 1)}><Text style={s.toolbarText}>‹ Anterior</Text></Pressable><Text style={s.pageText}>{index + 1} / {pages.length}</Text><Pressable disabled={index === pages.length - 1} onPress={() => changePage(index + 1)}><Text style={s.toolbarText}>Próxima ›</Text></Pressable></View>
-    <ScrollView style={[s.drawPanel, { maxHeight: 300 }]} contentContainerStyle={{ paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
+    <ScrollView pointerEvents={finalized ? 'none' : 'auto'} style={[s.drawPanel, { maxHeight: 300 }, finalized && { opacity: 0.55 }]} contentContainerStyle={{ paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
       <Pressable onPress={() => { setTool('select'); setSelectedIds([]); setLasso([]); }} style={[s.lassoMainButton, tool === 'select' && s.lassoMainButtonActive]}>
         <Text style={s.lassoMainGlyph}>⌁</Text><View style={{ flex: 1 }}><Text style={s.lassoMainTitle}>SELECIONAR ESCRITA • LAÇO</Text><Text style={s.lassoMainSubtitle}>Contorne, mova e redimensione somente sua escrita</Text></View><Text style={s.lassoMainChevron}>›</Text>
       </Pressable>
@@ -529,7 +539,7 @@ function ExamEditor({ exam, onSave, onBack }) {
       {tool === 'pen' && <View style={s.penWidths}><Text style={s.paletteTitle}>ESPESSURA</Text>{[2,4,7].map(width => <Pressable key={width} onPress={() => setPenWidth(width)} style={[s.penWidthButton, penWidth === width && s.penWidthButtonActive]}><View style={{ width: width + 3, height: width + 3, borderRadius: 10, backgroundColor: INK }} /></Pressable>)}</View>}
       {tool === 'highlighter' && <View style={s.markerTypes}><Text style={s.paletteTitle}>ESTILO</Text>{[{id:'classic',label:'Clássico'},{id:'pastel',label:'Pastel'},{id:'bold',label:'Forte'},{id:'underline',label:'Sublinhado'}].map(item=><Pressable key={item.id} onPress={()=>setMarkerType(item.id)} style={[s.markerType,markerType===item.id&&s.markerTypeActive]}><Text style={[s.markerTypeText,markerType===item.id&&s.markerTypeTextActive]}>{item.label}</Text></Pressable>)}</View>}
       </View>}
-      <View style={s.paletteSection}><Text style={s.paletteTitle}>CORES</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.palette}>{COLORS.map(c => <Pressable key={c} onPress={() => { setColor(c); if (tool === 'eraser') setTool('pen'); }} style={[s.swatch, { backgroundColor: c, borderColor: c === '#FFFFFF' ? '#AEB5AE' : c }, color === c && s.swatchSelected]} />)}</ScrollView></View><View style={s.paletteRow}><View style={s.zoomControls}><Pressable style={s.zoomButton} onPress={() => { const next = Math.max(0.5, Number((zoom - 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>−</Text></Pressable><Text style={s.zoomValue}>{Math.round(zoom * 100)}%</Text><Pressable style={s.zoomButton} onPress={() => { const next = Math.min(3, Number((zoom + 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>+</Text></Pressable><Pressable style={s.zoomReset} onPress={() => { zoomRef.current = 1; setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); }}><Text style={s.zoomResetText}>Ajustar</Text></Pressable></View></View><Button title="Salvar e sair" onPress={saveAndExit} /></ScrollView>
+      <View style={s.paletteSection}><Text style={s.paletteTitle}>CORES</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.palette}>{COLORS.map(c => <Pressable key={c} onPress={() => { setColor(c); if (tool === 'eraser') setTool('pen'); }} style={[s.swatch, { backgroundColor: c, borderColor: c === '#FFFFFF' ? '#AEB5AE' : c }, color === c && s.swatchSelected]} />)}</ScrollView></View><View style={s.paletteRow}><View style={s.zoomControls}><Pressable style={s.zoomButton} onPress={() => { const next = Math.max(0.5, Number((zoom - 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>−</Text></Pressable><Text style={s.zoomValue}>{Math.round(zoom * 100)}%</Text><Pressable style={s.zoomButton} onPress={() => { const next = Math.min(3, Number((zoom + 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>+</Text></Pressable><Pressable style={s.zoomReset} onPress={() => { zoomRef.current = 1; setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); }}><Text style={s.zoomResetText}>Ajustar</Text></Pressable></View></View><Button title="Salvar e sair" onPress={saveAndExit} /><Button title="Finalizar prova" secondary onPress={finalizeExam} disabled={finalized} /></ScrollView>
   </SafeAreaView>;
 }
 
