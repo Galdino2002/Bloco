@@ -69,6 +69,14 @@ export function documentToScreen(point, transform = {}) {
   };
 }
 
+export function getHighlighterStyle(type = 'classic', width = 18) {
+  const opacity = type === 'pastel' ? 0.22
+    : type === 'underline' ? 0.95
+      : type === 'bold' ? 0.58
+        : 0.32;
+  return { width, opacity };
+}
+
 export function pathIsSelected(path, polygon) {
   return pathIntersectsPolygon(path, polygon);
 }

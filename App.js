@@ -19,7 +19,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect } from 'react-native-svg';
 import ExamMode from './ExamMode';
 import RedacaoMode from './RedacaoMode';
-import { eraseAtPoint, pathIntersectsPolygon, screenToDocument } from './drawing';
+import { eraseAtPoint, getHighlighterStyle, pathIntersectsPolygon, screenToDocument } from './drawing';
 import { commitHistory, createHistory, redoHistory, undoHistory } from './drawingHistory';
 import { ContextToolbar, IconButton, ScreenTitle } from './designSystem';
 
@@ -219,6 +219,7 @@ function EditorScreen({ document, onSave, onChange }) {
   const [lassoPoints, setLassoPoints] = useState([]);
   const [color, setColor] = useState(PALETTE[0]);
   const [markerType, setMarkerType] = useState('classic');
+  const [markerWidth, setMarkerWidth] = useState(18);
   const [toolsExpanded, setToolsExpanded] = useState(false);
   const [strokeWidth, setStrokeWidth] = useState(4);
   const [zoom, setZoom] = useState(1);
@@ -237,12 +238,13 @@ function EditorScreen({ document, onSave, onChange }) {
   const toolRef = useRef(tool);
   const colorRef = useRef(color);
   const markerTypeRef = useRef(markerType);
+  const markerWidthRef = useRef(markerWidth);
   const widthRef = useRef(strokeWidth);
   const selectedIdsRef = useRef([]);
   const lassoRef = useRef([]);
   const selectionGestureRef = useRef(null);
   const pathHistoryRef = useRef(pathHistory);
-  pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType; widthRef.current = strokeWidth;
+  pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType; markerWidthRef.current = markerWidth; widthRef.current = strokeWidth;
   selectedIdsRef.current=selectedStrokeIds; lassoRef.current=lassoPoints;
   pathHistoryRef.current = pathHistory;
 
@@ -321,8 +323,8 @@ function EditorScreen({ document, onSave, onChange }) {
       }
       const highlighter = toolRef.current === 'highlighter';
       const marker = markerTypeRef.current;
-      const markerStyle = marker === 'pastel' ? { width: 24, opacity: 0.22 } : marker === 'underline' ? { width: 5, opacity: 0.95 } : marker === 'bold' ? { width: 13, opacity: 0.58 } : { width: 19, opacity: 0.32 };
-      const nextPath = { id: `${Date.now()}-${Math.random()}`, points: [point], color: colorRef.current, width: highlighter ? markerStyle.width : widthRef.current, opacity: highlighter ? markerStyle.opacity : 1 };
+      const markerStyle = getHighlighterStyle(marker, markerWidthRef.current);
+      const nextPath = { id: `${Date.now()}-${Math.random()}`, points: [point], color: colorRef.current, width: highlighter ? markerStyle.width : widthRef.current, opacity: highlighter ? markerStyle.opacity : 1, kind: highlighter ? 'highlighter' : 'pen' };
       activePath.current = nextPath;
       pathsRef.current = [...pathsRef.current, nextPath];
       setPaths(pathsRef.current);
@@ -482,10 +484,14 @@ function EditorScreen({ document, onSave, onChange }) {
       <View style={styles.canvasArea}>
         <View style={styles.canvasPaper} onLayout={(event) => setCanvasSize(event.nativeEvent.layout)}>
           <View style={[styles.zoomContent, { transform: [{ translateX: panOffset.x }, { translateY: panOffset.y }, { scale: zoom }] }]}>
-            {currentPage.uri ? <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" /> : <View style={styles.blankPage}><PageBackground type={pageBackground} /><TextInput value={pageText} onChangeText={setPageText} onEndEditing={() => recordPathSnapshot()} placeholder="Digite nesta página..." placeholderTextColor="#A0AAA1" multiline textAlignVertical="top" style={styles.pageTextInput} /></View>}
+            {currentPage.uri ? <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" /> : <View style={styles.blankPage}><PageBackground type={pageBackground} /></View>}
+            <Svg pointerEvents="none" width={canvasSize.width} height={canvasSize.height} style={StyleSheet.absoluteFill}>
+              {paths.filter(path => path.kind === 'highlighter').map(path => <Path key={path.id} d={pathToSvg(path.points)} stroke={path.color} strokeWidth={path.width} strokeOpacity={path.opacity ?? 1} strokeLinecap="butt" strokeLinejoin="round" fill="none" />)}
+            </Svg>
+            {!currentPage.uri && <TextInput value={pageText} onChangeText={setPageText} onEndEditing={() => recordPathSnapshot()} placeholder="Digite nesta página..." placeholderTextColor="#A0AAA1" multiline textAlignVertical="top" style={[styles.pageTextInput, styles.pageTextOverlay]} />}
             <View pointerEvents="none" style={StyleSheet.absoluteFill}>
               <Svg width={canvasSize.width} height={canvasSize.height}>
-                {paths.map((path) => <Path key={path.id} d={pathToSvg(path.points)} stroke={path.color} strokeWidth={path.width} strokeOpacity={path.opacity ?? 1} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lassoPoints.length>1&&<Path d={pathToSvg(lassoPoints)} stroke={COLORS.green} strokeWidth={2} strokeDasharray="6 4" fill="none"/>}{selectedStrokeIds.length>0&&(()=>{const b=getStrokeBounds(paths.filter(path=>selectedStrokeIds.includes(path.id)));return b?<><Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={COLORS.green} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/><Rect x={b.maxX+1} y={b.maxY+1} width={12} height={12} rx={3} fill={COLORS.green}/></>:null;})()}
+                {paths.filter(path => path.kind !== 'highlighter').map((path) => <Path key={path.id} d={pathToSvg(path.points)} stroke={path.color} strokeWidth={path.width} strokeOpacity={path.opacity ?? 1} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lassoPoints.length>1&&<Path d={pathToSvg(lassoPoints)} stroke={COLORS.green} strokeWidth={2} strokeDasharray="6 4" fill="none"/>}{selectedStrokeIds.length>0&&(()=>{const b=getStrokeBounds(paths.filter(path=>selectedStrokeIds.includes(path.id)));return b?<><Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={COLORS.green} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/><Rect x={b.maxX+1} y={b.maxY+1} width={12} height={12} rx={3} fill={COLORS.green}/></>:null;})()}
               </Svg>
             </View>
             <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers} />
@@ -522,8 +528,8 @@ function EditorScreen({ document, onSave, onChange }) {
             <Pressable onPress={() => setTool('move')} style={[styles.modeButton, tool === 'move' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'move' && styles.modeGlyphActive]}>✥</Text><Text style={[styles.modeText, tool === 'move' && styles.modeTextActive]}>Mover folha</Text></Pressable>
             <Pressable onPress={() => setTool('eraser')} style={[styles.modeButton, tool === 'eraser' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'eraser' && styles.modeGlyphActive]}>▱</Text><Text style={[styles.modeText, tool === 'eraser' && styles.modeTextActive]}>Borracha</Text></Pressable>
           </View>
-          <View style={styles.toolSettingsRow}><Text style={styles.toolSettingsLabel}>Espessura</Text><View style={styles.widthOptions}>{[2, 4, 7].map((width) => <Pressable key={width} onPress={() => { setStrokeWidth(width); setTool('pen'); }} style={[styles.widthButton, strokeWidth === width && tool === 'pen' && styles.widthButtonActive]}><View style={[styles.widthDot, { width: width + 3, height: width + 3 }]} /></Pressable>)}</View></View>
-          {tool === 'highlighter' && <View style={styles.markerTypes}><Text style={styles.markerLabel}>ESTILO</Text>{[['classic','Clássico'],['pastel','Pastel'],['bold','Forte'],['underline','Sublinhado']].map(([id,label]) => <Pressable key={id} onPress={() => setMarkerType(id)} style={[styles.markerType, markerType === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, markerType === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View>}
+          <View style={styles.toolSettingsRow}><Text style={styles.toolSettingsLabel}>Espessura da caneta</Text><View style={styles.widthOptions}>{[2, 4, 7].map((width) => <Pressable key={width} onPress={() => { setStrokeWidth(width); setTool('pen'); }} style={[styles.widthButton, strokeWidth === width && tool === 'pen' && styles.widthButtonActive]}><View style={[styles.widthDot, { width: width + 3, height: width + 3 }]} /></Pressable>)}</View></View>
+          {tool === 'highlighter' && <><View style={styles.toolSettingsRow}><Text style={styles.toolSettingsLabel}>Espessura do marca-texto</Text><View style={styles.widthOptions}>{[10, 18, 28].map((width) => <Pressable key={width} onPress={() => setMarkerWidth(width)} style={[styles.widthButton, markerWidth === width && styles.widthButtonActive]}><View style={[styles.markerWidthPreview, { height: Math.min(18, Math.max(6, width / 1.5)) }]} /></Pressable>)}</View></View><View style={styles.markerTypes}><Text style={styles.markerLabel}>ESTILO</Text>{[['classic','Clássico'],['pastel','Pastel'],['bold','Forte'],['underline','Sublinhado']].map(([id,label]) => <Pressable key={id} onPress={() => setMarkerType(id)} style={[styles.markerType, markerType === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, markerType === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View></>}
           <View style={styles.markerTypes}><Text style={styles.markerLabel}>FUNDO</Text>{[['plain','Branco'],['ruled','Pautado'],['grid','Quadriculado'],['dotted','Pontilhado']].map(([id,label]) => <Pressable key={id} onPress={() => { setPageBackground(id); recordPathSnapshot({ background: id }); }} style={[styles.markerType, pageBackground === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, pageBackground === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View>
         </View>}
         {selectedStrokeIds.length>0&&<View style={styles.selectionActionRow}><Pressable onPress={()=>applyPathChange(resizeStrokes(pathsRef.current,selectedStrokeIds,1.15))}><Text style={styles.selectionActionText}>Aumentar</Text></Pressable><Pressable onPress={()=>applyPathChange(resizeStrokes(pathsRef.current,selectedStrokeIds,0.87))}><Text style={styles.selectionActionText}>Diminuir</Text></Pressable><Pressable onPress={()=>applyPathChange(rotateStrokes(pathsRef.current,selectedStrokeIds,Math.PI/12))}><Text style={styles.selectionActionText}>Girar</Text></Pressable><Pressable onPress={()=>{const picked=pathsRef.current.filter(path=>selectedStrokeIds.includes(path.id));setSelectedClipboard(picked);applyPathChange(pathsRef.current.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);}}><Text style={styles.selectionActionText}>Recortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(path=>({...path,id:`${Date.now()}-${Math.random()}`,points:path.points.map(p=>({x:p.x+24,y:p.y+24}))}));applyPathChange([...pathsRef.current,...pasted]);setSelectedStrokeIds(pasted.map(path=>path.id));}}><Text style={styles.selectionActionText}>Colar</Text></Pressable><Pressable onPress={()=>{applyPathChange(pathsRef.current.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);}}><Text style={[styles.selectionActionText,{color:COLORS.rose}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedStrokeIds([])}><Text style={styles.selectionActionText}>Desmarcar</Text></Pressable></View>}<View style={styles.colorRow}><Text style={styles.colorLabel}>COR</Text><ScrollView horizontal style={{ flex: 1 }} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorScroll}>{PALETTE.map((item) => <Pressable key={item} onPress={() => setColor(item)} style={[styles.colorButton, color === item && styles.colorButtonSelected]}><View style={[styles.colorDot, { backgroundColor: item, borderWidth: item === '#FFFFFF' ? 1 : 0, borderColor: '#AEB5AE' }]} /></Pressable>)}</ScrollView><Text style={styles.annotationCount}>{paths.length} traços</Text></View>
@@ -781,7 +787,8 @@ const styles = StyleSheet.create({
   pageRule: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: '#DDE8DD' },
   pageGridColumn: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: '#E8EEE7' },
   pageDot: { position: 'absolute', width: 2, height: 2, borderRadius: 1, backgroundColor: '#C8D6C9' },
-  pageTextInput: { flex: 1, color: COLORS.ink, fontSize: 17, lineHeight: 27 },
+  pageTextInput: { flex: 1, color: COLORS.ink, fontSize: 17, lineHeight: 27, backgroundColor: 'transparent' },
+  pageTextOverlay: { ...StyleSheet.absoluteFillObject, padding: 22 },
   zoomContent: { width: '100%', height: '100%' },
   canvasHintRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 7 },
   canvasHintText: { color: '#9AA298', fontSize: 9 },
@@ -804,6 +811,7 @@ const styles = StyleSheet.create({
   widthButton: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
   widthButtonActive: { borderColor: '#B8CDBB', backgroundColor: '#F4F7F2' },
   widthDot: { borderRadius: 10, backgroundColor: COLORS.ink },
+  markerWidthPreview: { width: 30, borderRadius: 10, backgroundColor: '#E4B83F', opacity: 0.55 },
   selectionActionRow: { flexDirection:'row', flexWrap:'wrap', gap:14, paddingBottom:9 },
   selectionActionText: { color:COLORS.green, fontSize:10, fontWeight:'700' },
   markerTypes: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8, marginBottom: 8 },
