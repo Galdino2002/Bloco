@@ -7,6 +7,7 @@ Caderno digital para estudar e resolver provas diretamente nas páginas.
 1. Toque em **Importar páginas** e selecione imagens PNG ou JPG.
 2. As imagens são organizadas como páginas de um caderno.
 3. Navegue entre as páginas e use caneta, marca-texto, borracha, desfazer, refazer e zoom.
+4. Use a ferramenta **Laço** para contornar seus traços. A seleção pode ser movida, redimensionada pelo puxador no canto, girada, recortada, colada ou excluída sem alterar a imagem original.
 4. Toque em **Salvar** para guardar o caderno durante a sessão atual.
 
 ## Ambiente de provas
@@ -16,7 +17,7 @@ Caderno digital para estudar e resolver provas diretamente nas páginas.
 3. Confira o tempo padrão da prova.
 4. Selecione o PDF no aparelho.
 5. O aplicativo converte as páginas do PDF em imagens JPEG locais.
-6. Resolva desenhando diretamente sobre as páginas. O cronômetro fica visível no editor.
+6. Resolva desenhando diretamente sobre as páginas. Use **Laço** para selecionar traços, arrastá-los, redimensionar pelo puxador, girar, recortar, colar ou excluir sem alterar a imagem original. O cronômetro fica visível no editor.
 7. Toque em **Salvar e sair** para guardar as anotações e o tempo restante. As provas salvas aparecem na lista para continuar depois.
 
 ### Tempos configurados
