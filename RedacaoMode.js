@@ -449,15 +449,15 @@ export default function RedacaoMode({ onExit }) {
               ].map(([id, label]) => <Pressable key={id} onPress={() => { canvasToolRef.current = id; setCanvasTool(id); activePath.current = null; if (id !== 'select') { setSelectedIds([]); setLasso([]); } }} style={[styles.canvasModeButton, canvasTool === id && styles.canvasModeSelected]}><Text style={[styles.canvasModeText, canvasTool === id && styles.canvasModeTextSelected]}>{label}</Text></Pressable>)}
             </View>
             {canvasTool === 'select' && <View style={styles.selectionToolbar}>
-              <Text style={styles.selectionHint}>{selectedIds.length ? 'Seleção ativa: arraste para mover ou use as ações.' : 'Contorne a escrita com o dedo para selecionar.'}</Text>
+              <Text style={styles.selectionHint}>{selectedIds.length ? `${selectedIds.length} selecionado(s) · arraste para mover ou use os atalhos.` : 'Contorne a escrita com o dedo para selecionar.'}</Text>
               {selectedIds.length > 0 && <View style={styles.selectionActions}>
-                <Pressable onPress={() => { const next = transformSelected(paths, selectedIds, 1.15); pathsRef.current = next; setPaths(next); setRedo([]); }}><Text style={styles.toolText}>Aumentar</Text></Pressable>
-                <Pressable onPress={() => { const next = transformSelected(paths, selectedIds, 0.87); pathsRef.current = next; setPaths(next); setRedo([]); }}><Text style={styles.toolText}>Diminuir</Text></Pressable>
-                <Pressable onPress={() => { const next = transformSelected(paths, selectedIds, 1, Math.PI / 12); pathsRef.current = next; setPaths(next); setRedo([]); }}><Text style={styles.toolText}>Girar</Text></Pressable>
-                <Pressable onPress={() => { setClipboard(paths.filter(path => selectedIds.includes(path.id))); const next = paths.filter(path => !selectedIds.includes(path.id)); pathsRef.current = next; setPaths(next); setSelectedIds([]); setRedo([]); }}><Text style={styles.toolText}>Recortar</Text></Pressable>
-                <Pressable onPress={() => { if (!clipboard.length) return; const pasted = clipboard.map(path => ({ ...path, id: String(Date.now()) + Math.random(), points: path.points.map(p => ({ x: p.x + 24, y: p.y + 24 })) })); const next = [...paths, ...pasted]; pathsRef.current = next; setPaths(next); setSelectedIds(pasted.map(path => path.id)); setRedo([]); }}><Text style={styles.toolText}>Colar</Text></Pressable>
-                <Pressable onPress={() => { const next = paths.filter(path => !selectedIds.includes(path.id)); pathsRef.current = next; setPaths(next); setSelectedIds([]); setRedo([]); }}><Text style={[styles.toolText, { color: '#B44D45' }]}>Excluir</Text></Pressable>
-                <Pressable onPress={() => setSelectedIds([])}><Text style={styles.toolText}>Desmarcar</Text></Pressable>
+                <Pressable style={styles.selectionAction} onPress={() => { const next = transformSelected(paths, selectedIds, 1.15); pathsRef.current = next; setPaths(next); setRedo([]); }}><Text style={styles.toolText}>＋ Tamanho</Text></Pressable>
+                <Pressable style={styles.selectionAction} onPress={() => { const next = transformSelected(paths, selectedIds, 0.87); pathsRef.current = next; setPaths(next); setRedo([]); }}><Text style={styles.toolText}>− Tamanho</Text></Pressable>
+                <Pressable style={styles.selectionAction} onPress={() => { const next = transformSelected(paths, selectedIds, 1, Math.PI / 12); pathsRef.current = next; setPaths(next); setRedo([]); }}><Text style={styles.toolText}>↻ Girar</Text></Pressable>
+                <Pressable style={styles.selectionAction} onPress={() => { setClipboard(paths.filter(path => selectedIds.includes(path.id))); const next = paths.filter(path => !selectedIds.includes(path.id)); pathsRef.current = next; setPaths(next); setSelectedIds([]); setRedo([]); }}><Text style={styles.toolText}>Cortar</Text></Pressable>
+                <Pressable style={styles.selectionAction} onPress={() => { if (!clipboard.length) return; const pasted = clipboard.map(path => ({ ...path, id: String(Date.now()) + Math.random(), points: path.points.map(p => ({ x: p.x + 24, y: p.y + 24 })) })); const next = [...paths, ...pasted]; pathsRef.current = next; setPaths(next); setSelectedIds(pasted.map(path => path.id)); setRedo([]); }}><Text style={styles.toolText}>Colar</Text></Pressable>
+                <Pressable style={styles.selectionAction} onPress={() => { const next = paths.filter(path => !selectedIds.includes(path.id)); pathsRef.current = next; setPaths(next); setSelectedIds([]); setRedo([]); }}><Text style={[styles.toolText, { color: '#B44D45' }]}>Excluir</Text></Pressable>
+                <Pressable style={styles.selectionAction} onPress={() => setSelectedIds([])}><Text style={styles.toolText}>Concluir</Text></Pressable>
               </View>}
             </View>}
             {canvasTool === 'draw' && <View style={styles.penWidths}><Text style={styles.markerLabel}>ESPESSURA</Text>{[2,4,7].map(width => <Pressable key={width} onPress={() => setPenWidth(width)} style={[styles.penWidthButton, penWidth === width && styles.penWidthButtonActive]}><View style={{ width: width + 3, height: width + 3, borderRadius: 10, backgroundColor: INK }} /></Pressable>)}</View>}
@@ -575,7 +575,8 @@ const styles = StyleSheet.create({
   drawArea: { flex: 1, paddingHorizontal: 14, paddingBottom: 12 },
   selectionToolbar: { backgroundColor: '#F7F9F5', borderRadius: 10, padding: 9, marginTop: 7, marginBottom: 6 },
   selectionHint: { color: '#77847A', fontSize: 10, marginBottom: 7 },
-  selectionActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  selectionActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  selectionAction: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, backgroundColor: '#E8F0E9', borderWidth: 1, borderColor: '#D4E2D6' },
   markerTypes: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 7 },
   penWidths: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 7 },
   penWidthButton: { width: 29, height: 27, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
