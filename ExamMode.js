@@ -269,6 +269,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const [penWidth, setPenWidth] = useState(4);
   const [zoom, setZoom] = useState(exam.zoom || 1);
   const [pan, setPan] = useState(exam.pan || { x: 0, y: 0 });
+  const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
   const [remaining, setRemaining] = useState(exam.remaining ?? exam.duration);
   const [finished, setFinished] = useState(false);
   const [finalized, setFinalized] = useState(exam.status === 'Finalizada');
@@ -286,6 +287,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const pinchStart = useRef(null);
   const panStart = useRef(null);
   const panRef = useRef(exam.pan || { x: 0, y: 0 });
+  const canvasSizeRef = useRef(canvasSize);
   const selectedRef = useRef([]);
   const lassoRef = useRef([]);
   const selectionGesture = useRef(null);
@@ -294,6 +296,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType; penWidthRef.current = penWidth;
   selectedRef.current = selectedIds; lassoRef.current = lasso;
   pathHistoryRef.current = pathHistory;
+  canvasSizeRef.current = canvasSize;
 
   const applyPathChange = (nextPaths) => {
     pathsRef.current = nextPaths;
@@ -382,7 +385,7 @@ function ExamEditor({ exam, onSave, onBack }) {
       }
       if (toolRef.current === 'select') {
         activePath.current = null;
-        const point = screenToDocument({ x:e.nativeEvent.locationX, y:e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current });
+        const point = screenToDocument({ x:e.nativeEvent.locationX, y:e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2} });
         if (selectedRef.current.length) {
           const box=boundsFor(pathsRef.current.filter(stroke=>selectedRef.current.includes(stroke.id)));
           const center=box?{x:(box.minX+box.maxX)/2,y:(box.minY+box.maxY)/2}:point;
@@ -398,7 +401,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         return;
       }
       if (toolRef.current === 'eraser') {
-        const p = screenToDocument({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current });
+        const p = screenToDocument({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2} });
         const previous = pathsRef.current;
         const next = eraseAtPoint(previous, p, 24);
         const changed = next.length !== previous.length || next.some((path, index) => path !== previous[index]);
@@ -409,7 +412,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         }
         return;
       }
-      const p = screenToDocument({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current });
+      const p = screenToDocument({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2} });
       const isHighlighter = toolRef.current === 'highlighter';
       const marker = markerTypeRef.current;
       const markerStyle = marker === 'pastel' ? { width: 24, opacity: 0.22 } : marker === 'underline' ? { width: 5, opacity: 0.95 } : marker === 'bold' ? { width: 13, opacity: 0.58 } : { width: 19, opacity: 0.32 };
@@ -447,18 +450,18 @@ function ExamEditor({ exam, onSave, onBack }) {
       }
       pinchStart.current = null;
       if (toolRef.current === 'select' && selectionGesture.current?.type === 'lasso') {
-        const point=screenToDocument({x:e.nativeEvent.locationX,y:e.nativeEvent.locationY},{zoom: zoomRef.current, pan: panRef.current});
+        const point=screenToDocument({x:e.nativeEvent.locationX,y:e.nativeEvent.locationY},{zoom: zoomRef.current, pan: panRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2}});
         const next=[...lassoRef.current,point]; lassoRef.current=next; setLasso(next); return;
       }
       if (toolRef.current === 'select' && selectionGesture.current?.type === 'resize') {
-        const point=screenToDocument({x:e.nativeEvent.locationX,y:e.nativeEvent.locationY},{zoom: zoomRef.current, pan: panRef.current});
+        const point=screenToDocument({x:e.nativeEvent.locationX,y:e.nativeEvent.locationY},{zoom: zoomRef.current, pan: panRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2}});
         const factor=Math.max(0.25,Math.min(4,Math.hypot(point.x-selectionGesture.current.center.x,point.y-selectionGesture.current.center.y)/selectionGesture.current.startDistance));
         selectionGesture.current.factor=factor;
         const resized=scaleSelected(selectionGesture.current.original,selectedRef.current,factor);
         pathsRef.current=resized;setPaths(resized);return;
       }
       if (toolRef.current === 'select' && selectionGesture.current?.type === 'move') {
-        const point=screenToDocument({x:e.nativeEvent.locationX,y:e.nativeEvent.locationY},{zoom: zoomRef.current, pan: panRef.current});
+        const point=screenToDocument({x:e.nativeEvent.locationX,y:e.nativeEvent.locationY},{zoom: zoomRef.current, pan: panRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2}});
         const dx=point.x-selectionGesture.current.start.x, dy=point.y-selectionGesture.current.start.y;
         const original=selectionGesture.current.original;
         const moved=original.map(stroke=>selectedRef.current.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>({x:p.x+dx,y:p.y+dy}))}:stroke);
@@ -472,7 +475,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         }
         return;
       }
-      const p = screenToDocument({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current });
+      const p = screenToDocument({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2} });
       if (toolRef.current === 'eraser') {
         const previous = pathsRef.current;
         const next = eraseAtPoint(previous, p, 24);
@@ -498,7 +501,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         const resized=scaleSelected(selectionGesture.current.original,selectedRef.current,selectionGesture.current.factor||1);
         pathsRef.current=resized;setPaths(resized);setRedo([]);
       } else if (toolRef.current === 'select' && selectionGesture.current?.type === 'move') {
-        const point=screenToDocument({x:e.nativeEvent.locationX,y:e.nativeEvent.locationY},{zoom: zoomRef.current, pan: panRef.current});
+        const point=screenToDocument({x:e.nativeEvent.locationX,y:e.nativeEvent.locationY},{zoom: zoomRef.current, pan: panRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2}});
         const dx=point.x-selectionGesture.current.start.x, dy=point.y-selectionGesture.current.start.y;
         const original=selectionGesture.current.original;
         const moved=original.map(stroke=>selectedRef.current.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>({x:p.x+dx,y:p.y+dy}))}:stroke);
@@ -567,7 +570,7 @@ function ExamEditor({ exam, onSave, onBack }) {
     {paused && <View style={s.finishedBanner}><Text style={s.finishedText}>Prova pausada. O cronômetro será retomado quando você tocar em Continuar.</Text></View>}
     {finalized && <View style={s.finishedBanner}><Text style={s.finishedText}>Prova finalizada. As anotações estão disponíveis apenas para consulta.</Text></View>}
     <ContextToolbar><IconButton label="↶" accessibilityLabel="Desfazer" onPress={() => { const nextHistory = undoHistory(pathHistoryRef.current); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); pathsRef.current = nextHistory.present; setPaths(nextHistory.present); }} disabled={finalized || pathHistory.past.length <= 1} /><IconButton label="↷" accessibilityLabel="Refazer" onPress={() => { const nextHistory = redoHistory(pathHistoryRef.current); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); pathsRef.current = nextHistory.present; setPaths(nextHistory.present); }} disabled={finalized || !pathHistory.future.length} /><View style={{ flex: 1 }} /><IconButton label={paused ? '▶' : 'Ⅱ'} accessibilityLabel={paused ? 'Continuar prova' : 'Pausar prova'} onPress={togglePause} disabled={finalized || finished} /></ContextToolbar>
-    <View style={s.examCanvas}><View pointerEvents="none" style={[StyleSheet.absoluteFill, { transform: [{ scale: zoom }, { translateX: pan.x / zoom }, { translateY: pan.y / zoom }] }]}><Image source={{ uri: current?.uri }} style={StyleSheet.absoluteFill} resizeMode="contain" /><Svg width="100%" height="100%">{paths.map(stroke => <Path key={stroke.id} d={svgPath(stroke.points)} stroke={stroke.color} strokeOpacity={stroke.opacity ?? 1} strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lasso.length>1 && <Path d={svgPath(lasso)} stroke={GREEN} strokeWidth={2} strokeDasharray="6 4" fill="none" />}{selectedIds.length>0 && (()=>{const b=boundsFor(paths.filter(stroke=>selectedIds.includes(stroke.id)));return b?<><Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={GREEN} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/><Rect x={b.maxX+1} y={b.maxY+1} width={12} height={12} rx={3} fill={GREEN}/></>:null;})()}</Svg></View><View style={StyleSheet.absoluteFill} {...responder.panHandlers} /></View>
+    <View style={s.examCanvas} onLayout={event => setCanvasSize({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height })}><View pointerEvents="none" style={[StyleSheet.absoluteFill, { transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale: zoom }] }]}><Image source={{ uri: current?.uri }} style={StyleSheet.absoluteFill} resizeMode="contain" /><Svg width="100%" height="100%">{paths.map(stroke => <Path key={stroke.id} d={svgPath(stroke.points)} stroke={stroke.color} strokeOpacity={stroke.opacity ?? 1} strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lasso.length>1 && <Path d={svgPath(lasso)} stroke={GREEN} strokeWidth={2} strokeDasharray="6 4" fill="none" />}{selectedIds.length>0 && (()=>{const b=boundsFor(paths.filter(stroke=>selectedIds.includes(stroke.id)));return b?<><Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={GREEN} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/><Rect x={b.maxX+1} y={b.maxY+1} width={12} height={12} rx={3} fill={GREEN}/></>:null;})()}</Svg></View><View style={StyleSheet.absoluteFill} {...responder.panHandlers} /></View>
     <View style={s.pageControls}><Pressable disabled={index === 0} onPress={() => changePage(index - 1)} style={s.pageControlButton}><Text style={s.pageControlText}>‹</Text></Pressable><View style={s.pageProgress}><Text style={s.pageText}>Página {index + 1} de {pages.length}</Text><View style={s.pageProgressTrack}><View style={[s.pageProgressFill, { width: `${((index + 1) / Math.max(1, pages.length)) * 100}%` }]} /></View></View><Pressable disabled={index === pages.length - 1} onPress={() => changePage(index + 1)} style={s.pageControlButton}><Text style={s.pageControlText}>›</Text></Pressable></View>
     <ScrollView pointerEvents={finalized ? 'none' : 'auto'} style={[s.drawPanel, { maxHeight: toolsExpanded ? 300 : 116 }, finalized && { opacity: 0.55 }]} contentContainerStyle={{ paddingBottom: toolsExpanded ? 8 : 4 }} showsVerticalScrollIndicator={false}>
       <Text style={s.selectionHint}>{tool==='select'?(selectedIds.length?'Seleção ativa: arraste para mover ou use as ações abaixo.':'Contorne a escrita com o dedo para selecionar.'):'Escolha uma ferramenta para anotar a prova.'}</Text>{selectedIds.length>0 && <View style={s.selectionActions}><Pressable onPress={()=>applyPathChange(scaleSelected(pathsRef.current,selectedIds,1.15))}><Text style={s.toolbarText}>Aumentar</Text></Pressable><Pressable onPress={()=>applyPathChange(scaleSelected(pathsRef.current,selectedIds,0.87))}><Text style={s.toolbarText}>Diminuir</Text></Pressable><Pressable onPress={()=>applyPathChange(rotateSelected(pathsRef.current,selectedIds,Math.PI/12))}><Text style={s.toolbarText}>Girar</Text></Pressable><Pressable onPress={()=>{const picked=pathsRef.current.filter(stroke=>selectedIds.includes(stroke.id));setSelectedClipboard(picked);applyPathChange(pathsRef.current.filter(stroke=>!selectedIds.includes(stroke.id)));setSelectedIds([]);}}><Text style={s.toolbarText}>Recortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(stroke=>({...stroke,id:String(Date.now())+Math.random(),points:stroke.points.map(p=>({x:p.x+24,y:p.y+24}))}));applyPathChange([...pathsRef.current,...pasted]);setSelectedIds(pasted.map(stroke=>stroke.id));}}><Text style={s.toolbarText}>Colar</Text></Pressable><Pressable onPress={()=>{applyPathChange(pathsRef.current.filter(stroke=>!selectedIds.includes(stroke.id)));setSelectedIds([]);}}><Text style={[s.toolbarText,{color:'#B44D45'}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedIds([])}><Text style={s.toolbarText}>Desmarcar</Text></Pressable></View>}

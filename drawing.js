@@ -52,18 +52,20 @@ export function pathIntersectsPolygon(path, polygon) {
 export function screenToDocument(point, transform = {}) {
   const zoom = transform.zoom || 1;
   const pan = transform.pan || { x: 0, y: 0 };
+  const origin = transform.origin || { x: 0, y: 0 };
   return {
-    x: (point.x - pan.x) / zoom,
-    y: (point.y - pan.y) / zoom,
+    x: (point.x - origin.x - pan.x) / zoom + origin.x,
+    y: (point.y - origin.y - pan.y) / zoom + origin.y,
   };
 }
 
 export function documentToScreen(point, transform = {}) {
   const zoom = transform.zoom || 1;
   const pan = transform.pan || { x: 0, y: 0 };
+  const origin = transform.origin || { x: 0, y: 0 };
   return {
-    x: point.x * zoom + pan.x,
-    y: point.y * zoom + pan.y,
+    x: (point.x - origin.x) * zoom + origin.x + pan.x,
+    y: (point.y - origin.y) * zoom + origin.y + pan.y,
   };
 }
 

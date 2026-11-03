@@ -224,12 +224,14 @@ function EditorScreen({ document, onSave, onChange }) {
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
+  const canvasSizeRef = useRef(canvasSize);
   const zoomRef = useRef(zoom);
   const pinchStart = useRef(null);
   zoomRef.current = zoom;
   const moveStart = useRef({ x: 0, y: 0 });
   const panOffsetRef = useRef(panOffset);
   panOffsetRef.current = panOffset;
+  canvasSizeRef.current = canvasSize;
   const activePath = useRef(null);
   const pathsRef = useRef(paths);
   const toolRef = useRef(tool);
@@ -294,7 +296,7 @@ function EditorScreen({ document, onSave, onChange }) {
       }
       if (toolRef.current === 'select') {
         activePath.current=null;
-        const point=screenToDocument({x:event.nativeEvent.locationX,y:event.nativeEvent.locationY},{zoom: zoomRef.current, pan: panOffsetRef.current});
+        const point=screenToDocument({x:event.nativeEvent.locationX,y:event.nativeEvent.locationY},{zoom: zoomRef.current, pan: panOffsetRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2}});
         if(selectedIdsRef.current.length){
           const box=getStrokeBounds(pathsRef.current.filter(stroke=>selectedIdsRef.current.includes(stroke.id)));
           const center=box?{x:(box.minX+box.maxX)/2,y:(box.minY+box.maxY)/2}:point;
@@ -305,7 +307,7 @@ function EditorScreen({ document, onSave, onChange }) {
         return;
       }
       if (toolRef.current === 'move') { moveStart.current = { x: panOffsetRef.current.x, y: panOffsetRef.current.y }; return; }
-      const point = screenToDocument({ x: event.nativeEvent.locationX, y: event.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panOffsetRef.current });
+      const point = screenToDocument({ x: event.nativeEvent.locationX, y: event.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panOffsetRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2} });
       if (toolRef.current === 'eraser') {
         const previous = pathsRef.current;
         const next = eraseAtPoint(previous, point, 22);
@@ -345,11 +347,11 @@ function EditorScreen({ document, onSave, onChange }) {
       }
       pinchStart.current = null;
       if(toolRef.current==='select' && selectionGestureRef.current?.type==='lasso'){
-        const point=screenToDocument({x:event.nativeEvent.locationX,y:event.nativeEvent.locationY},{zoom: zoomRef.current, pan: panOffsetRef.current});
+        const point=screenToDocument({x:event.nativeEvent.locationX,y:event.nativeEvent.locationY},{zoom: zoomRef.current, pan: panOffsetRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2}});
         const next=[...lassoRef.current,point];lassoRef.current=next;setLassoPoints(next);return;
       }
       if(toolRef.current==='select' && selectionGestureRef.current?.type==='resize'){
-        const point=screenToDocument({x:event.nativeEvent.locationX,y:event.nativeEvent.locationY},{zoom: zoomRef.current, pan: panOffsetRef.current});
+        const point=screenToDocument({x:event.nativeEvent.locationX,y:event.nativeEvent.locationY},{zoom: zoomRef.current, pan: panOffsetRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2}});
         const box=getStrokeBounds(selectionGestureRef.current.original.filter(stroke=>selectedIdsRef.current.includes(stroke.id)));
         if(!box)return;
         const cx=(box.minX+box.maxX)/2,cy=(box.minY+box.maxY)/2;
@@ -359,7 +361,7 @@ function EditorScreen({ document, onSave, onChange }) {
         pathsRef.current=resized;setPaths(resized);return;
       }
       if(toolRef.current==='select' && selectionGestureRef.current?.type==='move'){
-        const point=screenToDocument({x:event.nativeEvent.locationX,y:event.nativeEvent.locationY},{zoom: zoomRef.current, pan: panOffsetRef.current});
+        const point=screenToDocument({x:event.nativeEvent.locationX,y:event.nativeEvent.locationY},{zoom: zoomRef.current, pan: panOffsetRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2}});
         const dx=point.x-selectionGestureRef.current.start.x,dy=point.y-selectionGestureRef.current.start.y;
         const moved=selectionGestureRef.current.original.map(stroke=>selectedIdsRef.current.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>({x:p.x+dx,y:p.y+dy}))}:stroke);
         pathsRef.current=moved;setPaths(moved);return;
@@ -368,7 +370,7 @@ function EditorScreen({ document, onSave, onChange }) {
         const next = { x: moveStart.current.x + gestureState.dx, y: moveStart.current.y + gestureState.dy };
         panOffsetRef.current = next; setPanOffset(next); return;
       }
-      const point = screenToDocument({ x: event.nativeEvent.locationX, y: event.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panOffsetRef.current });
+      const point = screenToDocument({ x: event.nativeEvent.locationX, y: event.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panOffsetRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2} });
       if (toolRef.current === 'eraser') {
         const previous = pathsRef.current;
         const next = eraseAtPoint(previous, point, 22);
@@ -394,7 +396,7 @@ function EditorScreen({ document, onSave, onChange }) {
         const resized=resizeStrokes(selectionGestureRef.current.original,selectedIdsRef.current,selectionGestureRef.current.factor||1);
         pathsRef.current=resized;setPaths(resized);setRedoPaths([]);
       }else if(toolRef.current==='select' && selectionGestureRef.current?.type==='move'){
-        const point = screenToDocument({ x: event.nativeEvent.locationX, y: event.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panOffsetRef.current });
+        const point = screenToDocument({ x: event.nativeEvent.locationX, y: event.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panOffsetRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2} });
         const dx=point.x-selectionGestureRef.current.start.x,dy=point.y-selectionGestureRef.current.start.y;
         const moved=selectionGestureRef.current.original.map(stroke=>selectedIdsRef.current.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>({x:p.x+dx,y:p.y+dy}))}:stroke);
         pathsRef.current=moved;setPaths(moved);setRedoPaths([]);
@@ -479,7 +481,7 @@ function EditorScreen({ document, onSave, onChange }) {
       </ContextToolbar>
       <View style={styles.canvasArea}>
         <View style={styles.canvasPaper} onLayout={(event) => setCanvasSize(event.nativeEvent.layout)}>
-          <View style={[styles.zoomContent, { transform: [{ scale: zoom }, { translateX: panOffset.x / zoom }, { translateY: panOffset.y / zoom }] }]}>
+          <View style={[styles.zoomContent, { transform: [{ translateX: panOffset.x }, { translateY: panOffset.y }, { scale: zoom }] }]}>
             {currentPage.uri ? <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" /> : <View style={styles.blankPage}><PageBackground type={pageBackground} /><TextInput value={pageText} onChangeText={setPageText} onEndEditing={() => recordPathSnapshot()} placeholder="Digite nesta página..." placeholderTextColor="#A0AAA1" multiline textAlignVertical="top" style={styles.pageTextInput} /></View>}
             <View pointerEvents="none" style={StyleSheet.absoluteFill}>
               <Svg width={canvasSize.width} height={canvasSize.height}>
