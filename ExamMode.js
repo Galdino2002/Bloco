@@ -348,7 +348,10 @@ function ExamEditor({ exam, onSave, onBack }) {
       if (toolRef.current === 'eraser') {
         const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
         const next = eraseAtPoint(pathsRef.current, p, 24);
-        pathsRef.current = next; setPaths(next); setRedo([]); return;
+        pathsRef.current = next;
+        setPaths(next);
+        setRedo([]);
+        return;
       }
       const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
       const isHighlighter = toolRef.current === 'highlighter';
@@ -377,7 +380,7 @@ function ExamEditor({ exam, onSave, onBack }) {
           return;
         }
         if (pinchStart.current?.distance) {
-          const nextZoom = Math.min(3, Math.max(1, pinchStart.current.zoom * distance / pinchStart.current.distance));
+          const nextZoom = Math.min(3, Math.max(0.5, pinchStart.current.zoom * distance / pinchStart.current.distance));
           zoomRef.current = nextZoom;
           setZoom(nextZoom);
         }
@@ -413,7 +416,10 @@ function ExamEditor({ exam, onSave, onBack }) {
       const p = { x: e.nativeEvent.locationX, y: e.nativeEvent.locationY };
       if (toolRef.current === 'eraser') {
         const next = eraseAtPoint(pathsRef.current, p, 24);
-        if (next.length !== pathsRef.current.length) { pathsRef.current = next; setPaths(next); }
+        if (next !== pathsRef.current) {
+          pathsRef.current = next;
+          setPaths(next);
+        }
         return;
       }
       if (!activePath.current) return;
@@ -444,9 +450,19 @@ function ExamEditor({ exam, onSave, onBack }) {
   }), []);
 
   const changePage = (next) => {
-    if (next < 0 || next >= pages.length) return;
-    setPages(old => old.map((page, i) => i === index ? { ...page, paths } : page));
-    setIndex(next); setPaths(pages[next].paths || []); setRedo([]); setSelectedIds([]); setLasso([]);
+    if (next < 0 || next >= pages.length || next === index) return;
+    const currentPaths = pathsRef.current;
+    setPages(old => old.map((page, i) => i === index ? { ...page, paths: currentPaths } : page));
+    const nextPaths = pages[next].paths || [];
+    setIndex(next);
+    pathsRef.current = nextPaths;
+    setPaths(nextPaths);
+    setRedo([]);
+    setSelectedIds([]);
+    selectedRef.current = [];
+    setLasso([]);
+    lassoRef.current = [];
+    selectionGesture.current = null;
   };
   const saveAndExit = () => {
     const updatedPages = pages.map((page, i) => i === index ? { ...page, paths } : page);
@@ -462,7 +478,7 @@ function ExamEditor({ exam, onSave, onBack }) {
     <View style={s.examToolbar}><Pressable onPress={() => { if (paths.length) { setRedo(old => [...old, paths[paths.length - 1]]); setPaths(old => old.slice(0, -1)); } }}><Text style={s.toolbarText}>↶ Desfazer</Text></Pressable><Pressable onPress={() => { if (redo.length) { setPaths(old => [...old, redo[redo.length - 1]]); setRedo(old => old.slice(0, -1)); } }}><Text style={s.toolbarText}>↷ Refazer</Text></Pressable><Pressable onPress={() => setToolsExpanded(value => !value)} style={[s.moreToolsButton, toolsExpanded && s.moreToolsButtonActive]}><Text style={s.moreToolsGlyph}>{toolsExpanded ? '⌃' : '•••'}</Text><Text style={s.moreToolsText}>{toolsExpanded ? 'Fechar' : 'Ferramentas'}</Text></Pressable></View>
     <View style={s.examCanvas}><View style={[StyleSheet.absoluteFill, { transform: [{ scale: zoom }, { translateX: pan.x / zoom }, { translateY: pan.y / zoom }] }]}><Image source={{ uri: current?.uri }} style={StyleSheet.absoluteFill} resizeMode="contain" /><View style={StyleSheet.absoluteFill} {...responder.panHandlers}><Svg width="100%" height="100%">{paths.map(stroke => <Path key={stroke.id} d={svgPath(stroke.points)} stroke={stroke.color} strokeOpacity={stroke.opacity ?? 1} strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lasso.length>1 && <Path d={svgPath(lasso)} stroke={GREEN} strokeWidth={2} strokeDasharray="6 4" fill="none" />}{selectedIds.length>0 && (()=>{const b=boundsFor(paths.filter(stroke=>selectedIds.includes(stroke.id)));return b?<><Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={GREEN} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/><Rect x={b.maxX+1} y={b.maxY+1} width={12} height={12} rx={3} fill={GREEN}/></>:null;})()}</Svg></View></View></View>
     <View style={s.pageControls}><Pressable disabled={index === 0} onPress={() => changePage(index - 1)}><Text style={s.toolbarText}>‹ Anterior</Text></Pressable><Text style={s.pageText}>{index + 1} / {pages.length}</Text><Pressable disabled={index === pages.length - 1} onPress={() => changePage(index + 1)}><Text style={s.toolbarText}>Próxima ›</Text></Pressable></View>
-    <View style={s.drawPanel}>
+    <ScrollView style={[s.drawPanel, { maxHeight: 300 }]} contentContainerStyle={{ paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
       <Pressable onPress={() => { setTool('select'); setSelectedIds([]); setLasso([]); }} style={[s.lassoMainButton, tool === 'select' && s.lassoMainButtonActive]}>
         <Text style={s.lassoMainGlyph}>⌁</Text><View style={{ flex: 1 }}><Text style={s.lassoMainTitle}>SELECIONAR ESCRITA • LAÇO</Text><Text style={s.lassoMainSubtitle}>Contorne, mova e redimensione somente sua escrita</Text></View><Text style={s.lassoMainChevron}>›</Text>
       </Pressable>
@@ -472,7 +488,8 @@ function ExamEditor({ exam, onSave, onBack }) {
       {tool === 'pen' && <View style={s.penWidths}><Text style={s.paletteTitle}>ESPESSURA</Text>{[2,4,7].map(width => <Pressable key={width} onPress={() => setPenWidth(width)} style={[s.penWidthButton, penWidth === width && s.penWidthButtonActive]}><View style={{ width: width + 3, height: width + 3, borderRadius: 10, backgroundColor: INK }} /></Pressable>)}</View>}
       {tool === 'highlighter' && <View style={s.markerTypes}><Text style={s.paletteTitle}>ESTILO</Text>{[{id:'classic',label:'Clássico'},{id:'pastel',label:'Pastel'},{id:'bold',label:'Forte'},{id:'underline',label:'Sublinhado'}].map(item=><Pressable key={item.id} onPress={()=>setMarkerType(item.id)} style={[s.markerType,markerType===item.id&&s.markerTypeActive]}><Text style={[s.markerTypeText,markerType===item.id&&s.markerTypeTextActive]}>{item.label}</Text></Pressable>)}</View>}
       </View>}
-      <View style={s.paletteSection}><Text style={s.paletteTitle}>CORES</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.palette}>{COLORS.map(c => <Pressable key={c} onPress={() => { setColor(c); if (tool === 'eraser') setTool('pen'); }} style={[s.swatch, { backgroundColor: c, borderColor: c === '#FFFFFF' ? '#AEB5AE' : c }, color === c && s.swatchSelected]} />)}</ScrollView></View><View style={s.paletteRow}><View style={s.zoomControls}><Pressable style={s.zoomButton} onPress={() => { const next = Math.max(1, Number((zoom - 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>−</Text></Pressable><Text style={s.zoomValue}>{Math.round(zoom * 100)}%</Text><Pressable style={s.zoomButton} onPress={() => { const next = Math.min(3, Number((zoom + 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>+</Text></Pressable><Pressable style={s.zoomReset} onPress={() => { zoomRef.current = 1; setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); }}><Text style={s.zoomResetText}>Ajustar</Text></Pressable></View></View><Button title="Salvar e sair" onPress={saveAndExit} /></View>
+      <View style={s.paletteSection}><Text style={s.paletteTitle}>CORES</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.palette}>{COLORS.map(c => <Pressable key={c} onPress={() => { setColor(c); if (tool === 'eraser') setTool('pen'); }} style={[s.swatch, { backgroundColor: c, borderColor: c === '#FFFFFF' ? '#AEB5AE' : c }, color === c && s.swatchSelected]} />)}</ScrollView></View><View style={s.paletteRow}><View style={s.zoomControls}><Pressable style={s.zoomButton} onPress={() => { const next = Math.max(0.5, Number((zoom - 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>−</Text></Pressable><Text style={s.zoomValue}>{Math.round(zoom * 100)}%</Text><Pressable style={s.zoomButton} onPress={() => { const next = Math.min(3, Number((zoom + 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>+</Text></Pressable><Pressable style={s.zoomReset} onPress={() => { zoomRef.current = 1; setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); }}><Text style={s.zoomResetText}>Ajustar</Text></Pressable></View></View><Button title="Salvar e sair" onPress={saveAndExit} /></View>
+  </ScrollView>
   </SafeAreaView>;
 }
 
