@@ -2,12 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
+  Modal,
   PanResponder,
   Pressable,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -96,7 +98,29 @@ function ActionButton({ label, onPress, secondary = false, compact = false }) {
   );
 }
 
-function HomeScreen({ documents, onImport, onOpen, onDelete, onExam, onRedacao }) {
+function HomeScreen({ documents, onImport, onOpen, onDelete, onExam, onRedacao, onUpdate, onDuplicate }) {
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [sort, setSort] = useState('updated');
+  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
+  const filteredDocuments = useMemo(() => documents
+    .filter(document => filter === 'trash' ? document.deletedAt : !document.deletedAt)
+    .filter(document => filter === 'favorite' ? document.favorite && !document.deletedAt : true)
+    .filter(document => {
+      const normalized = query.trim().toLocaleLowerCase();
+      return !normalized || (document.title || '').toLocaleLowerCase().includes(normalized);
+    })
+    .sort((a, b) => sort === 'name'
+      ? (a.title || '').localeCompare(b.title || '', 'pt-BR')
+      : (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)), [documents, filter, query, sort]);
+  const saveRename = () => {
+    const title = renameValue.trim();
+    if (!title || !renameTarget) return;
+    onUpdate({ ...renameTarget, title, updatedAt: Date.now() });
+    setRenameTarget(null);
+  };
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.paper} />
@@ -107,8 +131,9 @@ function HomeScreen({ documents, onImport, onOpen, onDelete, onExam, onRedacao }
         </View>
         <View style={styles.welcomeRow}>
           <View><Text style={styles.eyebrow}>SEU CANTINHO DE ESTUDOS</Text><Text style={styles.welcomeTitle}>Sua prova, suas anotações.</Text></View>
-          <Text style={styles.sparkle}>✳</Text>
+          <Pressable onPress={() => setQuickMenuOpen(true)} accessibilityRole="button" accessibilityLabel="Criar ou importar documento" style={styles.quickAddButton}><Text style={styles.quickAddGlyph}>＋</Text></Pressable>
         </View>
+        <View style={styles.searchBox}><Text style={styles.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="Pesquisar cadernos" placeholderTextColor={COLORS.muted} style={styles.searchInput} returnKeyType="search" /><Text style={styles.searchShortcut}>⌘</Text></View>
         <View style={styles.heroCard}>
           <View style={styles.heroTopLine}><View style={styles.heroTag}><Text style={styles.heroTagText}>NOVO CADERNO</Text></View><Text style={styles.heroArrow}>↗</Text></View>
           <View style={styles.heroIllustration}>
@@ -121,28 +146,35 @@ function HomeScreen({ documents, onImport, onOpen, onDelete, onExam, onRedacao }
         </View>
         <View style={styles.sectionHeading}>
           <View><Text style={styles.sectionTitle}>Meus cadernos</Text><Text style={styles.sectionSubtitle}>Continue de onde parou</Text></View>
-          <Text style={styles.documentCount}>{documents.length.toString().padStart(2, '0')}</Text>
+          <Text style={styles.documentCount}>{filteredDocuments.length.toString().padStart(2, '0')}</Text>
         </View>
-        {documents.length === 0 ? (
-          <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 22 }}>▤</Text></View><Text style={styles.emptyTitle}>Nenhum caderno por enquanto</Text><Text style={styles.emptyText}>Importe as páginas da sua prova em imagens PNG ou JPG para começar a resolver.</Text></View>
+        <View style={styles.filterRow}><Pressable onPress={() => setFilter('all')} style={[styles.filterChip, filter === 'all' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>Todos</Text></Pressable><Pressable onPress={() => setFilter('favorite')} style={[styles.filterChip, filter === 'favorite' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'favorite' && styles.filterTextActive]}>★ Favoritos</Text></Pressable><Pressable onPress={() => setFilter('trash')} style={[styles.filterChip, filter === 'trash' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'trash' && styles.filterTextActive]}>Lixeira</Text></Pressable><Pressable onPress={() => setSort(value => value === 'updated' ? 'name' : 'updated')} style={styles.sortChip}><Text style={styles.filterText}>{sort === 'updated' ? 'Mais recentes' : 'Por nome'} ↕</Text></Pressable></View>
+        {filteredDocuments.length === 0 ? (
+          <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 22 }}>▤</Text></View><Text style={styles.emptyTitle}>{query || filter === 'favorite' ? 'Nada encontrado' : 'Nenhum caderno por enquanto'}</Text><Text style={styles.emptyText}>{query || filter === 'favorite' ? 'Tente outra busca ou remova o filtro.' : 'Use o botão + para importar páginas, criar uma redação ou iniciar uma prova.'}</Text></View>
         ) : (
           <View style={styles.documentList}>
-            {documents.map((document) => {
+            {filteredDocuments.map((document) => {
               const pageCount = document.pages?.length || 1;
               const annotationCount = (document.pages || [{ paths: document.paths || [] }]).reduce((sum, page) => sum + (page.paths?.length || 0), 0);
               return <View key={document.id} style={styles.documentCard}>
                 <Pressable onPress={() => onOpen(document)} style={({ pressed }) => [styles.documentOpenArea, pressed && { opacity: 0.75 }]}>
                   <View style={styles.documentThumb}><Image source={{ uri: document.pages?.[0]?.uri || document.uri }} style={styles.documentThumbImage} /><View style={styles.thumbBadge}><Text style={styles.thumbBadgeText}>✎</Text></View></View>
-                  <View style={styles.documentInfo}><Text style={styles.documentName} numberOfLines={1}>{document.title || 'Minha prova'}</Text><Text style={styles.documentMeta}>{pageCount} {pageCount === 1 ? 'página' : 'páginas'} · {annotationCount} traços</Text></View>
+                  <View style={styles.documentInfo}><Text style={styles.documentName} numberOfLines={1}>{document.title || 'Minha prova'}</Text><Text style={styles.documentMeta}>{pageCount} {pageCount === 1 ? 'página' : 'páginas'} · {annotationCount} traços</Text><Text style={styles.documentDate}>{document.updatedAt ? `Atualizado em ${new Date(document.updatedAt).toLocaleDateString('pt-BR')}` : 'Ainda não editado'}</Text></View>
                   <Text style={styles.documentArrow}>›</Text>
                 </Pressable>
-                <Pressable accessibilityRole="button" onPress={() => Alert.alert('Excluir caderno?', 'Todas as páginas e anotações serão removidas.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Excluir', style: 'destructive', onPress: () => onDelete(document.id) }])} style={styles.deleteButton}><Text style={styles.deleteButtonText}>Excluir</Text></Pressable>
+                <Pressable accessibilityRole="button" onPress={() => Alert.alert(document.title || 'Opções do caderno', undefined, document.deletedAt ? [{ text: 'Restaurar', onPress: () => onUpdate({ ...document, deletedAt: null, updatedAt: Date.now() }) }, { text: 'Excluir definitivamente', style: 'destructive', onPress: () => onDelete(document.id, true) }, { text: 'Cancelar', style: 'cancel' }] : [{ text: document.favorite ? 'Remover dos favoritos' : 'Favoritar', onPress: () => onUpdate({ ...document, favorite: !document.favorite, updatedAt: Date.now() }) }, { text: 'Renomear', onPress: () => { setRenameTarget(document); setRenameValue(document.title || ''); } }, { text: 'Duplicar', onPress: () => onDuplicate(document) }, { text: 'Mover para a lixeira', style: 'destructive', onPress: () => onDelete(document.id) }, { text: 'Cancelar', style: 'cancel' }])} style={styles.moreButton}><Text style={styles.moreButtonText}>•••</Text></Pressable>
               </View>;
             })}
           </View>
         )}
         <View style={styles.footerNote}><Text style={styles.footerLeaf}>✳</Text><Text style={styles.footerText}>Um espaço simples. Para ideias grandes.</Text></View>
       </ScrollView>
+      <Modal visible={quickMenuOpen} transparent animationType="slide" onRequestClose={() => setQuickMenuOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setQuickMenuOpen(false)}>
+          <View style={styles.quickSheet} onStartShouldSetResponder={() => true}><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Criar no Bloco</Text><Text style={styles.sheetSubtitle}>Escolha o tipo de conteúdo para começar</Text><Pressable onPress={() => { setQuickMenuOpen(false); onImport(); }} style={styles.quickOption}><Text style={styles.quickOptionIcon}>▧</Text><View><Text style={styles.quickOptionTitle}>Importar imagens</Text><Text style={styles.quickOptionText}>Criar um caderno a partir da galeria</Text></View></Pressable><Pressable onPress={() => { setQuickMenuOpen(false); onExam(); }} style={styles.quickOption}><Text style={styles.quickOptionIcon}>◷</Text><View><Text style={styles.quickOptionTitle}>Nova prova</Text><Text style={styles.quickOptionText}>Cronômetro e anotações sobre PDF</Text></View></Pressable><Pressable onPress={() => { setQuickMenuOpen(false); onRedacao(); }} style={styles.quickOption}><Text style={styles.quickOptionIcon}>✎</Text><View><Text style={styles.quickOptionTitle}>Nova redação</Text><Text style={styles.quickOptionText}>Digite ou escreva à mão</Text></View></Pressable></View>
+        </Pressable>
+      </Modal>
+      <Modal visible={!!renameTarget} transparent animationType="fade" onRequestClose={() => setRenameTarget(null)}><View style={styles.modalBackdrop}><View style={styles.renameCard}><Text style={styles.sheetTitle}>Renomear caderno</Text><TextInput autoFocus value={renameValue} onChangeText={setRenameValue} style={styles.renameInput} placeholder="Nome do caderno" placeholderTextColor={COLORS.muted} onSubmitEditing={saveRename} /><View style={styles.renameActions}><Pressable onPress={() => setRenameTarget(null)} style={styles.renameCancel}><Text style={styles.renameCancelText}>Cancelar</Text></Pressable><Pressable onPress={saveRename} style={styles.renameConfirm}><Text style={styles.renameConfirmText}>Salvar</Text></Pressable></View></View></View></Modal>
     </SafeAreaView>
   );
 }
@@ -405,13 +437,19 @@ function BlocoApp() {
     const exists = previous.some(item => item.id === document.id);
     return exists ? previous.map(item => item.id === document.id ? document : item) : [document, ...previous];
   });
-  const deleteDocument = (documentId) => setDocuments((previous) => previous.filter((item) => item.id !== documentId));
+  const deleteDocument = (documentId, permanent = false) => setDocuments(previous => permanent
+    ? previous.filter(item => item.id !== documentId)
+    : previous.map(item => item.id === documentId ? { ...item, deletedAt: Date.now(), updatedAt: Date.now() } : item));
+  const duplicateDocument = (document) => {
+    const duplicate = JSON.parse(JSON.stringify({ ...document, id: `${Date.now()}-${Math.random()}`, title: `${document.title || 'Caderno'} (cópia)`, createdAt: Date.now(), updatedAt: Date.now() }));
+    setDocuments(previous => [duplicate, ...previous]);
+  };
 
   if (!documentsLoaded) return <SafeAreaView style={styles.safeArea}><Text style={styles.loadingText}>Recuperando seus cadernos...</Text></SafeAreaView>;
   if (activeDocument) return <EditorScreen key={activeDocument.id} document={activeDocument} onSave={saveDocument} onChange={updateDocument} />;
   if (examMode) return <ExamMode onExit={() => setExamMode(false)} />;
   if (redacaoMode) return <RedacaoMode onExit={() => setRedacaoMode(false)} />;
-  return <HomeScreen documents={documents} onImport={importImages} onOpen={setActiveDocument} onDelete={deleteDocument} onExam={() => setExamMode(true)} onRedacao={() => setRedacaoMode(true)} />;
+  return <HomeScreen documents={documents} onImport={importImages} onOpen={setActiveDocument} onDelete={deleteDocument} onUpdate={updateDocument} onDuplicate={duplicateDocument} onExam={() => setExamMode(true)} onRedacao={() => setRedacaoMode(true)} />;
 }
 
 export default function App() {
@@ -433,6 +471,12 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 34 },
   brand: { color: COLORS.ink, fontSize: 38, lineHeight: 44, fontFamily: 'serif', fontStyle: 'italic', letterSpacing: -1.8 },
   headerSubtitle: { color: COLORS.muted, fontSize: 11, letterSpacing: 1.1, marginTop: -2 },
+  quickAddButton: { width: 44, height: 44, borderRadius: 15, backgroundColor: COLORS.ink, alignItems: 'center', justifyContent: 'center' },
+  quickAddGlyph: { color: COLORS.white, fontSize: 27, fontWeight: '300', lineHeight: 29 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, paddingHorizontal: 13, marginBottom: 18 },
+  searchIcon: { color: COLORS.green, fontSize: 23, marginRight: 8 },
+  searchInput: { flex: 1, color: COLORS.ink, fontSize: 13, paddingVertical: 12 },
+  searchShortcut: { color: COLORS.muted, fontSize: 12, backgroundColor: '#F1F3EE', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 3 },
   avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.greenLight, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#D7E3D8' },
   avatarText: { color: COLORS.green, fontFamily: 'serif', fontSize: 21, fontStyle: 'italic' },
   welcomeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 18 },
@@ -483,7 +527,32 @@ const styles = StyleSheet.create({
   documentInfo: { flex: 1, marginLeft: 12 },
   documentName: { color: COLORS.ink, fontWeight: '700', fontSize: 13 },
   documentMeta: { color: COLORS.muted, fontSize: 10, marginTop: 5 },
+  documentDate: { color: '#A0AAA1', fontSize: 9, marginTop: 4 },
   documentArrow: { color: '#A4ADA4', fontSize: 25, paddingHorizontal: 8 },
+  moreButton: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4EF' },
+  moreButtonText: { color: COLORS.green, fontSize: 15, fontWeight: '800', letterSpacing: 1 },
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 },
+  filterChip: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 10, backgroundColor: '#EFF2EC' },
+  filterChipActive: { backgroundColor: COLORS.green },
+  filterText: { color: COLORS.green, fontSize: 10, fontWeight: '700' },
+  filterTextActive: { color: COLORS.white },
+  sortChip: { marginLeft: 'auto', paddingHorizontal: 8, paddingVertical: 8 },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(32,59,50,0.28)' },
+  quickSheet: { backgroundColor: COLORS.paper, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 22, paddingBottom: 30 },
+  sheetHandle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: '#C8D0C8', marginBottom: 18 },
+  sheetTitle: { color: COLORS.ink, fontSize: 20, fontWeight: '800' },
+  sheetSubtitle: { color: COLORS.muted, fontSize: 11, marginTop: 4, marginBottom: 16 },
+  quickOption: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 15, padding: 14, marginBottom: 9, borderWidth: 1, borderColor: COLORS.line },
+  quickOptionIcon: { color: COLORS.green, fontSize: 23, width: 40, textAlign: 'center', marginRight: 10 },
+  quickOptionTitle: { color: COLORS.ink, fontSize: 13, fontWeight: '800' },
+  quickOptionText: { color: COLORS.muted, fontSize: 10, marginTop: 3 },
+  renameCard: { alignSelf: 'center', width: '88%', backgroundColor: COLORS.paper, borderRadius: 20, padding: 20, marginBottom: 'auto', marginTop: 'auto' },
+  renameInput: { color: COLORS.ink, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 11, marginTop: 16 },
+  renameActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 9, marginTop: 15 },
+  renameCancel: { paddingHorizontal: 13, paddingVertical: 10 },
+  renameCancelText: { color: COLORS.muted, fontWeight: '700', fontSize: 11 },
+  renameConfirm: { backgroundColor: COLORS.ink, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
+  renameConfirmText: { color: COLORS.white, fontWeight: '700', fontSize: 11 },
   footerNote: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 26, gap: 8 },
   footerLeaf: { color: COLORS.green, fontSize: 13 },
   footerText: { color: '#9AA298', fontSize: 10, letterSpacing: 0.2 },
