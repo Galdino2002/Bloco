@@ -275,6 +275,19 @@ function HomeScreen({ documents, onImport, onExportBackup, onImportBackup, onCre
                   </View>
                   {!selectionMode && <Text style={styles.documentArrow}>›</Text>}
                 </Pressable>
+                {!selectionMode && <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Apagar ${document.title || 'caderno'}`}
+                  onPress={() => Alert.alert(
+                    'Mover caderno para a lixeira?',
+                    'Você poderá restaurá-lo depois pela seção Lixeira.',
+                    [
+                      { text: 'Cancelar', style: 'cancel' },
+                      { text: 'Mover para lixeira', style: 'destructive', onPress: () => onDelete(document.id) },
+                    ],
+                  )}
+                  style={styles.deleteButton}
+                ><Text style={styles.deleteButtonText}>Apagar</Text></Pressable>}
                 {!selectionMode && <Pressable accessibilityRole="button" accessibilityLabel={`Mais opções para ${document.title || 'documento'}`} onPress={() => Alert.alert(document.title || 'Opções', undefined, document.deletedAt ? [
                   { text: 'Restaurar', onPress: () => onUpdate({ ...document, deletedAt: null, updatedAt: Date.now() }) },
                   { text: 'Excluir definitivamente', style: 'destructive', onPress: () => onDelete(document.id, true) },
@@ -435,13 +448,29 @@ function EditorScreen({ document, onSave, onChange }) {
       if (toolRef.current === 'select') {
         activePath.current=null;
         const point=screenToDocument({x:event.nativeEvent.locationX,y:event.nativeEvent.locationY},{zoom: zoomRef.current, pan: panOffsetRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2}});
-        if(selectedIdsRef.current.length){
-          const box=getStrokeBounds(pathsRef.current.filter(stroke=>selectedIdsRef.current.includes(stroke.id)));
-          const center=box?{x:(box.minX+box.maxX)/2,y:(box.minY+box.maxY)/2}:point;
-          const handle=box?{x:box.maxX+7,y:box.maxY+7}:point;
-          if(box&&Math.hypot(point.x-handle.x,point.y-handle.y)<28)selectionGestureRef.current={type:'resize',startDistance:Math.max(1,Math.hypot(handle.x-center.x,handle.y-center.y)),original:pathsRef.current,factor:1};
-          else selectionGestureRef.current={type:'move',start:point,original:pathsRef.current};
-        }else{selectionGestureRef.current={type:'lasso'};lassoRef.current=[point];setLassoPoints([point]);}
+        if (selectedIdsRef.current.length) {
+          const selected = pathsRef.current.filter(stroke => selectedIdsRef.current.includes(stroke.id));
+          const box = getStrokeBounds(selected);
+          const insideSelection = box && point.x >= box.minX - 18 && point.x <= box.maxX + 18 && point.y >= box.minY - 18 && point.y <= box.maxY + 18;
+          const center = box ? { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 } : point;
+          const handle = box ? { x: box.maxX + 7, y: box.maxY + 7 } : point;
+          if (box && Math.hypot(point.x - handle.x, point.y - handle.y) < 30) {
+            selectionGestureRef.current = { type: 'resize', startDistance: Math.max(1, Math.hypot(handle.x - center.x, handle.y - center.y)), original: pathsRef.current, factor: 1 };
+          } else if (insideSelection) {
+            selectionGestureRef.current = { type: 'move', start: point, original: pathsRef.current };
+          } else {
+            // Um novo laço iniciado fora da seleção substitui a seleção anterior.
+            selectedIdsRef.current = [];
+            setSelectedStrokeIds([]);
+            selectionGestureRef.current = { type: 'lasso' };
+            lassoRef.current = [point];
+            setLassoPoints([point]);
+          }
+        } else {
+          selectionGestureRef.current = { type: 'lasso' };
+          lassoRef.current = [point];
+          setLassoPoints([point]);
+        }
         return;
       }
       if (toolRef.current === 'move') { moveStart.current = { x: panOffsetRef.current.x, y: panOffsetRef.current.y }; return; }
@@ -467,6 +496,30 @@ function EditorScreen({ document, onSave, onChange }) {
       pathsRef.current = [...pathsRef.current, nextPath];
       setPaths(pathsRef.current);
       setRedoPaths([]);
+    },
+    onPanResponderStart: (event) => {
+      const touches = event.nativeEvent.touches || [];
+      if (touches.length >= 2) {
+        // O segundo dedo inicia o gesto de zoom imediatamente, sem deixar o
+        // primeiro toque continuar desenhando ou fechando um laço.
+        activePath.current = null;
+        selectionGestureRef.current = null;
+        lassoRef.current = [];
+        setLassoPoints([]);
+        const [first, second] = touches;
+        const distance = Math.hypot(first.pageX - second.pageX, first.pageY - second.pageY);
+        if (distance > 0) {
+          pinchStart.current = {
+            distance,
+            zoom: zoomRef.current,
+            pan: { ...panOffsetRef.current },
+            focal: {
+              x: ((first.locationX ?? 0) + (second.locationX ?? 0)) / 2 - canvasSizeRef.current.width / 2,
+              y: ((first.locationY ?? 0) + (second.locationY ?? 0)) / 2 - canvasSizeRef.current.height / 2,
+            },
+          };
+        }
+      }
     },
     onPanResponderMove: (event, gestureState) => {
       const touches = event.nativeEvent.touches || [];
