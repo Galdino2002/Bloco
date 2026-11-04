@@ -134,7 +134,7 @@ export default function RedacaoMode({ onExit }) {
   }, []);
 
   const persist = async (items) => {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    await writeDraftsWithBackup(items);
     setDrafts(items);
   };
 
