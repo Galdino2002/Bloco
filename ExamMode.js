@@ -567,10 +567,25 @@ function ExamEditor({ exam, onSave, onBack }) {
     pathHistoryRef.current = nextHistory;
     setPathHistory(nextHistory);
   };
-  const saveAndExit = () => {
-    const updatedPages = pages.map((page, i) => i === index ? { ...page, paths } : page);
-    const elapsed = Math.max(0, exam.duration - remaining);
-    onSave({ ...exam, pages: updatedPages, currentPage: index, zoom, pan, remaining, elapsed, endAt, status: finalized ? 'Finalizada' : (paused ? 'Pausada' : (remaining === 0 ? 'Tempo encerrado' : 'Em andamento')) });
+  const saveAndExit = async () => {
+    const updatedPages = pages.map((page, i) => i === index ? { ...page, paths: pathsRef.current } : page);
+    const currentRemaining = paused ? remainingRef.current : Math.max(0, Math.ceil((endAtRef.current - Date.now()) / 1000));
+    const elapsed = Math.max(0, exam.duration - currentRemaining);
+    const updatedExam = {
+      ...exam,
+      pages: updatedPages,
+      currentPage: index,
+      zoom,
+      pan,
+      remaining: currentRemaining,
+      elapsed,
+      endAt: endAtRef.current,
+      status: finalized ? 'Finalizada' : (paused ? 'Pausada' : (currentRemaining === 0 ? 'Tempo encerrado' : 'Em andamento')),
+    };
+    // Aguarda a fila de autosave antes de sair do editor.
+    persistLatestSnapshot();
+    await persistenceQueueRef.current;
+    await onSave(updatedExam);
   };
   const togglePause = () => {
     if (finalized || finished) return;
@@ -589,9 +604,13 @@ function ExamEditor({ exam, onSave, onBack }) {
     { text: 'Continuar editando', style: 'cancel' },
     { text: 'Finalizar', style: 'destructive', onPress: () => {
       setFinalized(true);
-      const updatedPages = pages.map((page, i) => i === index ? { ...page, paths } : page);
+      const updatedPages = pages.map((page, i) => i === index ? { ...page, paths: pathsRef.current } : page);
+      const updatedExam = { ...exam, pages: updatedPages, currentPage: index, zoom, pan, remaining: remainingRef.current, elapsed: Math.max(0, exam.duration - remainingRef.current), endAt: endAtRef.current, status: 'Finalizada' };
       persistExamState({ status: 'Finalizada' });
-      onSave({ ...exam, pages: updatedPages, currentPage: index, zoom, pan, remaining, elapsed: Math.max(0, exam.duration - remaining), endAt, status: 'Finalizada' });
+      persistenceQueueRef.current.then(() => onSave(updatedExam)).catch(error => {
+        console.error('Erro ao finalizar prova:', error);
+        Alert.alert('Não foi possível finalizar', 'Suas anotações continuam salvas. Tente salvar e sair novamente.');
+      });
     } },
   ]);
   const current = pages[index];
