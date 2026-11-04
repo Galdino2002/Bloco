@@ -14,7 +14,10 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect } from 'react-native-svg';
@@ -25,6 +28,7 @@ import { commitHistory, createHistory, redoHistory, undoHistory } from './drawin
 import { ContextToolbar, IconButton, ScreenTitle } from './designSystem';
 
 const NOTEBOOKS_STORAGE_KEY = '@bloco:notebooks:v1';
+const NOTEBOOKS_BACKUP_KEY = '@bloco:notebooks:backup:v1';
 const NOTEBOOKS_FILES_DIRECTORY = `${FileSystem.documentDirectory}bloco-notebooks/`;
 
 const COLORS = {
@@ -64,6 +68,10 @@ function eraseWholeStrokesAtPoint(paths, point, radius) {
     }
     return true;
   });
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>\"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[character]));
 }
 
 function pathToSvg(points) {
@@ -145,13 +153,27 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
   const [renameValue, setRenameValue] = useState('');
   const [folderTarget, setFolderTarget] = useState(null);
   const [folderValue, setFolderValue] = useState('');
+  const [folderParent, setFolderParent] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectionMode, setSelectionMode] = useState(false);
-  const folders = useMemo(() => [...new Set(documents.filter(item => !item.deletedAt).map(item => item.folderName).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR')), [documents]);
+  const folders = useMemo(() => {
+    const paths = new Set();
+    documents.filter(item => !item.deletedAt).forEach(item => {
+      const fullPath = item.folderPath || item.folderName;
+      if (!fullPath) return;
+      const segments = fullPath.split('/').map(part => part.trim()).filter(Boolean);
+      let current = '';
+      segments.forEach(segment => { current = current ? `${current}/${segment}` : segment; paths.add(current); });
+    });
+    return [...paths].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [documents]);
   const filteredDocuments = useMemo(() => documents
     .filter(document => filter === 'trash' ? document.deletedAt : !document.deletedAt)
     .filter(document => filter === 'favorite' ? document.favorite && !document.deletedAt : true)
-    .filter(document => folderFilter === 'all' ? true : folderFilter === 'unfiled' ? !document.folderName : document.folderName === folderFilter)
+    .filter(document => {
+      const path = document.folderPath || document.folderName || '';
+      return folderFilter === 'all' ? true : folderFilter === 'unfiled' ? !path : path === folderFilter || path.startsWith(`${folderFilter}/`);
+    })
     .filter(document => {
       const normalized = query.trim().toLocaleLowerCase();
       const pageText = (document.pages || []).map(page => page.text || '').join(' ');
@@ -170,24 +192,26 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
   };
   const toggleSelected = id => setSelectedIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
   const moveSelected = folder => {
-    documents.filter(item => selectedIds.includes(item.id)).forEach(item => onUpdate({ ...item, folderName: folder || null, updatedAt: Date.now() }));
-    setSelectedIds([]);
-    setSelectionMode(false);
-    setFolderTarget(null);
-    setFolderValue('');
+    documents.filter(item => selectedIds.includes(item.id)).forEach(item => {
+      const normalizedPath = typeof folder === 'string' ? folder.trim().replace(/^\\/+|\\/+$/g, '') : '';
+      const segments = normalizedPath.split('/').filter(Boolean);
+      onUpdate({ ...item, folderPath: normalizedPath || null, folderName: segments.length ? segments[segments.length - 1] : null, updatedAt: Date.now() });
+    });
+    setSelectedIds([]); setSelectionMode(false); setFolderTarget(null); setFolderValue(''); setFolderParent('');
   };
   const openFolderManager = document => {
     setSelectedIds(document ? [document.id] : []);
     setSelectionMode(true);
     setFolderTarget(document || { id: '__bulk__' });
     setFolderValue('');
+    setFolderParent('');
   };
   const selectedCount = selectedIds.length;
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.paper} />
       <ScrollView contentContainerStyle={styles.homeContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <ScreenTitle eyebrow="BLOCO · ESTUDOS E IDEIAS" title="Seu espaço de foco" subtitle="Tudo o que você estuda, em um só lugar" right={<IconButton label="▧" accessibilityLabel="Importar páginas da galeria" onPress={onImport} />} />
+        <ScreenTitle eyebrow="BLOCO · ESTUDOS E IDEIAS" title="Seu espaço de foco" subtitle="Tudo o que você estuda, em um só lugar" right={<View style={{ flexDirection: 'row', gap: 7 }}><IconButton label="⇧" accessibilityLabel="Exportar backup" onPress={onExportBackup} /><IconButton label="⇩" accessibilityLabel="Restaurar backup" onPress={onImportBackup} /><IconButton label="▧" accessibilityLabel="Importar páginas da galeria" onPress={onImport} /></View>} />
         <View style={styles.searchBox}>
           <Text style={styles.searchIcon}>⌕</Text>
           <TextInput value={query} onChangeText={setQuery} placeholder="Buscar cadernos e conteúdo" placeholderTextColor={COLORS.muted} style={styles.searchInput} returnKeyType="search" />
@@ -215,7 +239,7 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
           <Text style={styles.folderSectionLabel}>PASTAS</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.folderChips}>
             <Pressable onPress={() => { setFilter('all'); setFolderFilter('all'); }} style={[styles.folderChip, folderFilter === 'all' && styles.folderChipActive]}><Text style={[styles.folderChipText, folderFilter === 'all' && styles.folderChipTextActive]}>Tudo</Text></Pressable>
-            {folders.map(folder => <Pressable key={folder} onPress={() => { setFilter('all'); setFolderFilter(folder); }} style={[styles.folderChip, folderFilter === folder && styles.folderChipActive]}><Text style={[styles.folderChipText, folderFilter === folder && styles.folderChipTextActive]}>▰ {folder}</Text></Pressable>)}
+            {folders.map(folder => <Pressable key={folder} onPress={() => { setFilter('all'); setFolderFilter(folder); }} style={[styles.folderChip, folderFilter === folder && styles.folderChipActive]}><Text style={[styles.folderChipText, folderFilter === folder && styles.folderChipTextActive]}>▰ {folder.split('/').map((part, index) => index ? ` › ${part}` : part).join('')}</Text></Pressable>)}
             <Pressable onPress={() => { setFilter('all'); setFolderFilter('unfiled'); }} style={[styles.folderChip, folderFilter === 'unfiled' && styles.folderChipActive]}><Text style={[styles.folderChipText, folderFilter === 'unfiled' && styles.folderChipTextActive]}>Sem pasta</Text></Pressable>
           </ScrollView>
         </View>}
@@ -239,7 +263,7 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
                   <View style={styles.documentInfo}>
                     <Text style={styles.documentName} numberOfLines={1}>{document.title || 'Sem título'}</Text>
                     <Text style={styles.documentMeta}>{pageCount} {pageCount === 1 ? 'página' : 'páginas'} · {annotationCount} anotações</Text>
-                    <Text style={styles.documentDate}>{document.folderName ? `▰ ${document.folderName} · ` : ''}{document.updatedAt ? new Date(document.updatedAt).toLocaleDateString('pt-BR') : 'Ainda não editado'}</Text>
+                    <Text style={styles.documentDate}>{(document.folderPath || document.folderName) ? `▰ ${document.folderPath || document.folderName} · ` : ''}{document.updatedAt ? new Date(document.updatedAt).toLocaleDateString('pt-BR') : 'Ainda não editado'}</Text>
                   </View>
                   {!selectionMode && <Text style={styles.documentArrow}>›</Text>}
                 </Pressable>
@@ -266,13 +290,19 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
       </Modal>
       <Modal visible={!!folderTarget} transparent animationType="slide" onRequestClose={() => setFolderTarget(null)}>
         <View style={styles.modalBackdrop}><View style={styles.folderModalCard}><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Organizar em pasta</Text><Text style={styles.sheetSubtitle}>{selectedCount || 1} documento(s) selecionado(s)</Text>
-          <ScrollView style={{ maxHeight: 190 }} keyboardShouldPersistTaps="handled">
+          <Text style={styles.folderSectionLabel}>MOVER PARA</Text>
+          <ScrollView style={{ maxHeight: 130 }} keyboardShouldPersistTaps="handled">
             <Pressable onPress={() => moveSelected(null)} style={styles.folderChoice}><Text style={styles.folderChoiceText}>Sem pasta</Text></Pressable>
             {folders.map(folder => <Pressable key={folder} onPress={() => moveSelected(folder)} style={styles.folderChoice}><Text style={styles.folderChoiceText}>▰ {folder}</Text></Pressable>)}
           </ScrollView>
-          <Text style={styles.folderSectionLabel}>CRIAR PASTA</Text>
-          <TextInput value={folderValue} onChangeText={setFolderValue} placeholder="Nome da nova pasta" placeholderTextColor={COLORS.muted} style={styles.renameInput} maxLength={40} returnKeyType="done" onSubmitEditing={() => folderValue.trim() && moveSelected(folderValue.trim())} />
-          <View style={styles.renameActions}><Pressable onPress={() => setFolderTarget(null)} style={styles.renameCancel}><Text style={styles.renameCancelText}>Cancelar</Text></Pressable><Pressable disabled={!folderValue.trim()} onPress={() => moveSelected(folderValue.trim())} style={[styles.renameConfirm, !folderValue.trim() && styles.disabledAction]}><Text style={styles.renameConfirmText}>Criar e mover</Text></Pressable></View>
+          <Text style={styles.folderSectionLabel}>CRIAR PASTA OU SUBPASTA</Text>
+          <Text style={styles.folderChoiceText}>Criar dentro de: {folderParent || 'Raiz'}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 7 }}>
+            <Pressable onPress={() => setFolderParent('')} style={[styles.folderChoice, !folderParent && { backgroundColor: COLORS.greenLight }]}><Text style={styles.folderChoiceText}>Raiz</Text></Pressable>
+            {folders.map(folder => <Pressable key={`parent-${folder}`} onPress={() => setFolderParent(folder)} style={[styles.folderChoice, folderParent === folder && { backgroundColor: COLORS.greenLight }]}><Text style={styles.folderChoiceText}>{folder}</Text></Pressable>)}
+          </ScrollView>
+          <TextInput value={folderValue} onChangeText={setFolderValue} placeholder="Nome da nova pasta" placeholderTextColor={COLORS.muted} style={styles.renameInput} maxLength={40} returnKeyType="done" onSubmitEditing={() => { const name = folderValue.trim().replace(/[\\/]/g, ''); if (name) moveSelected(folderParent ? `${folderParent}/${name}` : name); }} />
+          <View style={styles.renameActions}><Pressable onPress={() => { setFolderTarget(null); setFolderParent(''); }} style={styles.renameCancel}><Text style={styles.renameCancelText}>Cancelar</Text></Pressable><Pressable disabled={!folderValue.trim()} onPress={() => { const name = folderValue.trim().replace(/[\\/]/g, ''); if (name) moveSelected(folderParent ? `${folderParent}/${name}` : name); }} style={[styles.renameConfirm, !folderValue.trim() && styles.disabledAction]}><Text style={styles.renameConfirmText}>Criar e mover</Text></Pressable></View>
         </View></View>
       </Modal>
     </SafeAreaView>
@@ -280,7 +310,7 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
 }
 
 function EditorScreen({ document, onSave, onChange }) {
-  const initialPages = document.pages?.length ? document.pages : [{ id: 'page-1', uri: document.uri, paths: document.paths || [] }];
+  const initialPages = (document.pages?.length ? document.pages : [{ id: 'page-1', uri: document.uri, paths: document.paths || [] }]).map((page, index) => ({ ...page, id: page.id || `page-${document.id || 'note'}-${index + 1}` }));
   const [title, setTitle] = useState(document.title || 'Minha nota');
   const [saveState, setSaveState] = useState('saved');
   const titleRef = useRef(title);
@@ -551,18 +581,30 @@ function EditorScreen({ document, onSave, onChange }) {
     applySnapshot(nextHistory.present);
     setRedoPaths([]);
   };
-  const save = () => {
-    const updatedPages = pages.map((page, index) => index === pageIndex
-      ? { ...page, paths, text: pageText, background: pageBackground }
-      : page);
-    onSave({
-      ...document,
-      title: titleRef.current,
-      pages: updatedPages,
-      uri: updatedPages[0]?.uri,
-      paths: updatedPages[0]?.paths || [],
-      updatedAt: Date.now(),
-    });
+  const getLatestDocument = () => {
+    const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths: pathsRef.current, text: pageTextRef.current, background: pageBackgroundRef.current } : page);
+    return { ...document, title: titleRef.current, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() };
+  };
+  const save = () => onSave(getLatestDocument());
+  const exportPdf = async () => {
+    try {
+      const snapshot = getLatestDocument();
+      const saved = await onChange(snapshot);
+      if (saved === false) throw new Error('Não foi possível salvar a nota antes da exportação.');
+      const width = Math.max(1, canvasSize.width || 800), height = Math.max(1, canvasSize.height || 1100);
+      const pageMarkup = snapshot.pages.map((page, index) => {
+        const image = page.uri ? `<img class="page-image" src="${escapeHtml(page.uri)}" />` : '';
+        const strokes = (page.paths || []).map(stroke => `<path d="${escapeHtml(pathToSvg(stroke.points || []))}" stroke="${escapeHtml(stroke.color || '#202124')}" stroke-width="${Number(stroke.width) || 2}" stroke-opacity="${Number(stroke.opacity ?? 1)}" stroke-linecap="round" stroke-linejoin="round" fill="none" />`).join('');
+        const typed = escapeHtml(page.text || '').replace(/\\n/g, '<br/>');
+        return `<section class="page"><header>${escapeHtml(snapshot.title || 'Minha nota')} · Página ${index + 1}</header><div class="sheet">${image}<div class="typed">${typed}</div><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">${strokes}</svg></div></section>`;
+      }).join('');
+      const html = `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><style>@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#203B32;margin:0}.page{page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}header{font-size:10px;color:#69766D;margin:0 0 8px}.sheet{position:relative;width:100%;height:265mm;overflow:hidden;background:#fff;border:1px solid #e7e8e1}.page-image{position:absolute;width:100%;height:100%;object-fit:contain;inset:0}.typed{position:absolute;inset:12mm 10mm;white-space:normal;overflow-wrap:anywhere;font-size:12px;line-height:1.6;z-index:1}svg{position:absolute;inset:0;width:100%;height:100%;z-index:2}</style></head><body>${pageMarkup}</body></html>`;
+      const file = await Print.printToFileAsync({ html, base64: false });
+      await Sharing.shareAsync(file.uri, { mimeType: 'application/pdf', dialogTitle: `Exportar ${snapshot.title || 'nota'} em PDF` });
+    } catch (error) {
+      console.error('Erro ao exportar PDF:', error);
+      Alert.alert('Não foi possível exportar o PDF', error?.message || 'Tente novamente.');
+    }
   };
   const currentPage = pages[pageIndex];
   const documentRef = useRef(document);
@@ -667,6 +709,7 @@ function EditorScreen({ document, onSave, onChange }) {
           <TextInput value={title} onChangeText={nextTitle => { titleRef.current = nextTitle; setTitle(nextTitle); onChange({ ...document, title: nextTitle, updatedAt: Date.now() }); }} style={styles.examLikeTitleInput} maxLength={70} />
           <Text style={styles.examLikeSubtitle}>{saveState === 'pending' || saveState === 'saving' ? 'Salvando alterações…' : saveState === 'error' ? 'Falha ao salvar · tente novamente' : 'Todas as alterações salvas'}</Text>
         </View>
+        <Pressable onPress={exportPdf} style={[styles.examLikeSave, { marginRight: 7, backgroundColor: '#E8F0E9' }]}><Text style={[styles.examLikeSaveText, { color: COLORS.green }]}>PDF</Text></Pressable>
         <Pressable onPress={save} style={styles.examLikeSave}><Text style={styles.examLikeSaveText}>Salvar</Text></Pressable>
       </View>
 
@@ -828,37 +871,60 @@ function BlocoApp() {
 
   documentsRef.current = documents;
 
-  const enqueueDocumentsSave = (snapshot) => {
+  const enqueueDocumentsSave = snapshot => {
     const serialized = JSON.stringify(snapshot);
-    persistenceQueue.current = persistenceQueue.current
-      .catch(() => undefined)
-      .then(() => AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, serialized));
+    persistenceQueue.current = persistenceQueue.current.catch(() => undefined).then(async () => {
+      const previous = await AsyncStorage.getItem(NOTEBOOKS_STORAGE_KEY);
+      if (previous) await AsyncStorage.setItem(NOTEBOOKS_BACKUP_KEY, previous);
+      await AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, serialized);
+    });
     return persistenceQueue.current;
   };
-
-  const scheduleDocumentsSave = (snapshot) => {
-    clearTimeout(persistenceTimer.current);
+  const cancelScheduledSave = () => {
+    const pending = persistenceTimer.current;
+    if (!pending) return;
+    clearTimeout(pending.timer); persistenceTimer.current = null; pending.resolve(true);
+  };
+  const flushScheduledSave = snapshot => {
+    const pending = persistenceTimer.current;
+    if (pending) {
+      clearTimeout(pending.timer); persistenceTimer.current = null;
+      enqueueDocumentsSave(snapshot).then(() => pending.resolve(true)).catch(error => { console.error('Erro ao salvar cadernos:', error); Alert.alert('Erro ao salvar cadernos', error?.message || 'Não foi possível salvar suas anotações.'); pending.resolve(false); });
+      return;
+    }
+    return enqueueDocumentsSave(snapshot);
+  };
+  const scheduleDocumentsSave = snapshot => {
+    cancelScheduledSave();
     return new Promise(resolve => {
-      persistenceTimer.current = setTimeout(() => {
-        enqueueDocumentsSave(snapshot).then(() => resolve(true)).catch(error => {
-          console.error('Erro ao salvar cadernos:', error);
-          Alert.alert('Erro ao salvar cadernos', error?.message || 'Não foi possível salvar suas anotações.');
-          resolve(false);
-        });
+      const timer = setTimeout(() => {
+        persistenceTimer.current = null;
+        enqueueDocumentsSave(snapshot).then(() => resolve(true)).catch(error => { console.error('Erro ao salvar cadernos:', error); Alert.alert('Erro ao salvar cadernos', error?.message || 'Não foi possível salvar suas anotações.'); resolve(false); });
       }, 250);
+      persistenceTimer.current = { timer, resolve };
     });
   };
 
   useEffect(() => {
     let mounted = true;
     AsyncStorage.getItem(NOTEBOOKS_STORAGE_KEY)
-      .then(raw => {
-        const parsed = raw ? JSON.parse(raw) : [];
-        const recovered = Array.isArray(parsed) ? parsed : [];
-        if (mounted) {
-          documentsRef.current = recovered;
-          setDocuments(recovered);
+      .then(async raw => {
+        try {
+          const parsed = raw ? JSON.parse(raw) : [];
+          if (!Array.isArray(parsed)) throw new Error('O armazenamento principal está inválido.');
+          return parsed;
+        } catch (primaryError) {
+          const backupRaw = await AsyncStorage.getItem(NOTEBOOKS_BACKUP_KEY);
+          if (!backupRaw) throw primaryError;
+          const backup = JSON.parse(backupRaw);
+          if (!Array.isArray(backup)) throw primaryError;
+          await AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, backupRaw);
+          Alert.alert('Cadernos recuperados', 'O Bloco encontrou um backup automático e recuperou seus documentos.');
+          return backup;
         }
+      })
+      .then(recovered => {
+        if (mounted) { documentsRef.current = recovered; setDocuments(recovered); }
       })
       .catch(error => Alert.alert('Erro ao carregar cadernos', error?.message || 'Não foi possível recuperar suas anotações.'))
       .finally(() => {
@@ -870,8 +936,7 @@ function BlocoApp() {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextState => {
       if (nextState !== 'active') {
-        clearTimeout(persistenceTimer.current);
-        enqueueDocumentsSave(documentsRef.current).catch(error => {
+        flushScheduledSave(documentsRef.current)?.catch(error => {
           console.error('Erro ao salvar cadernos em segundo plano:', error);
         });
       }
@@ -880,8 +945,7 @@ function BlocoApp() {
   }, []);
 
   useEffect(() => () => {
-    clearTimeout(persistenceTimer.current);
-    enqueueDocumentsSave(documentsRef.current).catch(error => {
+    flushScheduledSave(documentsRef.current)?.catch(error => {
       console.error('Erro ao finalizar persistência dos cadernos:', error);
     });
   }, []);
@@ -890,7 +954,7 @@ function BlocoApp() {
     documentsRef.current = next;
     setDocuments(next);
     if (immediate) {
-      clearTimeout(persistenceTimer.current);
+      cancelScheduledSave();
       return enqueueDocumentsSave(next);
     }
     return scheduleDocumentsSave(next);
@@ -956,7 +1020,7 @@ function BlocoApp() {
     const next = exists
       ? current.map(item => item.id === document.id ? document : item)
       : [document, ...current];
-    commitDocuments(next);
+    return commitDocuments(next);
   };
 
   const deleteDocument = (documentId, permanent = false) => {
@@ -964,7 +1028,7 @@ function BlocoApp() {
     const next = permanent
       ? current.filter(item => item.id !== documentId)
       : current.map(item => item.id === documentId ? { ...item, deletedAt: Date.now(), updatedAt: Date.now() } : item);
-    commitDocuments(next);
+    return commitDocuments(next);
   };
 
   const duplicateDocument = (document) => {
@@ -975,14 +1039,40 @@ function BlocoApp() {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }));
-    commitDocuments([duplicate, ...documentsRef.current]);
+    return commitDocuments([duplicate, ...documentsRef.current]);
+  };
+
+  const exportBackup = async () => {
+    try {
+      const payload = { format: 'bloco-backup', version: 1, exportedAt: new Date().toISOString(), documents: documentsRef.current };
+      const uri = `${FileSystem.cacheDirectory}bloco-backup-${Date.now()}.json`;
+      await FileSystem.writeAsStringAsync(uri, JSON.stringify(payload, null, 2), { encoding: FileSystem.EncodingType.UTF8 });
+      await Sharing.shareAsync(uri, { mimeType: 'application/json', dialogTitle: 'Exportar backup do Bloco' });
+    } catch (error) { console.error('Erro ao exportar backup:', error); Alert.alert('Não foi possível exportar o backup', error?.message || 'Tente novamente.'); }
+  };
+  const importBackup = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'text/plain'], copyToCacheDirectory: true, multiple: false });
+      if (result.canceled || !result.assets?.length) return;
+      const raw = await FileSystem.readAsStringAsync(result.assets[0].uri, { encoding: FileSystem.EncodingType.UTF8 });
+      const parsed = JSON.parse(raw);
+      const restored = Array.isArray(parsed) ? parsed : parsed?.documents;
+      if (!Array.isArray(restored) || restored.some(item => !item || item.id == null || (item.pages != null && !Array.isArray(item.pages)))) throw new Error('Este arquivo não parece ser um backup válido do Bloco.');
+      Alert.alert('Restaurar backup?', `Serão restaurados ${restored.length} documentos. O conteúdo atual será preservado no backup automático.`, [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Restaurar', style: 'destructive', onPress: async () => {
+          try { const saved = await commitDocuments(restored, true); if (saved !== false) Alert.alert('Backup restaurado', 'Seus documentos foram recuperados.'); }
+          catch (error) { Alert.alert('Falha ao restaurar', error?.message || 'Não foi possível restaurar o backup.'); }
+        } },
+      ]);
+    } catch (error) { console.error('Erro ao importar backup:', error); Alert.alert('Backup inválido', error?.message || 'Não foi possível ler este arquivo.'); }
   };
 
   if (!documentsLoaded) return <SafeAreaView style={styles.safeArea}><Text style={styles.loadingText}>Recuperando seus cadernos...</Text></SafeAreaView>;
   if (activeDocument) return <EditorScreen key={activeDocument.id} document={activeDocument} onSave={saveDocument} onChange={updateDocument} />;
   if (examMode) return <ExamMode onExit={() => setExamMode(false)} />;
   if (redacaoMode) return <RedacaoMode onExit={() => setRedacaoMode(false)} />;
-  return <HomeScreen documents={documents} onImport={importImages} onCreateNote={createNote} onOpen={setActiveDocument} onDelete={deleteDocument} onUpdate={updateDocument} onDuplicate={duplicateDocument} onExam={() => setExamMode(true)} onRedacao={() => setRedacaoMode(true)} />;
+  return <HomeScreen documents={documents} onImport={importImages} onExportBackup={exportBackup} onImportBackup={importBackup} onCreateNote={createNote} onOpen={setActiveDocument} onDelete={deleteDocument} onUpdate={updateDocument} onDuplicate={duplicateDocument} onExam={() => setExamMode(true)} onRedacao={() => setRedacaoMode(true)} />;
 }
 export default function App() {
   return (
