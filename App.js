@@ -1080,14 +1080,8 @@ function BlocoApp() {
           try {
             const restoredDocuments = await restoreLocalPageAssets(restored);
             const restoredExamItems = restoredExams ? await restoreLocalPageAssets(restoredExams) : null;
-            if (restoredExamItems) {
-              if (currentExams !== null) await AsyncStorage.setItem('@bloco:exams:backup:v1', currentExams);
-              await AsyncStorage.setItem('@bloco:exams:v1', JSON.stringify(restoredExamItems));
-            }
-            if (restoredDrafts) {
-              if (currentDrafts !== null) await AsyncStorage.setItem('@bloco:redacoes:backup:v1', currentDrafts);
-              await AsyncStorage.setItem('@bloco:redacoes:v1', JSON.stringify(restoredDrafts));
-            }
+            if (restoredExamItems) await writeArrayWithBackup(AsyncStorage, '@bloco:exams:v1', '@bloco:exams:backup:v1', restoredExamItems);
+            if (restoredDrafts) await writeArrayWithBackup(AsyncStorage, '@bloco:redacoes:v1', '@bloco:redacoes:backup:v1', restoredDrafts);
             const saved = await commitDocuments(restoredDocuments, true);
             if (saved === false) throw new Error('Não foi possível gravar os cadernos restaurados.');
             Alert.alert('Backup restaurado', 'Cadernos, provas e redações incluídos no arquivo foram recuperados.');
