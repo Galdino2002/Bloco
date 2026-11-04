@@ -569,7 +569,7 @@ export default function RedacaoMode({ onExit }) {
         ) : (
           <View style={styles.drawArea}>
             <ContextToolbar>
-              <IconButton label="↶" accessibilityLabel="Desfazer" onPress={undoPaths} disabled={pathHistory.past.length <= 1} />
+              <IconButton label="↶" accessibilityLabel="Desfazer" onPress={undoPaths} disabled={!pathHistory.past.length} />
               <IconButton label="↷" accessibilityLabel="Refazer" onPress={redoPaths} disabled={!pathHistory.future.length} />
               <Pressable onPress={() => Alert.alert('Limpar folha?', 'Apagar todos os traços desta folha?', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Limpar', style: 'destructive', onPress: () => applyPaths([]) }])}><Text style={styles.toolText}>Limpar</Text></Pressable>
             </ContextToolbar>
