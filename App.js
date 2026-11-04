@@ -791,7 +791,7 @@ function EditorScreen({ document, onSave, onChange }) {
       </View>
 
       <ContextToolbar>
-        <IconButton label="↶" accessibilityLabel="Desfazer" onPress={undo} disabled={pathHistory.past.length <= 1} />
+        <IconButton label="↶" accessibilityLabel="Desfazer" onPress={undo} disabled={!pathHistory.past.length} />
         <IconButton label="↷" accessibilityLabel="Refazer" onPress={redo} disabled={!pathHistory.future.length} />
         <View style={{ flex: 1 }} />
         <View style={styles.examLikeCounter}><Text style={styles.examLikeCounterText}>{String(pageIndex + 1).padStart(2, '0')} / {String(pages.length).padStart(2, '0')}</Text></View>
