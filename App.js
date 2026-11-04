@@ -1071,7 +1071,8 @@ function BlocoApp() {
       const restored = Array.isArray(parsed) ? parsed : parsed?.documents;
       const restoredExams = Array.isArray(parsed?.exams) ? parsed.exams : null;
       const restoredDrafts = Array.isArray(parsed?.drafts) ? parsed.drafts : null;
-      if (!Array.isArray(restored) || restored.some(item => !item || item.id == null || (item.pages != null && !Array.isArray(item.pages))) || (restoredExams && restoredExams.some(item => !item || item.id == null)) || (restoredDrafts && restoredDrafts.some(item => !item || item.id == null))) throw new Error('Este arquivo não parece ser um backup válido do Bloco.');
+      const invalidDocuments = items => items.some(item => !item || item.id == null || (item.pages != null && !Array.isArray(item.pages)) || (item.paths != null && !Array.isArray(item.paths)));
+      if (!Array.isArray(restored) || invalidDocuments(restored) || (restoredExams && invalidDocuments(restoredExams)) || (restoredDrafts && invalidDocuments(restoredDrafts))) throw new Error('Este arquivo não parece ser um backup válido do Bloco.');
       Alert.alert('Restaurar backup?', `Serão restaurados ${restored.length} documentos${restoredExams ? `, ${restoredExams.length} provas` : ''}${restoredDrafts ? ` e ${restoredDrafts.length} redações` : ''}. O conteúdo atual ficará preservado nos backups automáticos.`, [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Restaurar', style: 'destructive', onPress: async () => {
