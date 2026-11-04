@@ -11,8 +11,9 @@ import * as Sharing from 'expo-sharing';
 import Svg, { G, Line, Path, Rect } from 'react-native-svg';
 import { eraseAtPoint, getHighlighterStyle, pathIntersectsPolygon } from './drawing';
 import { ContextToolbar, design, IconButton, ScreenHeader } from './designSystem';
-import { commitHistory, createHistory, redoHistory, undoHistory } from './drawingHistory';
+import drawingHistory from './drawingHistory';
 
+const { commitHistory, createHistory, redoHistory, undoHistory } = drawingHistory;
 const { readArrayWithBackup, writeArrayWithBackup } = storage;
 
 const STORAGE_KEY = '@bloco:redacoes:v1';
