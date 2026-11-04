@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
 import { File } from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import storage from './storage.cjs';
+import storage from './storage';
 const { readArrayWithBackup, writeArrayWithBackup } = storage;
 import { WebView } from 'react-native-webview';
 import Svg, { Path, Rect } from 'react-native-svg';
