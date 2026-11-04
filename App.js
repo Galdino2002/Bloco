@@ -248,10 +248,15 @@ function EditorScreen({ document, onSave, onChange }) {
   selectedIdsRef.current=selectedStrokeIds; lassoRef.current=lassoPoints;
   pathHistoryRef.current = pathHistory;
 
+  const pageTextRef = useRef(pageText);
+  const pageBackgroundRef = useRef(pageBackground);
+  pageTextRef.current = pageText;
+  pageBackgroundRef.current = pageBackground;
+
   const currentSnapshot = (overrides = {}) => ({
     paths: pathsRef.current,
-    text: pageText,
-    background: pageBackground,
+    text: pageTextRef.current,
+    background: pageBackgroundRef.current,
     ...overrides,
   });
   const applySnapshot = (snapshot) => {
@@ -742,8 +747,8 @@ const styles = StyleSheet.create({
   footerNote: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 26, gap: 8 },
   footerLeaf: { color: COLORS.green, fontSize: 13 },
   footerText: { color: '#9AA298', fontSize: 10, letterSpacing: 0.2 },
-  editorSafe: { flex: 1, backgroundColor: COLORS.paper },
-  editorHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.line },
+  editorSafe: { flex: 1, backgroundColor: '#F1F2EF' },
+  editorHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 9, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E7E9E5' },
   backButton: { width: 38, height: 38, borderRadius: 13, backgroundColor: '#ECEFE8', alignItems: 'center', justifyContent: 'center' },
   backArrow: { color: COLORS.ink, fontSize: 31, lineHeight: 34, marginTop: -4 },
   editorTitleWrap: { flex: 1, marginLeft: 11 },
@@ -776,8 +781,8 @@ const styles = StyleSheet.create({
   editorSpacer: { flex: 1 },
   pageCounter: { backgroundColor: COLORS.greenLight, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 6 },
   pageCounterText: { color: COLORS.green, fontSize: 9, fontWeight: '700' },
-  canvasArea: { flex: 1, paddingHorizontal: 13, paddingTop: 14, paddingBottom: 8 },
-  canvasPaper: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, overflow: 'hidden', elevation: 2, shadowColor: '#23392E', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
+  canvasArea: { flex: 1, paddingHorizontal: 10, paddingTop: 9, paddingBottom: 7, backgroundColor: '#F1F2EF' },
+  canvasPaper: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 5, overflow: 'hidden', elevation: 2, shadowColor: '#202522', shadowOpacity: 0.08, shadowRadius: 9, shadowOffset: { width: 0, height: 2 } },
   examImage: { width: '100%', height: '100%' },
   blankPage: { flex: 1, backgroundColor: '#FFFDF8', padding: 22 },
   pageRule: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: '#DDE8DD' },
@@ -793,7 +798,7 @@ const styles = StyleSheet.create({
   zoomValue: { color: COLORS.green, fontSize: 9, minWidth: 34, textAlign: 'center', fontWeight: '700' },
   zoomReset: { paddingHorizontal: 7, paddingVertical: 6 },
   zoomResetText: { color: COLORS.muted, fontSize: 9, fontWeight: '600' },
-  drawingPanel: { backgroundColor: '#FFFFFF', paddingHorizontal: 18, paddingTop: 10, paddingBottom: 13, borderTopWidth: 1, borderTopColor: COLORS.line },
+  drawingPanel: { backgroundColor: '#FFFFFF', paddingHorizontal: 13, paddingTop: 8, paddingBottom: 10, borderTopWidth: 1, borderTopColor: '#E4E7E2', borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   toolModeRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 10, flexWrap: 'wrap' },
   modeButton: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 11, paddingVertical: 8, borderRadius: 11, marginRight: 7 },
   modeButtonActive: { backgroundColor: COLORS.greenLight },
