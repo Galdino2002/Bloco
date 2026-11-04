@@ -881,6 +881,8 @@ function EditorScreen({ document, onSave, onChange }) {
 function BlocoApp() {
   const [documents, setDocuments] = useState([]);
   const [documentsLoaded, setDocumentsLoaded] = useState(false);
+  const [documentsLoadError, setDocumentsLoadError] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [activeDocument, setActiveDocument] = useState(null);
   const [examMode, setExamMode] = useState(false);
   const [redacaoMode, setRedacaoMode] = useState(false);
@@ -930,12 +932,12 @@ function BlocoApp() {
         if (recovered) Alert.alert('Cadernos recuperados', 'O Bloco encontrou um backup automático e recuperou seus documentos.');
         if (mounted) { documentsRef.current = items; setDocuments(items); }
       })
-      .catch(error => Alert.alert('Erro ao carregar cadernos', error?.message || 'Não foi possível recuperar suas anotações.'))
+      .catch(error => { if (mounted) setDocumentsLoadError(error?.message || 'Não foi possível recuperar suas anotações.'); })
       .finally(() => {
         if (mounted) setDocumentsLoaded(true);
       });
     return () => { mounted = false; };
-  }, []);
+  }, [loadAttempt]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextState => {
@@ -1103,6 +1105,7 @@ function BlocoApp() {
   };
 
   if (!documentsLoaded) return <SafeAreaView style={styles.safeArea}><Text style={styles.loadingText}>Recuperando seus cadernos...</Text></SafeAreaView>;
+  if (documentsLoadError) return <SafeAreaView style={styles.safeArea}><View style={{ flex: 1, justifyContent: 'center', padding: 28, gap: 14 }}><Text style={{ color: COLORS.ink, fontSize: 22, fontWeight: '800' }}>Não foi possível abrir seus cadernos</Text><Text style={{ color: COLORS.muted, fontSize: 14, lineHeight: 21 }}>{documentsLoadError}</Text><Text style={{ color: COLORS.rose, fontSize: 12, lineHeight: 18 }}>Seus dados não foram substituídos. Não desinstale o aplicativo nem limpe os dados do armazenamento.</Text><Pressable onPress={() => { setDocumentsLoadError(''); setDocumentsLoaded(false); setLoadAttempt(value => value + 1); }} style={{ backgroundColor: COLORS.green, padding: 15, borderRadius: 12, alignItems: 'center' }}><Text style={{ color: COLORS.white, fontWeight: '700' }}>Tentar novamente</Text></Pressable></View></SafeAreaView>;
   if (activeDocument) return <EditorScreen key={activeDocument.id} document={activeDocument} onSave={saveDocument} onChange={updateDocument} />;
   if (examMode) return <ExamMode onExit={() => setExamMode(false)} />;
   if (redacaoMode) return <RedacaoMode onExit={() => setRedacaoMode(false)} />;
