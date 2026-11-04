@@ -341,6 +341,8 @@ function ExamEditor({ exam, onSave, onBack }) {
   const [markerWidth, setMarkerWidth] = useState(18);
   const [toolsExpanded, setToolsExpanded] = useState(false);
   const [penWidth, setPenWidth] = useState(4);
+  const [penOpacity, setPenOpacity] = useState(1);
+  const [eraserSize, setEraserSize] = useState(24);
   const [zoom, setZoom] = useState(exam.zoom || 1);
   const [pan, setPan] = useState(exam.pan || { x: 0, y: 0 });
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
@@ -359,6 +361,8 @@ function ExamEditor({ exam, onSave, onBack }) {
   const markerTypeRef = useRef(markerType);
   const markerWidthRef = useRef(markerWidth);
   const penWidthRef = useRef(penWidth);
+  const penOpacityRef = useRef(penOpacity);
+  const eraserSizeRef = useRef(eraserSize);
   const zoomRef = useRef(exam.zoom || 1);
   const pinchStart = useRef(null);
   const panStart = useRef(null);
@@ -369,7 +373,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const selectionGesture = useRef(null);
   const pathHistoryRef = useRef(pathHistory);
   const persistenceQueueRef = useRef(Promise.resolve());
-  pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType; markerWidthRef.current = markerWidth; penWidthRef.current = penWidth;
+  pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType; markerWidthRef.current = markerWidth; penWidthRef.current = penWidth; penOpacityRef.current = penOpacity; eraserSizeRef.current = eraserSize;
   selectedRef.current = selectedIds; lassoRef.current = lasso;
   pathHistoryRef.current = pathHistory;
   canvasSizeRef.current = canvasSize;
@@ -500,7 +504,7 @@ function ExamEditor({ exam, onSave, onBack }) {
       if (toolRef.current === 'eraser') {
         const p = screenToDocument({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2} });
         const previous = pathsRef.current;
-        const next = eraseAtPoint(previous, p, 24);
+        const next = eraseAtPoint(previous, p, eraserSizeRef.current);
         const changed = next.length !== previous.length || next.some((path, index) => path !== previous[index]);
         if (changed) {
           pathsRef.current = next;
@@ -518,7 +522,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         points: [p],
         color: colorRef.current,
         width: isHighlighter ? markerStyle.width : penWidthRef.current,
-        opacity: isHighlighter ? markerStyle.opacity : 1,
+        opacity: isHighlighter ? markerStyle.opacity : penOpacityRef.current,
         kind: isHighlighter ? 'highlighter' : 'pen',
       };
       activePath.current = stroke;
@@ -691,7 +695,7 @@ function ExamEditor({ exam, onSave, onBack }) {
     <View style={s.pageControls}><Pressable disabled={index === 0} onPress={() => changePage(index - 1)} style={s.pageControlButton}><Text style={s.pageControlText}>‹</Text></Pressable><View style={s.pageProgress}><Text style={s.pageText}>Página {index + 1} de {pages.length}</Text><View style={s.pageProgressTrack}><View style={[s.pageProgressFill, { width: `${((index + 1) / Math.max(1, pages.length)) * 100}%` }]} /></View></View><Pressable disabled={index === pages.length - 1} onPress={() => changePage(index + 1)} style={s.pageControlButton}><Text style={s.pageControlText}>›</Text></Pressable></View>
     <ScrollView pointerEvents={finalized ? 'none' : 'auto'} style={[s.drawPanel, { maxHeight: toolsExpanded ? 300 : 116 }, finalized && { opacity: 0.55 }]} contentContainerStyle={{ paddingBottom: toolsExpanded ? 8 : 4 }} showsVerticalScrollIndicator={false}>
       <Text style={s.selectionHint}>{tool==='select'?(selectedIds.length ? `${selectedIds.length} selecionado(s) · arraste para mover` : 'Contorne a escrita com o dedo para selecionar.'):'Escolha uma ferramenta para anotar a prova.'}</Text>{selectedIds.length>0 && <View style={s.selectionActions}><Pressable onPress={()=>applyPathChange(scaleSelected(pathsRef.current,selectedIds,1.15))} style={s.selectionAction}><Text style={s.toolbarText}>＋ Tamanho</Text></Pressable><Pressable onPress={()=>applyPathChange(scaleSelected(pathsRef.current,selectedIds,0.87))} style={s.selectionAction}><Text style={s.toolbarText}>− Tamanho</Text></Pressable><Pressable onPress={()=>applyPathChange(rotateSelected(pathsRef.current,selectedIds,Math.PI/12))} style={s.selectionAction}><Text style={s.toolbarText}>↻ Girar</Text></Pressable><Pressable onPress={()=>{const picked=pathsRef.current.filter(stroke=>selectedIds.includes(stroke.id));setSelectedClipboard(picked);applyPathChange(pathsRef.current.filter(stroke=>!selectedIds.includes(stroke.id)));setSelectedIds([]);}} style={s.selectionAction}><Text style={s.toolbarText}>Cortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(stroke=>({...stroke,id:String(Date.now())+Math.random(),points:stroke.points.map(p=>({x:p.x+24,y:p.y+24}))}));applyPathChange([...pathsRef.current,...pasted]);setSelectedIds(pasted.map(stroke=>stroke.id));}} style={s.selectionAction}><Text style={s.toolbarText}>Colar</Text></Pressable><Pressable onPress={()=>{applyPathChange(pathsRef.current.filter(stroke=>!selectedIds.includes(stroke.id)));setSelectedIds([]);}} style={s.selectionAction}><Text style={[s.toolbarText,{color:'#B44D45'}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedIds([])} style={s.selectionAction}><Text style={s.toolbarText}>Nova seleção</Text></Pressable></View>}
-      <View style={s.compactToolRow}><Pressable onPress={() => { setTool('select'); setSelectedIds([]); setLasso([]); }} style={[s.compactTool, tool === 'select' && s.compactToolActive]}><Text style={s.compactToolGlyph}>⌁</Text><Text style={s.compactToolText}>Laço</Text></Pressable><Pressable onPress={() => setToolsExpanded(value => !value)} style={[s.moreToolsButton, toolsExpanded && s.moreToolsButtonActive]}><Text style={s.moreToolsGlyph}>{toolsExpanded ? '⌃' : '•••'}</Text><Text style={s.moreToolsText}>{toolsExpanded ? 'Fechar' : 'Ferramentas'}</Text></Pressable></View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.quickToolScroll} contentContainerStyle={s.compactToolRow}>{[{id:'pen',glyph:'✎',label:'Caneta'},{id:'highlighter',glyph:'▰',label:'Marca-texto'},{id:'eraser',glyph:'⌫',label:'Borracha'},{id:'select',glyph:'⌁',label:'Laço'},{id:'move',glyph:'✥',label:'Mover'}].map(item=><Pressable key={item.id} onPress={()=>{setTool(item.id);if(item.id!=='select'){setSelectedIds([]);selectedRef.current=[];setLasso([]);lassoRef.current=[];}}} style={[s.quickToolButton,tool===item.id&&s.quickToolButtonActive]}><Text style={s.quickToolGlyph}>{item.glyph}</Text><Text style={[s.quickToolLabel,tool===item.id&&s.quickToolLabelActive]}>{item.label}</Text></Pressable>)}<Pressable onPress={()=>setToolsExpanded(value=>!value)} style={[s.moreToolsButton,toolsExpanded&&s.moreToolsButtonActive]}><Text style={s.moreToolsGlyph}>{toolsExpanded?'⌃':'•••'}</Text><Text style={s.moreToolsText}>{toolsExpanded?'Fechar':'Mais'}</Text></Pressable></ScrollView>
       {toolsExpanded && <View style={s.expandedTools}><View style={s.drawTools}><Pressable onPress={() => setTool('pen')} style={[s.tool, tool === 'pen' && s.toolActive]}><Text style={s.toolText}>✎ Caneta</Text></Pressable><Pressable onPress={() => setTool('highlighter')} style={[s.tool, tool === 'highlighter' && s.toolActive]}><Text style={s.toolText}>▰ Marca-texto</Text></Pressable><Pressable onPress={() => setTool('eraser')} style={[s.tool, tool === 'eraser' && s.toolActive]}><Text style={s.toolText}>⌫ Borracha</Text></Pressable><Pressable onPress={() => setTool('move')} style={[s.tool, tool === 'move' && s.toolActive]}><Text style={s.toolText}>✥ Mover folha</Text></Pressable><Pressable onPress={() => Alert.alert('Limpar anotações desta página?', 'Esta ação pode ser desfeita pelo botão Desfazer.', [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Limpar página', style: 'destructive', onPress: () => {
@@ -700,7 +704,8 @@ function ExamEditor({ exam, onSave, onBack }) {
           selectedRef.current = [];
         } },
       ])} style={s.tool}><Text style={s.toolText}>⌫ Limpar página</Text></Pressable></View>
-      {tool === 'pen' && <View style={s.strokePicker}><View style={s.strokePickerHeader}><Text style={s.paletteTitle}>ESPESSURA DA CANETA</Text><Text style={s.strokeValue}>{penWidth}px</Text></View><View style={s.strokeOptions}>{[{ width: 2, label: 'Fina' }, { width: 4, label: 'Média' }, { width: 7, label: 'Grossa' }, { width: 11, label: 'Extra' }].map(option => <Pressable key={option.width} accessibilityRole="button" accessibilityLabel={`Espessura ${option.label}`} onPress={() => setPenWidth(option.width)} style={[s.strokeOption, penWidth === option.width && s.strokeOptionActive]}><View style={s.strokePreview}><View style={[s.strokeLine, { height: option.width, borderRadius: option.width / 2 }]} /></View><Text style={[s.strokeOptionLabel, penWidth === option.width && s.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View></View>}
+      {tool === 'pen' && <><View style={s.strokePicker}><View style={s.strokePickerHeader}><Text style={s.paletteTitle}>ESPESSURA DA CANETA</Text><Text style={s.strokeValue}>{penWidth}px</Text></View><View style={s.strokeOptions}>{[{ width: 2, label: 'Fina' }, { width: 4, label: 'Média' }, { width: 7, label: 'Grossa' }, { width: 11, label: 'Extra' }].map(option => <Pressable key={option.width} accessibilityRole="button" accessibilityLabel={`Espessura ${option.label}`} onPress={() => setPenWidth(option.width)} style={[s.strokeOption, penWidth === option.width && s.strokeOptionActive]}><View style={s.strokePreview}><View style={[s.strokeLine, { height: option.width, borderRadius: option.width / 2 }]} /></View><Text style={[s.strokeOptionLabel, penWidth === option.width && s.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View></View><View style={s.strokePicker}><Text style={s.paletteTitle}>OPACIDADE</Text><View style={s.strokeOptions}>{[{value:0.45,label:'45%'},{value:0.7,label:'70%'},{value:0.85,label:'85%'},{value:1,label:'100%'}].map(option=><Pressable key={option.value} onPress={()=>setPenOpacity(option.value)} style={[s.strokeOption,s.opacityOption,penOpacity===option.value&&s.strokeOptionActive]}><View style={[s.opacityPreview,{backgroundColor:color,opacity:option.value}]}/><Text style={[s.strokeOptionLabel,penOpacity===option.value&&s.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View></View></>}
+      {tool === 'eraser' && <View style={s.strokePicker}><View style={s.strokePickerHeader}><Text style={s.paletteTitle}>TAMANHO DA BORRACHA</Text><Text style={s.strokeValue}>{eraserSize}px</Text></View><View style={s.strokeOptions}>{[{value:12,label:'Pequena'},{value:24,label:'Média'},{value:40,label:'Grande'},{value:60,label:'Extra'}].map(option=><Pressable key={option.value} onPress={()=>setEraserSize(option.value)} style={[s.strokeOption,eraserSize===option.value&&s.strokeOptionActive]}><View style={s.strokePreview}><View style={[s.eraserPreview,{width:Math.min(42,option.value),height:Math.min(18,option.value/2)}]}/></View><Text style={[s.strokeOptionLabel,eraserSize===option.value&&s.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View><Text style={s.toolHelp}>Apaga os traços que cruzam a área tocada.</Text></View>}
       {tool === 'highlighter' && <><View style={s.strokePicker}><View style={s.strokePickerHeader}><Text style={s.paletteTitle}>ESPESSURA DO MARCA-TEXTO</Text><Text style={s.strokeValue}>{markerWidth}px</Text></View><View style={s.strokeOptions}>{[{ width: 10, label: 'Fina' }, { width: 18, label: 'Média' }, { width: 28, label: 'Larga' }].map(option => <Pressable key={option.width} accessibilityRole="button" accessibilityLabel={`Espessura do marca-texto ${option.label}`} onPress={() => setMarkerWidth(option.width)} style={[s.strokeOption, markerWidth === option.width && s.strokeOptionActive]}><View style={s.strokePreview}><View style={[s.markerStrokeLine, { height: Math.min(18, Math.max(6, option.width / 1.5)) }]} /></View><Text style={[s.strokeOptionLabel, markerWidth === option.width && s.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View></View><View style={s.markerTypes}><Text style={s.paletteTitle}>ESTILO</Text>{[{id:'classic',label:'Clássico'},{id:'pastel',label:'Pastel'},{id:'bold',label:'Forte'},{id:'underline',label:'Sublinhado'}].map(item=><Pressable key={item.id} onPress={()=>setMarkerType(item.id)} style={[s.markerType,markerType===item.id&&s.markerTypeActive]}><Text style={[s.markerTypeText,markerType===item.id&&s.markerTypeTextActive]}>{item.label}</Text></Pressable>)}</View></>}
       </View>}
       {toolsExpanded && <><View style={s.paletteSection}><Text style={s.paletteTitle}>CORES</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.palette}>{COLORS.map(c => <Pressable key={c} onPress={() => { setColor(c); if (tool === 'eraser') setTool('pen'); }} style={[s.swatch, { backgroundColor: c, borderColor: c === '#FFFFFF' ? '#AEB5AE' : c }, color === c && s.swatchSelected]} />)}</ScrollView></View><View style={s.paletteRow}><View style={s.zoomControls}><Pressable style={s.zoomButton} onPress={() => { const next = Math.max(0.5, Number((zoom - 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>−</Text></Pressable><Text style={s.zoomValue}>{Math.round(zoom * 100)}%</Text><Pressable style={s.zoomButton} onPress={() => { const next = Math.min(3, Number((zoom + 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>+</Text></Pressable><Pressable style={s.zoomReset} onPress={() => { zoomRef.current = 1; setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); }}><Text style={s.zoomResetText}>Ajustar</Text></Pressable></View></View><Button title="Salvar e sair" onPress={saveAndExit} /><Button title="Finalizar prova" secondary onPress={finalizeExam} disabled={finalized} /></>}</ScrollView>
@@ -780,7 +785,17 @@ const s = StyleSheet.create({
   selectionHint: { color:'#77847A', fontSize:10, marginBottom:7 },
   selectionActions: { flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:9 },
   selectionAction: { paddingHorizontal:10, paddingVertical:7, borderRadius:10, backgroundColor:'#E8F0E9', borderWidth:1, borderColor:'#D4E2D6' },
-  compactToolRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 5 },
+  quickToolScroll: { flexGrow: 0 },
+  compactToolRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 5 },
+  quickToolButton: { minWidth: 66, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 9, paddingVertical: 7, borderRadius: 11, backgroundColor: '#F4F5F1' },
+  quickToolButtonActive: { backgroundColor: '#E0ECE1', borderWidth: 1, borderColor: '#A9C4AE' },
+  quickToolGlyph: { color: '#52675A', fontSize: 17, lineHeight: 20 },
+  quickToolLabel: { color: '#667269', fontSize: 9, fontWeight: '700', marginTop: 2 },
+  quickToolLabelActive: { color: GREEN },
+  opacityOption: { minHeight: 50 },
+  opacityPreview: { width: 28, height: 8, borderRadius: 4 },
+  eraserPreview: { backgroundColor: '#D7DAD4', borderRadius: 8, borderWidth: 1, borderColor: '#9CA69B', alignSelf: 'center' },
+  toolHelp: { color: '#78847B', fontSize: 10, marginTop: 7 },
   compactTool: { flexDirection: 'row', alignItems: 'center', minWidth: 92, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 11 },
   compactToolActive: { backgroundColor: '#E8F0E9' },
   compactToolGlyph: { color: GREEN, fontSize: 19, marginRight: 7 },
