@@ -113,7 +113,7 @@ export function ScreenTitle({ eyebrow, title, subtitle, right }) {
     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: design.spacing.lg }}>
       <View style={{ flex: 1 }}>
         {eyebrow ? <Text style={{ ...design.typography.label, color: design.colors.accent, marginBottom: 5 }}>{eyebrow}</Text> : null}
-        <Text style={{ ...design.typography.title, color: design.colors.ink }}>{title}</Text>
+        <Text numberOfLines={2} style={{ ...design.typography.title, color: design.colors.ink }}>{title}</Text>
         {subtitle ? <Text style={{ ...design.typography.caption, color: design.colors.inkSoft, marginTop: 4 }}>{subtitle}</Text> : null}
       </View>
       {right}
@@ -126,8 +126,11 @@ export function ContextToolbar({ children }) {
   return (
     <View style={{
       flexDirection: 'row',
+      flexWrap: 'wrap',
       alignItems: 'center',
-      gap: 5,
+      justifyContent: 'center',
+      rowGap: 5,
+      columnGap: 5,
       minHeight: 54,
       paddingHorizontal: 9,
       paddingVertical: 6,
