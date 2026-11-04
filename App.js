@@ -1075,7 +1075,14 @@ function BlocoApp() {
       Alert.alert('Restaurar backup?', `Serão restaurados ${restored.length} documentos${restoredExams ? `, ${restoredExams.length} provas` : ''}${restoredDrafts ? ` e ${restoredDrafts.length} redações` : ''}. O conteúdo atual ficará preservado nos backups automáticos.`, [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Restaurar', style: 'destructive', onPress: async () => {
-          const [currentExams, currentDrafts] = await Promise.all([AsyncStorage.getItem('@bloco:exams:v1'), AsyncStorage.getItem('@bloco:redacoes:v1')]);
+          let currentExams;
+          let currentDrafts;
+          try {
+            [currentExams, currentDrafts] = await Promise.all([AsyncStorage.getItem('@bloco:exams:v1'), AsyncStorage.getItem('@bloco:redacoes:v1')]);
+          } catch (error) {
+            Alert.alert('Falha ao preparar restauração', error?.message || 'Não foi possível proteger os dados atuais antes da restauração.');
+            return;
+          }
           const currentDocuments = documentsRef.current;
           try {
             const restoredDocuments = await restoreLocalPageAssets(restored);
