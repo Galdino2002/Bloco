@@ -12,6 +12,16 @@ import { eraseAtPoint, getHighlighterStyle, pathIntersectsPolygon } from './draw
 import { ContextToolbar, design, IconButton, ScreenHeader } from './designSystem';
 
 const STORAGE_KEY = '@bloco:redacoes:v1';
+const BACKUP_KEY = '@bloco:redacoes:backup:v1';
+
+async function writeDraftsWithBackup(items) {
+  const previous = await AsyncStorage.getItem(STORAGE_KEY);
+  if (previous) {
+    try { if (Array.isArray(JSON.parse(previous))) await AsyncStorage.setItem(BACKUP_KEY, previous); } catch { /* preserve the last known good backup */ }
+  }
+  await writeDraftsWithBackup(items);
+}
+
 const INK = '#203B32';
 const GREEN = '#315C49';
 const PAPER = '#F7F6F1';
@@ -113,10 +123,11 @@ export default function RedacaoMode({ onExit }) {
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
-      .then(raw => {
-        const parsed = raw ? JSON.parse(raw) : [];
-        setDrafts(Array.isArray(parsed) ? parsed : []);
+      .then(async raw => {
+        try { const parsed = raw ? JSON.parse(raw) : []; if (!Array.isArray(parsed)) throw new Error('Armazenamento inválido'); return parsed; }
+        catch (error) { const backupRaw = await AsyncStorage.getItem(BACKUP_KEY); if (!backupRaw) throw error; const backup = JSON.parse(backupRaw); if (!Array.isArray(backup)) throw error; await AsyncStorage.setItem(STORAGE_KEY, backupRaw); Alert.alert('Redações recuperadas', 'O Bloco restaurou suas redações a partir do backup automático.'); return backup; }
       })
+      .then(setDrafts)
       .catch(() => Alert.alert('Erro', 'Não foi possível carregar suas redações.'))
       .finally(() => setLoaded(true));
   }, []);
@@ -137,7 +148,7 @@ export default function RedacaoMode({ onExit }) {
         const next = current.some(item => item.id === draft.id)
           ? current.map(item => item.id === draft.id ? draft : item)
           : [draft, ...current];
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        await writeDraftsWithBackup(next);
         setDrafts(next);
         setSaveState('saved');
       })
