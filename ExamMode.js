@@ -9,7 +9,7 @@ import { File } from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
 import Svg, { Path, Rect } from 'react-native-svg';
-import { eraseAtPoint, getHighlighterStyle, pathIntersectsPolygon, screenToDocument } from './drawing';
+import { distanceToSegment, eraseAtPoint, getHighlighterStyle, pathIntersectsPolygon, screenToDocument } from './drawing';
 import { commitHistory, createHistory, redoHistory, undoHistory } from './drawingHistory';
 import { ContextToolbar, design, IconButton } from './designSystem';
 
@@ -75,6 +75,14 @@ function insidePolygon(p, polygon) {
     if (((a.y > p.y) !== (b.y > p.y)) && p.x < ((b.x-a.x)*(p.y-a.y))/((b.y-a.y)||0.00001)+a.x) inside = !inside;
   }
   return inside;
+}
+function eraseWholeStrokesAtPoint(strokes, point, radius) {
+  return strokes.filter(stroke => {
+    const points = stroke.points || [];
+    if (!points.length) return false;
+    if (points.length === 1) return Math.hypot(points[0].x - point.x, points[0].y - point.y) >= radius;
+    return !points.some((current, index) => index > 0 && distanceToSegment(point, points[index - 1], current) < radius);
+  });
 }
 function boundsFor(strokes) {
   const pts = strokes.flatMap(stroke => stroke.points || []);
@@ -343,6 +351,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const [penWidth, setPenWidth] = useState(4);
   const [penOpacity, setPenOpacity] = useState(1);
   const [eraserSize, setEraserSize] = useState(24);
+  const [eraserMode, setEraserMode] = useState('partial');
   const [zoom, setZoom] = useState(exam.zoom || 1);
   const [pan, setPan] = useState(exam.pan || { x: 0, y: 0 });
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
@@ -363,6 +372,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const penWidthRef = useRef(penWidth);
   const penOpacityRef = useRef(penOpacity);
   const eraserSizeRef = useRef(eraserSize);
+  const eraserModeRef = useRef(eraserMode);
   const zoomRef = useRef(exam.zoom || 1);
   const pinchStart = useRef(null);
   const panStart = useRef(null);
@@ -373,7 +383,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const selectionGesture = useRef(null);
   const pathHistoryRef = useRef(pathHistory);
   const persistenceQueueRef = useRef(Promise.resolve());
-  pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType; markerWidthRef.current = markerWidth; penWidthRef.current = penWidth; penOpacityRef.current = penOpacity; eraserSizeRef.current = eraserSize;
+  pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType; markerWidthRef.current = markerWidth; penWidthRef.current = penWidth; penOpacityRef.current = penOpacity; eraserSizeRef.current = eraserSize; eraserModeRef.current = eraserMode;
   selectedRef.current = selectedIds; lassoRef.current = lasso;
   pathHistoryRef.current = pathHistory;
   canvasSizeRef.current = canvasSize;
@@ -516,7 +526,9 @@ function ExamEditor({ exam, onSave, onBack }) {
       if (toolRef.current === 'eraser') {
         const p = screenToDocument({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2} });
         const previous = pathsRef.current;
-        const next = eraseAtPoint(previous, p, eraserSizeRef.current);
+        const next = eraserModeRef.current === 'whole'
+          ? eraseWholeStrokesAtPoint(previous, p, eraserSizeRef.current)
+          : eraseAtPoint(previous, p, eraserSizeRef.current);
         const changed = next.length !== previous.length || next.some((path, index) => path !== previous[index]);
         if (changed) {
           pathsRef.current = next;
@@ -722,7 +734,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         } },
       ])} style={s.tool}><Text style={s.toolText}>⌫ Limpar página</Text></Pressable></View>
       {tool === 'pen' && <><View style={s.strokePicker}><View style={s.strokePickerHeader}><Text style={s.paletteTitle}>ESPESSURA DA CANETA</Text><Text style={s.strokeValue}>{penWidth}px</Text></View><View style={s.strokeOptions}>{[{ width: 2, label: 'Fina' }, { width: 4, label: 'Média' }, { width: 7, label: 'Grossa' }, { width: 11, label: 'Extra' }].map(option => <Pressable key={option.width} accessibilityRole="button" accessibilityLabel={`Espessura ${option.label}`} onPress={() => setPenWidth(option.width)} style={[s.strokeOption, penWidth === option.width && s.strokeOptionActive]}><View style={s.strokePreview}><View style={[s.strokeLine, { height: option.width, borderRadius: option.width / 2 }]} /></View><Text style={[s.strokeOptionLabel, penWidth === option.width && s.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View></View><View style={s.strokePicker}><Text style={s.paletteTitle}>OPACIDADE</Text><View style={s.strokeOptions}>{[{value:0.45,label:'45%'},{value:0.7,label:'70%'},{value:0.85,label:'85%'},{value:1,label:'100%'}].map(option=><Pressable key={option.value} onPress={()=>setPenOpacity(option.value)} style={[s.strokeOption,s.opacityOption,penOpacity===option.value&&s.strokeOptionActive]}><View style={[s.opacityPreview,{backgroundColor:color,opacity:option.value}]}/><Text style={[s.strokeOptionLabel,penOpacity===option.value&&s.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View></View></>}
-      {tool === 'eraser' && <View style={s.strokePicker}><View style={s.strokePickerHeader}><Text style={s.paletteTitle}>TAMANHO DA BORRACHA</Text><Text style={s.strokeValue}>{eraserSize}px</Text></View><View style={s.strokeOptions}>{[{value:12,label:'Pequena'},{value:24,label:'Média'},{value:40,label:'Grande'},{value:60,label:'Extra'}].map(option=><Pressable key={option.value} onPress={()=>setEraserSize(option.value)} style={[s.strokeOption,eraserSize===option.value&&s.strokeOptionActive]}><View style={s.strokePreview}><View style={[s.eraserPreview,{width:Math.min(42,option.value),height:Math.min(18,option.value/2)}]}/></View><Text style={[s.strokeOptionLabel,eraserSize===option.value&&s.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View><Text style={s.toolHelp}>Apaga os traços que cruzam a área tocada.</Text></View>}
+      {tool === 'eraser' && <View style={s.strokePicker}><View style={s.strokePickerHeader}><Text style={s.paletteTitle}>TAMANHO DA BORRACHA</Text><Text style={s.strokeValue}>{eraserSize}px</Text></View><View style={s.strokeOptions}>{[{value:12,label:'Pequena'},{value:24,label:'Média'},{value:40,label:'Grande'},{value:60,label:'Extra'}].map(option=><Pressable key={option.value} onPress={()=>setEraserSize(option.value)} style={[s.strokeOption,eraserSize===option.value&&s.strokeOptionActive]}><View style={s.strokePreview}><View style={[s.eraserPreview,{width:Math.min(42,option.value),height:Math.min(18,option.value/2)}]}/></View><Text style={[s.strokeOptionLabel,eraserSize===option.value&&s.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View><View style={s.markerTypes}><Text style={s.paletteTitle}>MODO DE APAGAR</Text><Pressable onPress={()=>setEraserMode('partial')} style={[s.markerType,eraserMode==='partial'&&s.markerTypeActive]}><Text style={[s.markerTypeText,eraserMode==='partial'&&s.markerTypeTextActive]}>Parte do traço</Text></Pressable><Pressable onPress={()=>setEraserMode('whole')} style={[s.markerType,eraserMode==='whole'&&s.markerTypeActive]}><Text style={[s.markerTypeText,eraserMode==='whole'&&s.markerTypeTextActive]}>Traço inteiro</Text></Pressable></View><Text style={s.toolHelp}>{eraserMode==='whole'?'Remove o traço completo ao tocar nele.':'Apaga somente os segmentos que passam pela área tocada.'}</Text></View>}
       {tool === 'highlighter' && <><View style={s.strokePicker}><View style={s.strokePickerHeader}><Text style={s.paletteTitle}>ESPESSURA DO MARCA-TEXTO</Text><Text style={s.strokeValue}>{markerWidth}px</Text></View><View style={s.strokeOptions}>{[{ width: 10, label: 'Fina' }, { width: 18, label: 'Média' }, { width: 28, label: 'Larga' }].map(option => <Pressable key={option.width} accessibilityRole="button" accessibilityLabel={`Espessura do marca-texto ${option.label}`} onPress={() => setMarkerWidth(option.width)} style={[s.strokeOption, markerWidth === option.width && s.strokeOptionActive]}><View style={s.strokePreview}><View style={[s.markerStrokeLine, { height: Math.min(18, Math.max(6, option.width / 1.5)) }]} /></View><Text style={[s.strokeOptionLabel, markerWidth === option.width && s.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View></View><View style={s.markerTypes}><Text style={s.paletteTitle}>ESTILO</Text>{[{id:'classic',label:'Clássico'},{id:'pastel',label:'Pastel'},{id:'bold',label:'Forte'},{id:'underline',label:'Sublinhado'}].map(item=><Pressable key={item.id} onPress={()=>setMarkerType(item.id)} style={[s.markerType,markerType===item.id&&s.markerTypeActive]}><Text style={[s.markerTypeText,markerType===item.id&&s.markerTypeTextActive]}>{item.label}</Text></Pressable>)}</View></>}
       </View>}
       {toolsExpanded && <><View style={s.paletteSection}><Text style={s.paletteTitle}>CORES</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.palette}>{COLORS.map(c => <Pressable key={c} onPress={() => { setColor(c); if (tool === 'eraser') setTool('pen'); }} style={[s.swatch, { backgroundColor: c, borderColor: c === '#FFFFFF' ? '#AEB5AE' : c }, color === c && s.swatchSelected]} />)}</ScrollView></View><View style={s.paletteRow}><View style={s.zoomControls}><Pressable style={s.zoomButton} onPress={() => { const next = Math.max(0.5, Number((zoom - 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>−</Text></Pressable><Text style={s.zoomValue}>{Math.round(zoom * 100)}%</Text><Pressable style={s.zoomButton} onPress={() => { const next = Math.min(3, Number((zoom + 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={s.zoomText}>+</Text></Pressable><Pressable style={s.zoomReset} onPress={() => { zoomRef.current = 1; setZoom(1); panRef.current = { x: 0, y: 0 }; setPan({ x: 0, y: 0 }); }}><Text style={s.zoomResetText}>Ajustar</Text></Pressable></View></View><Button title="Salvar e sair" onPress={saveAndExit} /><Button title="Finalizar prova" secondary onPress={finalizeExam} disabled={finalized} /></>}</ScrollView>
