@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
 import { File } from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import storage from './storage.cjs';
+const { readArrayWithBackup, writeArrayWithBackup } = storage;
 import { WebView } from 'react-native-webview';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { distanceToSegment, eraseAtPoint, getHighlighterStyle, pathIntersectsPolygon, screenToDocument } from './drawing';
@@ -17,12 +19,7 @@ const STORAGE_KEY = '@bloco:exams:v1';
 const BACKUP_KEY = '@bloco:exams:backup:v1';
 
 async function writeExamsWithBackup(items) {
-  const previous = await AsyncStorage.getItem(STORAGE_KEY);
-  if (previous) {
-    try { if (Array.isArray(JSON.parse(previous))) await AsyncStorage.setItem(BACKUP_KEY, previous); } catch { /* preserve the last known good backup */ }
-  }
-  const serialized = JSON.stringify(items);
-  await AsyncStorage.setItem(STORAGE_KEY, serialized);
+  return writeArrayWithBackup(AsyncStorage, STORAGE_KEY, BACKUP_KEY, items);
 }
 
 const DIR = FileSystem.documentDirectory + 'bloco-exams/';
@@ -125,21 +122,8 @@ export default function ExamMode({ onExit }) {
   useEffect(() => { loadSaved(); }, []);
   const loadSaved = async () => {
     try {
-      let items;
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        const parsed = raw ? JSON.parse(raw) : [];
-        if (!Array.isArray(parsed)) throw new Error('Armazenamento inválido');
-        items = parsed;
-      } catch (error) {
-        const backupRaw = await AsyncStorage.getItem(BACKUP_KEY);
-        if (!backupRaw) throw error;
-        const backup = JSON.parse(backupRaw);
-        if (!Array.isArray(backup)) throw error;
-        await AsyncStorage.setItem(STORAGE_KEY, backupRaw);
-        items = backup;
-        Alert.alert('Provas recuperadas', 'O Bloco restaurou suas provas a partir do backup automático.');
-      }
+      const { items, recovered } = await readArrayWithBackup(AsyncStorage, STORAGE_KEY, BACKUP_KEY);
+      if (recovered) Alert.alert('Provas recuperadas', 'O Bloco restaurou suas provas a partir do backup automático.');
       setSaved(items.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)));
     } catch {
       Alert.alert('Erro ao carregar provas', 'Não foi possível ler as provas salvas neste aparelho.');
