@@ -358,6 +358,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const [remaining, setRemaining] = useState(exam.remaining ?? exam.duration);
   const [finished, setFinished] = useState(false);
   const [finalized, setFinalized] = useState(exam.status === 'Finalizada');
+  const finalizedRef = useRef(exam.status === 'Finalizada');
   const [saveState, setSaveState] = useState('saved');
   const [paused, setPaused] = useState(exam.status === 'Pausada');
   const remainingRef = useRef(remaining);
@@ -383,6 +384,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const selectionGesture = useRef(null);
   const pathHistoryRef = useRef(pathHistory);
   const persistenceQueueRef = useRef(Promise.resolve());
+  finalizedRef.current = finalized;
   pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType; markerWidthRef.current = markerWidth; penWidthRef.current = penWidth; penOpacityRef.current = penOpacity; eraserSizeRef.current = eraserSize; eraserModeRef.current = eraserMode;
   selectedRef.current = selectedIds; lassoRef.current = lasso;
   pathHistoryRef.current = pathHistory;
@@ -478,8 +480,8 @@ function ExamEditor({ exam, onSave, onBack }) {
   };
 
   const responder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => !finalized,
-    onMoveShouldSetPanResponder: e => !finalized && ((e.nativeEvent.touches?.length || 0) >= 2 || true),
+    onStartShouldSetPanResponder: () => !finalizedRef.current,
+    onMoveShouldSetPanResponder: e => !finalizedRef.current && ((e.nativeEvent.touches?.length || 0) >= 2 || true),
     onPanResponderGrant: e => {
       const touches = e.nativeEvent.touches || [];
       if (touches.length >= 2) {
