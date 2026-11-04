@@ -585,7 +585,7 @@ export default function RedacaoMode({ onExit }) {
                 <Pressable style={styles.selectionAction} onPress={() => { const next = transformSelected(paths, selectedIds, 1, Math.PI / 12); applyPaths(next);  }}><Text style={styles.toolText}>↻ Girar</Text></Pressable>
                 <Pressable style={styles.selectionAction} onPress={() => { setClipboard(paths.filter(path => selectedIds.includes(path.id))); const next = paths.filter(path => !selectedIds.includes(path.id)); applyPaths(next); setSelectedIds([]);  }}><Text style={styles.toolText}>Cortar</Text></Pressable>
                 <Pressable style={styles.selectionAction} onPress={() => { if (!clipboard.length) return; const pasted = clipboard.map(path => ({ ...path, id: String(Date.now()) + Math.random(), points: path.points.map(p => ({ x: p.x + 24, y: p.y + 24 })) })); const next = [...paths, ...pasted]; applyPaths(next); setSelectedIds(pasted.map(path => path.id));  }}><Text style={styles.toolText}>Colar</Text></Pressable>
-                <Pressable style={styles.selectionAction} onPress={() => { const next = paths.filter(path => !selectedIds.includes(path.id)); pathsRef.current = next; setPaths(next); setSelectedIds([]);  }}><Text style={[styles.toolText, { color: '#B44D45' }]}>Excluir</Text></Pressable>
+                <Pressable style={styles.selectionAction} onPress={() => { const next = paths.filter(path => !selectedIds.includes(path.id)); applyPaths(next); setSelectedIds([]);  }}><Text style={[styles.toolText, { color: '#B44D45' }]}>Excluir</Text></Pressable>
                 <Pressable style={styles.selectionAction} onPress={() => setSelectedIds([])}><Text style={styles.toolText}>Nova seleção</Text></Pressable>
               </View>}
             </View>}
