@@ -9,7 +9,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import Svg, { G, Line, Path, Rect } from 'react-native-svg';
 import { eraseAtPoint, getHighlighterStyle, pathIntersectsPolygon } from './drawing';
-import { ContextToolbar, design, IconButton } from './designSystem';
+import { ContextToolbar, design, IconButton, ScreenHeader } from './designSystem';
 
 const STORAGE_KEY = '@bloco:redacoes:v1';
 const INK = '#203B32';
@@ -518,12 +518,13 @@ export default function RedacaoMode({ onExit }) {
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor={PAPER} />
-      <View style={styles.header}>
-        <Pressable onPress={onExit} style={styles.back}><Text style={styles.backText}>‹</Text></Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Ambiente de redação</Text>
-          <Text style={styles.headerSub}>Escreva suas ideias do seu jeito</Text>
-        </View>
+      <View style={{ paddingHorizontal: 18, paddingTop: 8 }}>
+        <ScreenHeader
+          eyebrow="BLOCO · PRODUÇÃO TEXTUAL"
+          title="Ambiente de redação"
+          subtitle="Escreva, revise e acompanhe seus rascunhos"
+          onBack={onExit}
+        />
       </View>
       <ScrollView contentContainerStyle={styles.listContent}>
         <View style={styles.intro}>
