@@ -331,7 +331,7 @@ function HomeScreen({ documents, onImport, onExportBackup, onImportBackup, onCre
   );
 }
 
-function EditorScreen({ document, onSave, onChange }) {
+function EditorScreen({ document, onSave, onChange, onDelete }) {
   const initialPages = (document.pages?.length ? document.pages : [{ id: 'page-1', uri: document.uri, paths: document.paths || [] }]).map((page, index) => ({ ...page, id: page.id || `page-${document.id || 'note'}-${index + 1}` }));
   const [title, setTitle] = useState(document.title || 'Minha nota');
   const [saveState, setSaveState] = useState('saved');
@@ -786,6 +786,7 @@ function EditorScreen({ document, onSave, onChange }) {
           <TextInput value={title} onChangeText={nextTitle => { titleRef.current = nextTitle; setTitle(nextTitle); onChange({ ...document, title: nextTitle, updatedAt: Date.now() }); }} style={styles.examLikeTitleInput} maxLength={70} />
           <Text style={styles.examLikeSubtitle}>{saveState === 'pending' || saveState === 'saving' ? 'Salvando alterações…' : saveState === 'error' ? 'Falha ao salvar · tente novamente' : 'Todas as alterações salvas'}</Text>
         </View>
+        <Pressable onPress={() => Alert.alert('Excluir nota?', 'Esta nota será movida para a Lixeira. Você poderá restaurá-la depois.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Mover para lixeira', style: 'destructive', onPress: () => onDelete(getLatestDocument()) }])} style={[styles.examLikeSave, { marginRight: 7, backgroundColor: '#FBEFED', borderColor: '#E8C9C5' }]} accessibilityRole="button" accessibilityLabel="Excluir nota"><Text style={[styles.examLikeSaveText, { color: COLORS.rose }]}>Excluir</Text></Pressable>
         <Pressable onPress={exportPdf} style={[styles.examLikeSave, { marginRight: 7, backgroundColor: '#E8F0E9' }]}><Text style={[styles.examLikeSaveText, { color: COLORS.green }]}>PDF</Text></Pressable>
         <Pressable onPress={save} style={styles.examLikeSave}><Text style={styles.examLikeSaveText}>Salvar</Text></Pressable>
       </View>
@@ -1091,6 +1092,21 @@ function BlocoApp() {
     return commitDocuments(next);
   };
 
+  const deleteActiveDocument = async latestDocument => {
+    const current = documentsRef.current;
+    const now = Date.now();
+    const next = current.some(item => item.id === latestDocument.id)
+      ? current.map(item => item.id === latestDocument.id ? { ...latestDocument, deletedAt: now, updatedAt: now } : item)
+      : [{ ...latestDocument, deletedAt: now, updatedAt: now }, ...current];
+    try {
+      await commitDocuments(next, true);
+      setActiveDocument(null);
+    } catch (error) {
+      console.error('Erro ao excluir nota:', error);
+      Alert.alert('Não foi possível excluir', 'A nota continua preservada. Tente novamente.');
+    }
+  };
+
   const duplicateDocument = (document) => {
     const duplicate = JSON.parse(JSON.stringify({
       ...document,
@@ -1162,7 +1178,7 @@ function BlocoApp() {
 
   if (!documentsLoaded) return <SafeAreaView style={styles.safeArea}><Text style={styles.loadingText}>Recuperando seus cadernos...</Text></SafeAreaView>;
   if (documentsLoadError) return <SafeAreaView style={styles.safeArea}><View style={{ flex: 1, justifyContent: 'center', padding: 28, gap: 14 }}><Text style={{ color: COLORS.ink, fontSize: 22, fontWeight: '800' }}>Não foi possível abrir seus cadernos</Text><Text style={{ color: COLORS.muted, fontSize: 14, lineHeight: 21 }}>{documentsLoadError}</Text><Text style={{ color: COLORS.rose, fontSize: 12, lineHeight: 18 }}>Seus dados não foram substituídos. Não desinstale o aplicativo nem limpe os dados do armazenamento.</Text><Pressable onPress={() => { setDocumentsLoadError(''); setDocumentsLoaded(false); setLoadAttempt(value => value + 1); }} style={{ backgroundColor: COLORS.green, padding: 15, borderRadius: 12, alignItems: 'center' }}><Text style={{ color: COLORS.white, fontWeight: '700' }}>Tentar novamente</Text></Pressable></View></SafeAreaView>;
-  if (activeDocument) return <EditorScreen key={activeDocument.id} document={activeDocument} onSave={saveDocument} onChange={updateDocument} />;
+  if (activeDocument) return <EditorScreen key={activeDocument.id} document={activeDocument} onSave={saveDocument} onChange={updateDocument} onDelete={deleteActiveDocument} />;
   if (examMode) return <ExamMode onExit={() => setExamMode(false)} />;
   if (redacaoMode) return <RedacaoMode onExit={() => setRedacaoMode(false)} />;
   return <HomeScreen documents={documents} onImport={importImages} onExportBackup={exportBackup} onImportBackup={importBackup} onCreateNote={createNote} onOpen={setActiveDocument} onDelete={deleteDocument} onUpdate={updateDocument} onDuplicate={duplicateDocument} onExam={() => setExamMode(true)} onRedacao={() => setRedacaoMode(true)} />;
