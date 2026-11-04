@@ -619,6 +619,19 @@ function EditorScreen({ document, onSave, onChange }) {
     setPanOffset({ x: 0, y: 0 });
   };
 
+  const reorderPage = (index, direction) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= pages.length) return;
+    const currentPages = pages.map((page, pagePosition) => pagePosition === pageIndex
+      ? { ...page, paths, text: pageText, background: pageBackground }
+      : page);
+    const nextPages = [...currentPages];
+    [nextPages[index], nextPages[targetIndex]] = [nextPages[targetIndex], nextPages[index]];
+    const activeId = currentPages[pageIndex]?.id;
+    setPages(nextPages);
+    setPageIndex(nextPages.findIndex(page => page.id === activeId));
+  };
+
   const removeCurrentPage = () => {
     if (pages.length <= 1) {
       Alert.alert('Não é possível excluir', 'Um caderno precisa ter pelo menos uma página.');
@@ -711,6 +724,20 @@ function EditorScreen({ document, onSave, onChange }) {
         <Pressable onPress={removeCurrentPage} style={[styles.examLikePageButton, { marginLeft: 6 }]} accessibilityRole="button" accessibilityLabel="Excluir página"><Text style={styles.examLikePageButtonText}>⌫</Text></Pressable>
         <Pressable disabled={pageIndex === pages.length - 1} onPress={() => changePage(pageIndex + 1)} style={[styles.examLikePageButton, { marginLeft: 6 }, pageIndex === pages.length - 1 && styles.toolDisabled]}><Text style={styles.examLikePageButtonText}>›</Text></Pressable>
       </View>
+      <ScrollView horizontal style={styles.pageThumbnailStrip} contentContainerStyle={styles.pageThumbnailContent} showsHorizontalScrollIndicator={false}>
+        {pages.map((page, index) => (
+          <View key={page.id || index} style={[styles.pageThumbnailCard, index === pageIndex && styles.pageThumbnailCardActive]}>
+            <Pressable onPress={() => changePage(index)} style={styles.pageThumbnailOpen} accessibilityRole="button" accessibilityLabel={`Abrir página ${index + 1}`}>
+              {page.uri ? <Image source={{ uri: page.uri }} style={styles.pageThumbnailImage} resizeMode="cover" /> : <View style={styles.pageThumbnailBlank}><Text style={styles.pageThumbnailGlyph}>{page.paths?.length || page.text ? '✎' : '＋'}</Text></View>}
+              <Text style={[styles.pageThumbnailLabel, index === pageIndex && styles.pageThumbnailLabelActive]}>{String(index + 1).padStart(2, '0')}</Text>
+            </Pressable>
+            <View style={styles.pageThumbnailActions}>
+              <Pressable disabled={index === 0} onPress={() => reorderPage(index, -1)} style={styles.pageThumbnailMove}><Text style={styles.pageThumbnailMoveText}>‹</Text></Pressable>
+              <Pressable disabled={index === pages.length - 1} onPress={() => reorderPage(index, 1)} style={styles.pageThumbnailMove}><Text style={styles.pageThumbnailMoveText}>›</Text></Pressable>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
 
       <ScrollView style={[styles.examLikeDrawPanel, { maxHeight: toolsExpanded ? 310 : 116 }]} contentContainerStyle={{ paddingBottom: toolsExpanded ? 9 : 4 }} showsVerticalScrollIndicator={false}>
         <Text style={styles.examLikeHint}>{tool === 'select' ? (selectedStrokeIds.length ? `${selectedStrokeIds.length} selecionado(s) · arraste para mover` : 'Contorne a escrita com o dedo para selecionar.') : tool === 'text' ? 'Toque na folha para digitar. Volte à caneta para desenhar.' : 'Escolha uma ferramenta para escrever ou anotar.'}</Text>
@@ -1110,6 +1137,19 @@ const styles = StyleSheet.create({
   examLikeCanvasArea: { flex: 1, marginHorizontal: 9, marginTop: 8, marginBottom: 6, backgroundColor: '#F1F2EF' },
   examLikeCanvas: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 5, overflow: 'hidden', elevation: 2, shadowColor: '#202522', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
   examLikePageControls: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#E4E7E2' },
+  pageThumbnailStrip: { flexGrow: 0, maxHeight: 78, backgroundColor: '#F5F6F2', borderBottomWidth: 1, borderColor: '#E4E7E2' },
+  pageThumbnailContent: { alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 7 },
+  pageThumbnailCard: { width: 56, height: 62, borderRadius: 9, padding: 3, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E1E6DF' },
+  pageThumbnailCardActive: { borderColor: COLORS.green, borderWidth: 2, backgroundColor: '#E8F0E9' },
+  pageThumbnailOpen: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 5 },
+  pageThumbnailImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', opacity: 0.75 },
+  pageThumbnailBlank: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFDF8' },
+  pageThumbnailGlyph: { color: COLORS.green, fontSize: 17 },
+  pageThumbnailLabel: { position: 'absolute', bottom: 1, right: 3, color: COLORS.muted, fontSize: 8, fontWeight: '800' },
+  pageThumbnailLabelActive: { color: COLORS.green },
+  pageThumbnailActions: { position: 'absolute', top: 2, left: 2, right: 2, flexDirection: 'row', justifyContent: 'space-between' },
+  pageThumbnailMove: { width: 15, height: 15, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center', justifyContent: 'center' },
+  pageThumbnailMoveText: { color: COLORS.green, fontSize: 12, lineHeight: 14, fontWeight: '900' },
   examLikePageButton: { width: 40, height: 36, borderRadius: 11, backgroundColor: COLORS.greenLight, alignItems: 'center', justifyContent: 'center' },
   examLikePageButtonText: { color: COLORS.green, fontSize: 24, lineHeight: 26, fontWeight: '700' },
   examLikePageProgress: { flex: 1, alignItems: 'center', marginHorizontal: 12 },
