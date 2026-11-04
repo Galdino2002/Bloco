@@ -49,14 +49,6 @@ function getBounds(strokes) {
   if (!points.length) return null;
   return { minX: Math.min(...points.map(p => p.x)), minY: Math.min(...points.map(p => p.y)), maxX: Math.max(...points.map(p => p.x)), maxY: Math.max(...points.map(p => p.y)) };
 }
-function pointInPolygon(point, polygon) {
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const a = polygon[i], b = polygon[j];
-    if (((a.y > point.y) !== (b.y > point.y)) && point.x < ((b.x - a.x) * (point.y - a.y)) / ((b.y - a.y) || 0.00001) + a.x) inside = !inside;
-  }
-  return inside;
-}
 function transformSelected(strokes, ids, factor = 1, angle = 0) {
   const box = getBounds(strokes.filter(stroke => ids.includes(stroke.id)));
   if (!box) return strokes;
@@ -277,7 +269,7 @@ export default function RedacaoMode({ onExit }) {
         mimeType: 'image/png',
         dialogTitle: criterion === 'enem' ? 'Compartilhar redação para correção ENEM' : 'Compartilhar redação para correção geral',
       });
-    } catch (error) {
+    } catch {
       Alert.alert('Erro ao compartilhar', 'Não foi possível preparar a imagem da redação. Tente novamente.');
     } finally {
       setSharingDrawing(false);
