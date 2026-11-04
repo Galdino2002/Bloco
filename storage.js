@@ -11,7 +11,7 @@ async function readArrayWithBackup(storage, key, backupKey) {
  catch { return { items: [], recovered: false }; }
 }
 async function writeArrayWithBackup(storage, key, backupKey, items) {
- if (!Array.isArray(items)) throw new TypeError('Expected an array');
+ if (!Array.isArray(items)) throw new TypeError('O conteúdo a salvar precisa ser uma lista');
  const serialized = JSON.stringify(items);
  const previous = await storage.getItem(key);
  if (previous !== null) { try { if (Array.isArray(JSON.parse(previous))) await storage.setItem(backupKey, previous); } catch { /* keep last known good backup */ } }
