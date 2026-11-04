@@ -66,6 +66,7 @@ function Action({ label, onPress, secondary = false }) {
 
 export default function RedacaoMode({ onExit }) {
   const [drafts, setDrafts] = useState([]);
+  const [draftQuery, setDraftQuery] = useState('');
   const [active, setActive] = useState(null);
   const [mode, setMode] = useState('write');
   const [color, setColor] = useState(COLORS[0]);
@@ -155,6 +156,20 @@ export default function RedacaoMode({ onExit }) {
     pathsRef.current = draft.paths || [];
     setRedo([]);
     setSaveState('saved');
+  };
+
+  const duplicateDraft = async draft => {
+    const copy = {
+      ...draft,
+      id: String(Date.now()) + '-' + Math.random(),
+      title: (draft.title || 'Minha redação') + ' (cópia)',
+      updatedAt: Date.now(),
+    };
+    try {
+      await persist([copy, ...drafts]);
+    } catch {
+      Alert.alert('Erro ao duplicar', 'Não foi possível criar uma cópia desta redação.');
+    }
   };
 
   const createDraft = () => {
@@ -533,18 +548,26 @@ export default function RedacaoMode({ onExit }) {
         </View>
         <Action label="＋ Nova redação" onPress={createDraft} />
         <Text style={styles.section}>Meus rascunhos</Text>
+        <View style={styles.draftSearchBox}>
+          <Text style={styles.searchGlyph}>⌕</Text>
+          <TextInput value={draftQuery} onChangeText={setDraftQuery} placeholder="Buscar redações pelo título ou texto" placeholderTextColor="#89938A" style={styles.draftSearchInput} />
+          {!!draftQuery && <Pressable onPress={() => setDraftQuery('')} accessibilityRole="button" accessibilityLabel="Limpar busca"><Text style={styles.searchClear}>×</Text></Pressable>}
+        </View>
         {!loaded ? <Text style={styles.emptyText}>Carregando...</Text> : drafts.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>✎</Text>
             <Text style={styles.emptyTitle}>Nenhuma redação salva</Text>
             <Text style={styles.emptyText}>Seus rascunhos aparecerão aqui.</Text>
           </View>
-        ) : drafts.map(draft => (
+        ) : drafts.filter(draft => `${draft.title || ''} ${draft.text || ''}`.toLocaleLowerCase().includes(draftQuery.trim().toLocaleLowerCase())).length === 0 ? (
+          <View style={styles.empty}><Text style={styles.emptyTitle}>Nenhuma redação encontrada</Text><Text style={styles.emptyText}>Tente outro título ou trecho do texto.</Text></View>
+        ) : drafts.filter(draft => `${draft.title || ''} ${draft.text || ''}`.toLocaleLowerCase().includes(draftQuery.trim().toLocaleLowerCase())).map(draft => (
           <View key={draft.id} style={styles.draftCard}>
             <Pressable onPress={() => openDraft(draft)} style={{ flex: 1 }}>
               <Text style={styles.draftTitle}>{draft.title || 'Sem título'}</Text>
               <Text style={styles.draftMeta}>{draft.mode === 'draw' ? 'Desenho à mão livre' : ((draft.text || '').length + ' caracteres')} · {new Date(draft.updatedAt || Date.now()).toLocaleDateString('pt-BR')}</Text>
             </Pressable>
+            <Pressable onPress={() => duplicateDraft(draft)} style={styles.draftDuplicate} accessibilityRole="button" accessibilityLabel={`Duplicar ${draft.title || 'redação'}`}><Text style={styles.draftDuplicateText}>Duplicar</Text></Pressable>
             <Pressable onPress={() => deleteDraft(draft)} style={styles.delete}><Text style={styles.deleteText}>Excluir</Text></Pressable>
           </View>
         ))}
@@ -637,6 +660,12 @@ const styles = StyleSheet.create({
   emptyIcon: { color: GREEN, fontSize: 27, marginBottom: 8 },
   emptyTitle: { color: INK, fontSize: 14, fontWeight: '700' },
   emptyText: { color: '#89938A', fontSize: 11, marginTop: 6, textAlign: 'center', lineHeight: 17 },
+  draftSearchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E4E7E2', borderRadius: 13, paddingHorizontal: 12, marginBottom: 13 },
+  searchGlyph: { color: GREEN, fontSize: 22, marginRight: 8 },
+  draftSearchInput: { flex: 1, color: INK, fontSize: 12, paddingVertical: 11 },
+  searchClear: { color: '#89938A', fontSize: 22, paddingHorizontal: 5 },
+  draftDuplicate: { paddingHorizontal: 9, paddingVertical: 8, borderRadius: 9, backgroundColor: '#E8F0E9', marginLeft: 6 },
+  draftDuplicateText: { color: GREEN, fontSize: 9, fontWeight: '800' },
   draftCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 14, borderWidth: 1, borderColor: LINE, padding: 15, marginBottom: 9 },
   draftTitle: { color: INK, fontWeight: '700', fontSize: 14 },
   draftMeta: { color: '#89938A', fontSize: 10, marginTop: 5 },
