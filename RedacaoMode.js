@@ -19,7 +19,8 @@ async function writeDraftsWithBackup(items) {
   if (previous) {
     try { if (Array.isArray(JSON.parse(previous))) await AsyncStorage.setItem(BACKUP_KEY, previous); } catch { /* preserve the last known good backup */ }
   }
-  await writeDraftsWithBackup(items);
+  const serialized = JSON.stringify(items);
+  await AsyncStorage.setItem(STORAGE_KEY, serialized);
 }
 
 const INK = '#203B32';
