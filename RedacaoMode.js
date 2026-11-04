@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import storage from './storage';
+const { readArrayWithBackup, writeArrayWithBackup } = storage;
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import Svg, { G, Line, Path, Rect } from 'react-native-svg';
