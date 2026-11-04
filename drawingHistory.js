@@ -9,7 +9,7 @@ function clone(value) {
 function createHistory(initialValue = [], limit = DEFAULT_LIMIT) {
   const safeLimit = Number.isInteger(limit) && limit > 0 ? limit : DEFAULT_LIMIT;
   return {
-    past: [clone(initialValue)],
+    past: [],
     present: clone(initialValue),
     future: [],
     limit: safeLimit,
@@ -18,9 +18,8 @@ function createHistory(initialValue = [], limit = DEFAULT_LIMIT) {
 
 function commitHistory(history, value) {
   const next = clone(value);
-  const past = [...history.past, clone(history.present)];
   return {
-    past: past.slice(-history.limit),
+    past: [...history.past, clone(history.present)].slice(-history.limit),
     present: next,
     future: [],
     limit: history.limit,
@@ -28,9 +27,9 @@ function commitHistory(history, value) {
 }
 
 function undoHistory(history) {
-  if (history.past.length <= 1) return history;
+  if (!history.past.length) return history;
   const past = history.past.slice(0, -1);
-  const present = past[past.length - 1];
+  const present = history.past[history.past.length - 1];
   return {
     past,
     present: clone(present),
@@ -43,7 +42,7 @@ function redoHistory(history) {
   if (!history.future.length) return history;
   const [present, ...future] = history.future;
   return {
-    past: [...history.past, clone(present)].slice(-history.limit),
+    past: [...history.past, clone(history.present)].slice(-history.limit),
     present: clone(present),
     future,
     limit: history.limit,
