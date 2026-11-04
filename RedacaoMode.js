@@ -21,10 +21,10 @@ async function writeDraftsWithBackup(items) {
   return writeArrayWithBackup(AsyncStorage, STORAGE_KEY, BACKUP_KEY, items);
 }
 
-const INK = '#203B32';
+const INK = '#1F3027';
 const GREEN = '#315C49';
-const PAPER = '#F7F6F1';
-const LINE = '#E7E8E1';
+const PAPER = '#F5F6F3';
+const LINE = '#E3E8E2';
 const COLORS = ['#202124','#5F6368','#B3261E','#E67C73','#E8710A','#F9AB00','#188038','#34A853','#00796B','#12A594','#1A73E8','#4285F4','#3F51B5','#673AB7','#A142F4','#D81B60','#8D6E63','#FFFFFF'];
 
 function makeDraft() {
@@ -599,21 +599,21 @@ export default function RedacaoMode({ onExit }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F1F2EF' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 14, backgroundColor: '#FFF', borderBottomWidth: 1, borderColor: LINE },
+  safe: { flex: 1, backgroundColor: PAPER },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14, backgroundColor: '#FFF', borderBottomWidth: 1, borderColor: LINE },
   back: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#E8F0E9', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   backText: { color: INK, fontSize: 30, marginTop: -4 },
   headerTitle: { color: INK, fontSize: 17, fontWeight: '800' },
   headerSub: { color: '#89938A', fontSize: 10, marginTop: 3 },
   save: { backgroundColor: INK, paddingHorizontal: 15, paddingVertical: 10, borderRadius: 11 },
   saveText: { color: '#FFF', fontWeight: '700', fontSize: 11 },
-  titleInput: { marginHorizontal: 12, marginTop: 10, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 13, backgroundColor: '#FFFFFF', color: INK, fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: '#E4E7E2' },
-  modeBar: { flexDirection: 'row', marginHorizontal: 12, marginBottom: 9, backgroundColor: '#E6E9E4', borderRadius: 14, padding: 4, borderWidth: 1, borderColor: '#DDE2DC' },
+  titleInput: { marginHorizontal: 14, marginTop: 12, marginBottom: 10, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16, backgroundColor: '#FFFFFF', color: INK, fontSize: 16, fontWeight: '700', borderWidth: 1, borderColor: LINE },
+  modeBar: { flexDirection: 'row', marginHorizontal: 14, marginBottom: 11, backgroundColor: '#E9EEE8', borderRadius: 16, padding: 4, borderWidth: 1, borderColor: '#DDE5DC' },
   modeButton: { flex: 1, padding: 11, alignItems: 'center', borderRadius: 9 },
   modeSelected: { backgroundColor: '#FFF' },
   modeText: { color: '#7C887E', fontSize: 12, fontWeight: '700' },
   modeTextSelected: { color: GREEN },
-  writeArea: { flex: 1, marginHorizontal: 12, marginBottom: 12, backgroundColor: '#FFFFFF', borderRadius: 6, borderWidth: 1, borderColor: '#E3E6E1', padding: 18, elevation: 2, shadowColor: '#202522', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+  writeArea: { flex: 1, marginHorizontal: 14, marginBottom: 14, backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: LINE, padding: 20, elevation: 2, shadowColor: '#202522', shadowOpacity: 0.045, shadowRadius: 12, shadowOffset: { width: 0, height: 3 } },
   textEditor: { flex: 1, minHeight: 200, color: INK, fontSize: 16, lineHeight: 27 },
   wordCount: { color: '#9AA298', fontSize: 10, textAlign: 'right', marginTop: 8 },
   correctionCaption: { color: GREEN, fontSize: 11, fontWeight: '700', marginTop: 14, marginBottom: 8 },
@@ -625,7 +625,7 @@ const styles = StyleSheet.create({
   correctionButtonSub: { color: '#D2DED3', fontSize: 9, marginTop: 4 },
   correctionButtonSubSecondary: { color: '#718477' },
   correctionButtonDisabled: { opacity: 0.55 },
-  drawArea: { flex: 1, paddingHorizontal: 10, paddingBottom: 9, backgroundColor: '#F1F2EF' },
+  drawArea: { flex: 1, paddingHorizontal: 12, paddingBottom: 12, backgroundColor: PAPER },
   selectionToolbar: { backgroundColor: '#F7F9F5', borderRadius: 10, padding: 9, marginTop: 7, marginBottom: 6 },
   selectionHint: { color: '#77847A', fontSize: 10, marginBottom: 7 },
   selectionActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
@@ -667,11 +667,11 @@ const styles = StyleSheet.create({
   correctDrawingButtonText: { color: '#FFF', fontSize: 10, fontWeight: '800' },
   swatch: { width: 25, height: 25, borderRadius: 13 },
   swatchSelected: { borderWidth: 3, borderColor: '#A7BDAA' },
-  paper: { flex: 1, minHeight: 220, backgroundColor: '#FFFFFF', borderRadius: 5, borderWidth: 1, borderColor: '#E3E6E1', overflow: 'hidden', elevation: 2, shadowColor: '#202522', shadowOpacity: 0.07, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+  paper: { flex: 1, minHeight: 220, backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: LINE, overflow: 'hidden', elevation: 2, shadowColor: '#202522', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
   drawHint: { color: '#9AA298', fontSize: 10, textAlign: 'center', paddingTop: 8 },
-  listContent: { padding: 18, paddingBottom: 35 },
-  intro: { backgroundColor: INK, borderRadius: 20, padding: 22, marginBottom: 18 },
-  introTitle: { color: '#FFF', fontSize: 23, fontFamily: 'serif', lineHeight: 29 },
+  listContent: { padding: 20, paddingBottom: 42 },
+  intro: { backgroundColor: INK, borderRadius: 24, padding: 24, marginBottom: 20 },
+  introTitle: { color: '#FFF', fontSize: 24, fontWeight: '800', lineHeight: 30, letterSpacing: -0.5 },
   introText: { color: '#D2DED3', fontSize: 12, lineHeight: 19, marginTop: 9 },
   action: { backgroundColor: INK, borderRadius: 13, padding: 15, alignItems: 'center', marginBottom: 24 },
   actionSecondary: { backgroundColor: '#E8F0E9' },
@@ -688,7 +688,7 @@ const styles = StyleSheet.create({
   searchClear: { color: '#89938A', fontSize: 22, paddingHorizontal: 5 },
   draftDuplicate: { paddingHorizontal: 9, paddingVertical: 8, borderRadius: 9, backgroundColor: '#E8F0E9', marginLeft: 6 },
   draftDuplicateText: { color: GREEN, fontSize: 9, fontWeight: '800' },
-  draftCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 14, borderWidth: 1, borderColor: LINE, padding: 15, marginBottom: 9 },
+  draftCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 18, borderWidth: 1, borderColor: LINE, padding: 16, marginBottom: 11, shadowColor: '#1F3027', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 1 },
   draftTitle: { color: INK, fontWeight: '700', fontSize: 14 },
   draftMeta: { color: '#89938A', fontSize: 10, marginTop: 5 },
   delete: { backgroundColor: '#FBEFED', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9, marginLeft: 8 },
