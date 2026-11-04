@@ -951,7 +951,7 @@ function BlocoApp() {
   }, []);
 
   useEffect(() => () => {
-    flushScheduledSave(documentsRef.current)?.catch(error => {
+    flushScheduledSaveRef.current(documentsRef.current)?.catch(error => {
       console.error('Erro ao finalizar persistência dos cadernos:', error);
     });
   }, []);
