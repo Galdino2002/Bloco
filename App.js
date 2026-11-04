@@ -581,7 +581,7 @@ function EditorScreen({ document, onSave, onChange }) {
       setSaveState('saving');
       const latestDocument = documentRef.current;
       try {
-        await onChangeRef.current({
+        const saved = await onChangeRef.current({
           ...latestDocument,
           title: titleRef.current,
           pages: updatedPages,
@@ -589,7 +589,7 @@ function EditorScreen({ document, onSave, onChange }) {
           paths: updatedPages[0]?.paths || [],
           updatedAt: Date.now(),
         });
-        if (active) setSaveState('saved');
+        if (active) setSaveState(saved === false ? 'error' : 'saved');
       } catch (error) {
         console.error('Erro no salvamento automático da nota:', error);
         if (active) setSaveState('error');
@@ -838,12 +838,12 @@ function BlocoApp() {
 
   const scheduleDocumentsSave = (snapshot) => {
     clearTimeout(persistenceTimer.current);
-    return new Promise((resolve, reject) => {
+    return new Promise(resolve => {
       persistenceTimer.current = setTimeout(() => {
-        enqueueDocumentsSave(snapshot).then(resolve).catch(error => {
+        enqueueDocumentsSave(snapshot).then(() => resolve(true)).catch(error => {
           console.error('Erro ao salvar cadernos:', error);
           Alert.alert('Erro ao salvar cadernos', error?.message || 'Não foi possível salvar suas anotações.');
-          reject(error);
+          resolve(false);
         });
       }, 250);
     });
