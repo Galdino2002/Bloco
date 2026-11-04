@@ -140,7 +140,6 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('updated');
-  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const filteredDocuments = useMemo(() => documents
@@ -167,10 +166,7 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.paper} />
       <ScrollView contentContainerStyle={styles.homeContent} showsVerticalScrollIndicator={false}>
-        <ScreenTitle eyebrow="BLOCO · ESTUDOS E IDEIAS" title="Seu espaço de foco" subtitle="Notas, provas e redações em um só lugar" right={<IconButton label="＋" accessibilityLabel="Criar ou importar documento" onPress={() => setQuickMenuOpen(true)} />} />
-        <View style={styles.welcomeRow}>
-          <View><Text style={styles.eyebrow}>CONTINUE DE ONDE PAROU</Text><Text style={styles.welcomeTitle}>Sua prova, suas anotações.</Text></View>
-        </View>
+        <ScreenTitle eyebrow="BLOCO · ESTUDOS E IDEIAS" title="Seu espaço de foco" subtitle="Notas, provas e redações em um só lugar" right={<IconButton label="▧" accessibilityLabel="Importar páginas da galeria" onPress={onImport} />} />
         <View style={styles.searchBox}><Text style={styles.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="Buscar por título ou conteúdo" placeholderTextColor={COLORS.muted} style={styles.searchInput} returnKeyType="search" /></View>
         <View style={styles.quickLaunchPanel}>
           <View style={styles.quickLaunchHeader}><Text style={styles.quickLaunchTitle}>Começar algo novo</Text><Text style={styles.quickLaunchSubtitle}>Escolha um espaço e mantenha o foco</Text></View>
@@ -181,12 +177,12 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
           </View>
         </View>
         <View style={styles.sectionHeading}>
-          <View><Text style={styles.sectionTitle}>Meus cadernos</Text><Text style={styles.sectionSubtitle}>Continue de onde parou</Text></View>
+          <View><Text style={styles.sectionTitle}>{filter === 'trash' ? 'Lixeira' : filter === 'favorite' ? 'Favoritos' : 'Meus cadernos'}</Text><Text style={styles.sectionSubtitle}>{filter === 'trash' ? 'Itens removidos que podem ser restaurados' : filter === 'favorite' ? 'Seus cadernos marcados' : 'Continue de onde parou'}</Text></View>
           <Text style={styles.documentCount}>{filteredDocuments.length.toString().padStart(2, '0')}</Text>
         </View>
         <View style={styles.filterRow}><Pressable onPress={() => setFilter('all')} style={[styles.filterChip, filter === 'all' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>Todos</Text></Pressable><Pressable onPress={() => setFilter('favorite')} style={[styles.filterChip, filter === 'favorite' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'favorite' && styles.filterTextActive]}>★ Favoritos</Text></Pressable><Pressable onPress={() => setFilter('trash')} style={[styles.filterChip, filter === 'trash' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'trash' && styles.filterTextActive]}>Lixeira</Text></Pressable><Pressable onPress={() => setSort(value => value === 'updated' ? 'name' : value === 'name' ? 'created' : 'updated')} style={styles.sortChip}><Text style={styles.filterText}>{sort === 'updated' ? 'Mais recentes' : sort === 'name' ? 'Por nome' : 'Por criação'} ↕</Text></Pressable></View>
         {filteredDocuments.length === 0 ? (
-          <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 22 }}>▤</Text></View><Text style={styles.emptyTitle}>{query || filter === 'favorite' ? 'Nada encontrado' : 'Nenhum caderno por enquanto'}</Text><Text style={styles.emptyText}>{query || filter === 'favorite' ? 'Tente outra busca ou remova o filtro.' : 'Use o botão + para importar páginas, criar uma redação ou iniciar uma prova.'}</Text></View>
+          <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 22 }}>▤</Text></View><Text style={styles.emptyTitle}>{query || filter === 'favorite' ? 'Nada encontrado' : 'Nenhum caderno por enquanto'}</Text><Text style={styles.emptyText}>{query || filter === 'favorite' ? 'Tente outra busca ou remova o filtro.' : 'Use as opções acima para criar uma nota, iniciar uma prova ou escrever uma redação. O ícone de importação permite adicionar páginas da galeria.'}</Text></View>
         ) : (
           <View style={styles.documentList}>
             {filteredDocuments.map((document) => {
@@ -205,11 +201,6 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
         )}
         <View style={styles.footerNote}><Text style={styles.footerLeaf}>✳</Text><Text style={styles.footerText}>Um espaço simples. Para ideias grandes.</Text></View>
       </ScrollView>
-      <Modal visible={quickMenuOpen} transparent animationType="slide" onRequestClose={() => setQuickMenuOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setQuickMenuOpen(false)}>
-          <View style={styles.quickSheet} onStartShouldSetResponder={() => true}><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Criar no Bloco</Text><Text style={styles.sheetSubtitle}>Escolha o tipo de conteúdo para começar</Text><Pressable onPress={() => { setQuickMenuOpen(false); onCreateNote(); }} style={styles.quickOption}><Text style={styles.quickOptionIcon}>＋</Text><View><Text style={styles.quickOptionTitle}>Nova nota</Text><Text style={styles.quickOptionText}>Começar com uma folha em branco</Text></View></Pressable><Pressable onPress={() => { setQuickMenuOpen(false); onImport(); }} style={styles.quickOption}><Text style={styles.quickOptionIcon}>▧</Text><View><Text style={styles.quickOptionTitle}>Importar imagens</Text><Text style={styles.quickOptionText}>Criar um caderno a partir da galeria</Text></View></Pressable><Pressable onPress={() => { setQuickMenuOpen(false); onExam(); }} style={styles.quickOption}><Text style={styles.quickOptionIcon}>◷</Text><View><Text style={styles.quickOptionTitle}>Nova prova</Text><Text style={styles.quickOptionText}>Cronômetro e anotações sobre PDF</Text></View></Pressable><Pressable onPress={() => { setQuickMenuOpen(false); onRedacao(); }} style={styles.quickOption}><Text style={styles.quickOptionIcon}>✎</Text><View><Text style={styles.quickOptionTitle}>Nova redação</Text><Text style={styles.quickOptionText}>Digite ou escreva à mão</Text></View></Pressable></View>
-        </Pressable>
-      </Modal>
       <Modal visible={!!renameTarget} transparent animationType="fade" onRequestClose={() => setRenameTarget(null)}><View style={styles.modalBackdrop}><View style={styles.renameCard}><Text style={styles.sheetTitle}>Renomear caderno</Text><TextInput autoFocus value={renameValue} onChangeText={setRenameValue} style={styles.renameInput} placeholder="Nome do caderno" placeholderTextColor={COLORS.muted} onSubmitEditing={saveRename} /><View style={styles.renameActions}><Pressable onPress={() => setRenameTarget(null)} style={styles.renameCancel}><Text style={styles.renameCancelText}>Cancelar</Text></Pressable><Pressable onPress={saveRename} style={styles.renameConfirm}><Text style={styles.renameConfirmText}>Salvar</Text></Pressable></View></View></View></Modal>
     </SafeAreaView>
   );
