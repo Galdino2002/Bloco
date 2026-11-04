@@ -25,9 +25,9 @@ async function writeExamsWithBackup(items) {
 
 const DIR = FileSystem.documentDirectory + 'bloco-exams/';
 const GREEN = '#315C49';
-const INK = '#203B32';
-const PAPER = '#F7F6F1';
-const LINE = '#E7E8E1';
+const INK = '#1F3027';
+const PAPER = '#F5F6F3';
+const LINE = '#E3E8E2';
 const COLORS = ['#202124','#5F6368','#B3261E','#E67C73','#E8710A','#F9AB00','#188038','#34A853','#00796B','#12A594','#1A73E8','#4285F4','#3F51B5','#673AB7','#A142F4','#D81B60','#8D6E63','#FFFFFF'];
 
 const EXAMS = [
@@ -764,20 +764,20 @@ function ExamEditor({ exam, onSave, onBack }) {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: PAPER }, header: { flexDirection: 'row', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderColor: LINE },
+  safe: { flex: 1, backgroundColor: PAPER }, header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderColor: LINE, backgroundColor: '#FFFFFF' },
   back: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#E8F0E9', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   backText: { color: INK, fontSize: 30, marginTop: -4 }, brand: { color: INK, fontSize: 21, fontWeight: '700' }, sub: { color: '#89938A', fontSize: 11, marginTop: 3 },
-  content: { padding: 18, paddingBottom: 36 }, section: { color: INK, fontSize: 20, fontWeight: '700', marginBottom: 12 },
-  examCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 17, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: LINE },
-  examBadge: { width: 56, height: 56, borderRadius: 16, backgroundColor: '#E8F0E9', alignItems: 'center', justifyContent: 'center', marginRight: 13 },
+  content: { padding: 20, paddingBottom: 42 }, section: { color: INK, fontSize: 20, fontWeight: '700', marginBottom: 12 },
+  examCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 20, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: LINE, shadowColor: '#1F3027', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.035, shadowRadius: 9, elevation: 1 },
+  examBadge: { width: 58, height: 58, borderRadius: 18, backgroundColor: '#E8F0E9', alignItems: 'center', justifyContent: 'center', marginRight: 13 },
   examBadgeText: { color: GREEN, fontWeight: '800', fontSize: 11 }, examTitle: { color: INK, fontSize: 15, fontWeight: '700' },
   examDescription: { color: '#69766D', fontSize: 11, marginTop: 4, lineHeight: 16 }, examDuration: { color: GREEN, fontSize: 11, fontWeight: '700', marginTop: 7 },
   chevron: { color: '#9AA298', fontSize: 28, paddingLeft: 8 }, empty: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, alignItems: 'center' },
   emptyTitle: { color: INK, fontWeight: '700', fontSize: 14 }, emptyText: { color: '#89938A', textAlign: 'center', fontSize: 11, lineHeight: 17, marginTop: 6 },
-  savedCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: LINE, borderRadius: 15, padding: 14, marginBottom: 9 },
+  savedCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: LINE, borderRadius: 18, padding: 15, marginBottom: 11, shadowColor: '#1F3027', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 7, elevation: 1 },
   savedHeader: { flexDirection: 'row', alignItems: 'center' },
   savedSummary: { color: '#89938A', fontSize: 11, marginBottom: 10 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: LINE, borderRadius: 13, paddingHorizontal: 12, marginBottom: 9 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: LINE, borderRadius: 16, paddingHorizontal: 14, marginBottom: 12, minHeight: 50 },
   searchGlyph: { color: GREEN, fontSize: 22, marginRight: 8 },
   searchInput: { flex: 1, minHeight: 44, color: INK, fontSize: 12, paddingVertical: 8 },
   clearSearch: { color: GREEN, fontSize: 10, fontWeight: '700', padding: 7 },
@@ -805,7 +805,7 @@ const s = StyleSheet.create({
   converting: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }, convertingTitle: { color: INK, fontSize: 20, fontWeight: '700', marginTop: 18 },
   convertingText: { color: '#89938A', fontSize: 12, marginTop: 8 }, progressTrack: { height: 7, width: '100%', backgroundColor: '#E1E7DF', borderRadius: 5, marginTop: 22, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: GREEN }, smallNote: { color: '#9AA298', fontSize: 10, marginTop: 16 },
-  editorSafe: { flex: 1, backgroundColor: '#F1F2EF' }, editorHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, paddingVertical: 9, backgroundColor: '#203B32', borderBottomWidth: 1, borderColor: '#203B32' },
+  editorSafe: { flex: 1, backgroundColor: PAPER }, editorHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, paddingVertical: 9, backgroundColor: '#203B32', borderBottomWidth: 1, borderColor: '#203B32' },
   editorTitle: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' }, timerPill: { backgroundColor: '#315C49', paddingHorizontal: 13, paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: '#6E8A79' },
   timerText: { color: '#FFF', fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] }, finishedBanner: { padding: 9, backgroundColor: '#FBEFED' },
   finishedText: { color: '#A64F48', textAlign: 'center', fontSize: 10, fontWeight: '700' }, examToolbar: { flexDirection: 'row', justifyContent: 'space-around', padding: 10, backgroundColor: '#FFF' },
@@ -824,7 +824,7 @@ const s = StyleSheet.create({
   quickSelectButtonActive: { backgroundColor:'#D6E9D8', borderColor:'#5A8B62' },
   quickSelectText: { color:'#426B49', fontSize:11, fontWeight:'700' },
   quickSelectTextActive: { color:'#245B2D' },
-  toolbarText: { color: GREEN, fontSize: 11, fontWeight: '700' }, examCanvas: { flex: 1, marginHorizontal: 9, marginTop: 8, marginBottom: 6, backgroundColor: '#FFF', borderRadius: 5, overflow: 'hidden', elevation: 2, shadowColor: '#202522', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+  toolbarText: { color: GREEN, fontSize: 11, fontWeight: '700' }, examCanvas: { flex: 1, marginHorizontal: 10, marginTop: 10, marginBottom: 8, backgroundColor: '#FFF', borderRadius: 10, overflow: 'hidden', elevation: 2, shadowColor: '#202522', shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
   pageControls: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#E4E7E2' },
   pageControlButton: { width: 40, height: 36, borderRadius: 11, backgroundColor: '#E8F0E9', alignItems: 'center', justifyContent: 'center' },
   pageControlText: { color: GREEN, fontSize: 24, lineHeight: 26, fontWeight: '700' },
