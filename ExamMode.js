@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Image, PanResponder, Pressable, ScrollView,
+  Alert, AppState, Image, PanResponder, Pressable, ScrollView,
   StatusBar, StyleSheet, Text, TextInput, View, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -455,6 +455,13 @@ function ExamEditor({ exam, onSave, onBack }) {
 
   const persistLatestSnapshotRef = useRef(persistLatestSnapshot);
   persistLatestSnapshotRef.current = persistLatestSnapshot;
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextState => {
+      if (nextState !== 'active') persistLatestSnapshotRef.current();
+    });
+    return () => subscription.remove();
+  }, []);
 
   // Protege anotações recentes: salva após pequenas pausas na edição,
   // sem esperar exclusivamente pelo intervalo periódico de 10 segundos.
