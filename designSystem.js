@@ -1,37 +1,26 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+// Shared visual language for the Bloco editor.
+// Kept dependency-free so it remains compatible with Expo Go.
 export const design = {
   colors: {
-    canvas: '#F4F6F1',
+    canvas: '#F3F3F1',
     surface: '#FFFFFF',
-    surfaceMuted: '#EDF2EC',
-    ink: '#18352B',
-    inkSoft: '#466156',
-    accent: '#2F6B51',
-    accentStrong: '#1F503B',
-    accentWash: '#DDEBE0',
-    border: '#DCE5DD',
-    borderStrong: '#C4D4C7',
+    surfaceMuted: '#F1F2EF',
+    ink: '#202522',
+    inkSoft: '#68716B',
+    accent: '#315C49',
+    accentStrong: '#244B39',
+    accentWash: '#E2ECE5',
+    border: '#E5E7E3',
+    borderStrong: '#CDD4CE',
     warning: '#B86B35',
     danger: '#B4514A',
     white: '#FFFFFF',
   },
-  spacing: {
-    xs: 4,
-    sm: 8,
-    md: 12,
-    lg: 16,
-    xl: 24,
-    xxl: 32,
-  },
-  radius: {
-    sm: 8,
-    md: 12,
-    lg: 18,
-    xl: 24,
-    pill: 999,
-  },
+  spacing: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 },
+  radius: { sm: 9, md: 13, lg: 18, xl: 24, pill: 999 },
   typography: {
     title: { fontSize: 24, lineHeight: 29, fontWeight: '700' },
     section: { fontSize: 17, lineHeight: 22, fontWeight: '700' },
@@ -41,13 +30,21 @@ export const design = {
   },
 };
 
-export function IconButton({ label, onPress, active = false, disabled = false, accessibilityLabel }) {
+export function IconButton({
+  label,
+  onPress,
+  active = false,
+  disabled = false,
+  accessibilityLabel,
+}) {
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ selected: active, disabled }}
       accessibilityLabel={accessibilityLabel || label}
       disabled={disabled}
       onPress={onPress}
+      hitSlop={4}
       style={({ pressed }) => ({
         minWidth: 42,
         minHeight: 42,
@@ -55,11 +52,18 @@ export function IconButton({ label, onPress, active = false, disabled = false, a
         borderRadius: design.radius.md,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: active ? design.colors.accentWash : design.colors.surfaceMuted,
-        opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
+        backgroundColor: active ? design.colors.accentWash : 'transparent',
+        borderWidth: active ? 1 : 1,
+        borderColor: active ? '#C9DCCF' : 'transparent',
+        opacity: disabled ? 0.32 : pressed ? 0.62 : 1,
       })}
     >
-      <Text style={{ color: active ? design.colors.accentStrong : design.colors.inkSoft, fontSize: 17, fontWeight: '700' }}>{label}</Text>
+      <Text style={{
+        color: active ? design.colors.accentStrong : design.colors.ink,
+        fontSize: 19,
+        lineHeight: 23,
+        fontWeight: '600',
+      }}>{label}</Text>
     </Pressable>
   );
 }
@@ -77,18 +81,27 @@ export function ScreenTitle({ eyebrow, title, subtitle, right }) {
   );
 }
 
+// Shared floating-style toolbar used by notebooks and the writing workspace.
 export function ContextToolbar({ children }) {
   return (
     <View style={{
       flexDirection: 'row',
       alignItems: 'center',
-      gap: design.spacing.sm,
-      paddingHorizontal: design.spacing.md,
-      paddingVertical: design.spacing.sm,
+      gap: 5,
+      minHeight: 54,
+      paddingHorizontal: 9,
+      paddingVertical: 6,
       backgroundColor: design.colors.surface,
-      borderTopWidth: 1,
-      borderBottomWidth: 1,
+      borderWidth: 1,
       borderColor: design.colors.border,
+      borderRadius: 16,
+      marginHorizontal: 10,
+      marginVertical: 5,
+      shadowColor: '#18251D',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.07,
+      shadowRadius: 8,
+      elevation: 2,
     }}>
       {children}
     </View>
