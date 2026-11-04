@@ -113,14 +113,6 @@ function pathToSvg(points) {
   if (!points.length) return '';
   return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
 }
-function isInsideLasso(point, polygon) {
-  let inside=false;
-  for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){
-    const a=polygon[i],b=polygon[j];
-    if(((a.y>point.y)!==(b.y>point.y)) && point.x<((b.x-a.x)*(point.y-a.y))/((b.y-a.y)||0.00001)+a.x) inside=!inside;
-  }
-  return inside;
-}
 function getStrokeBounds(strokes) {
   const points=strokes.flatMap(stroke=>stroke.points||[]);
   if(!points.length)return null;
@@ -137,28 +129,6 @@ function rotateStrokes(strokes,ids,angle) {
   if(!box)return strokes;
   const cx=(box.minX+box.maxX)/2,cy=(box.minY+box.maxY)/2;
   return strokes.map(stroke=>ids.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>{const x=p.x-cx,y=p.y-cy;return{x:cx+x*Math.cos(angle)-y*Math.sin(angle),y:cy+x*Math.sin(angle)+y*Math.cos(angle)}})}:stroke);
-}
-
-function IconText({ children, color = COLORS.ink, size = 18 }) {
-  return <Text style={{ color, fontSize: size, fontWeight: '600' }}>{children}</Text>;
-}
-
-function ActionButton({ label, onPress, secondary = false, compact = false }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.actionButton,
-        secondary && styles.actionButtonSecondary,
-        compact && styles.actionButtonCompact,
-        pressed && { opacity: 0.78, transform: [{ scale: 0.98 }] },
-      ]}
-    >
-      <Text style={[styles.actionButtonText, secondary && styles.actionButtonTextSecondary, compact && { fontSize: 13 }]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
 }
 
 function PageBackground({ type }) {
@@ -355,7 +325,7 @@ function EditorScreen({ document, onSave, onChange }) {
   const [paths, setPaths] = useState(initialPages[0]?.paths || []);
   const [pageText, setPageText] = useState(initialPages[0]?.text || '');
   const [pageBackground, setPageBackground] = useState(initialPages[0]?.background || 'plain');
-  const [redoPaths, setRedoPaths] = useState([]);
+  const [, setRedoPaths] = useState([]);
   const [pathHistory, setPathHistory] = useState(() => createHistory({
     paths: initialPages[0]?.paths || [],
     text: initialPages[0]?.text || '',
@@ -439,6 +409,8 @@ function EditorScreen({ document, onSave, onChange }) {
     setPathHistory(nextHistory);
     setRedoPaths([]);
   };
+  const recordPathSnapshotRef = useRef(recordPathSnapshot);
+  recordPathSnapshotRef.current = recordPathSnapshot;
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -575,7 +547,7 @@ function EditorScreen({ document, onSave, onChange }) {
         const moved=selectionGestureRef.current.original.map(stroke=>selectedIdsRef.current.includes(stroke.id)?{...stroke,points:stroke.points.map(p=>({x:p.x+dx,y:p.y+dy}))}:stroke);
         pathsRef.current=moved;setPaths(moved);setRedoPaths([]);
       }
-      recordPathSnapshot();
+      recordPathSnapshotRef.current();
       selectionGestureRef.current=null;
       activePath.current=null;
       if ((event.nativeEvent.touches?.length || 0) < 2) pinchStart.current = null;
@@ -940,6 +912,8 @@ function BlocoApp() {
     }
     return enqueueDocumentsSave(snapshot);
   };
+  const flushScheduledSaveRef = useRef(flushScheduledSave);
+  flushScheduledSaveRef.current = flushScheduledSave;
   const scheduleDocumentsSave = snapshot => {
     cancelScheduledSave();
     return new Promise(resolve => {
@@ -982,7 +956,7 @@ function BlocoApp() {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextState => {
       if (nextState !== 'active') {
-        flushScheduledSave(documentsRef.current)?.catch(error => {
+        flushScheduledSaveRef.current(documentsRef.current)?.catch(error => {
           console.error('Erro ao salvar cadernos em segundo plano:', error);
         });
       }
