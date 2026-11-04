@@ -855,7 +855,7 @@ function EditorScreen({ document, onSave, onChange }) {
       </ScrollView>
 
       <ScrollView style={[styles.examLikeDrawPanel, { maxHeight: toolsExpanded ? 310 : 116 }]} contentContainerStyle={{ paddingBottom: toolsExpanded ? 9 : 4 }} showsVerticalScrollIndicator={false}>
-        <Text style={styles.examLikeHint}>{tool === 'select' ? (selectedStrokeIds.length ? `${selectedStrokeIds.length} selecionado(s) · arraste para mover` : 'Contorne a escrita com o dedo para selecionar.') : tool === 'text' ? 'Toque na folha para digitar. Volte à caneta para desenhar.' : 'Escolha uma ferramenta para escrever ou anotar.'}</Text>
+        <Text style={styles.examLikeHint}>{tool === 'select' ? (selectedStrokeIds.length ? `${selectedStrokeIds.length} selecionado(s) · arraste dentro para mover; use dois dedos para zoom` : 'Com um dedo, contorne a escrita para selecionar. Com dois dedos, aproxime ou afaste para ajustar o zoom.') : tool === 'text' ? 'Toque na folha para digitar. Volte à caneta para desenhar.' : 'Escolha uma ferramenta para escrever ou anotar.'}</Text>
         {selectedStrokeIds.length > 0 && <View style={styles.selectionActionRow}>
           <Text style={styles.selectionCount}>{selectedStrokeIds.length} selecionado(s)</Text>
           <Pressable onPress={() => applyPathChange(resizeStrokes(pathsRef.current, selectedStrokeIds, 1.15))} style={styles.selectionAction}><Text style={styles.selectionActionText}>＋ Tamanho</Text></Pressable>
