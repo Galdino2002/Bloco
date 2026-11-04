@@ -265,7 +265,7 @@ export default function ExamMode({ onExit }) {
       try {
         for (const page of exam.pages || []) await FileSystem.deleteAsync(page.uri, { idempotent: true });
         await persist(saved.filter(item => item.id !== exam.id));
-      } catch (e) { Alert.alert('Erro', 'Não foi possível excluir todos os arquivos da prova.'); }
+      } catch { Alert.alert('Erro', 'Não foi possível excluir todos os arquivos da prova.'); }
     } },
   ]);
 
