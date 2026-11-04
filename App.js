@@ -276,29 +276,22 @@ function HomeScreen({ documents, onImport, onExportBackup, onImportBackup, onCre
                   </View>
                   {!selectionMode && <Text style={styles.documentArrow}>›</Text>}
                 </Pressable>
-                {!selectionMode && <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Apagar ${document.title || 'caderno'}`}
-                  onPress={() => Alert.alert(
-                    'Mover caderno para a lixeira?',
-                    'Você poderá restaurá-lo depois pela seção Lixeira.',
-                    [
-                      { text: 'Cancelar', style: 'cancel' },
-                      { text: 'Mover para lixeira', style: 'destructive', onPress: () => onDelete(document.id) },
-                    ],
-                  )}
-                  style={styles.deleteButton}
-                ><Text style={styles.deleteButtonText}>Apagar</Text></Pressable>}
                 {!selectionMode && <Pressable accessibilityRole="button" accessibilityLabel={`Mais opções para ${document.title || 'documento'}`} onPress={() => Alert.alert(document.title || 'Opções', undefined, document.deletedAt ? [
                   { text: 'Restaurar', onPress: () => onUpdate({ ...document, deletedAt: null, updatedAt: Date.now() }) },
-                  { text: 'Excluir definitivamente', style: 'destructive', onPress: () => onDelete(document.id, true) },
+                  { text: 'Excluir definitivamente', style: 'destructive', onPress: () => Alert.alert('Excluir definitivamente?', 'Este documento e seus dados serão removidos permanentemente. Esta ação não pode ser desfeita.', [
+                    { text: 'Cancelar', style: 'cancel' },
+                    { text: 'Excluir definitivamente', style: 'destructive', onPress: () => onDelete(document.id, true) },
+                  ]) },
                   { text: 'Cancelar', style: 'cancel' },
                 ] : [
                   { text: document.favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos', onPress: () => onUpdate({ ...document, favorite: !document.favorite, updatedAt: Date.now() }) },
                   { text: 'Mover para pasta', onPress: () => openFolderManager(document) },
                   { text: 'Renomear', onPress: () => { setRenameTarget(document); setRenameValue(document.title || ''); } },
                   { text: 'Duplicar', onPress: () => onDuplicate(document) },
-                  { text: 'Mover para a lixeira', style: 'destructive', onPress: () => onDelete(document.id) },
+                  { text: 'Excluir', style: 'destructive', onPress: () => Alert.alert('Excluir documento?', 'O documento será movido para a Lixeira e poderá ser restaurado depois.', [
+                    { text: 'Cancelar', style: 'cancel' },
+                    { text: 'Excluir', style: 'destructive', onPress: () => onDelete(document.id) },
+                  ]) },
                   { text: 'Cancelar', style: 'cancel' },
                 ])} style={styles.moreButton}><Text style={styles.moreButtonText}>•••</Text></Pressable>}
               </View>;
