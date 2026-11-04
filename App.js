@@ -266,7 +266,7 @@ function HomeScreen({ documents, onImport, onExportBackup, onImportBackup, onCre
               const selected = selectedIds.includes(document.id);
               return <View key={document.id} style={[styles.documentCard, selected && styles.documentCardSelected]}>
                 {selectionMode && <Pressable onPress={() => toggleSelected(document.id)} style={styles.selectionCheck} accessibilityRole="checkbox" accessibilityState={{ checked: selected }}><Text style={styles.selectionCheckText}>{selected ? '✓' : ''}</Text></Pressable>}
-                <Pressable onLongPress={() => { if (!selectionMode) { setSelectionMode(true); setSelectedIds([document.id]); } }} onPress={() => selectionMode ? toggleSelected(document.id) : onOpen(document)} style={({ pressed }) => [styles.documentOpenArea, pressed && { opacity: 0.75 }]}>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Abrir ${document.title || 'documento'}`} onLongPress={() => { if (!selectionMode) { setSelectionMode(true); setSelectedIds([document.id]); } }} onPress={() => selectionMode ? toggleSelected(document.id) : onOpen(document)} style={({ pressed }) => [styles.documentOpenArea, pressed && { opacity: 0.75 }]}>
                   <View style={styles.documentThumb}>{document.pages?.[0]?.uri || document.uri ? <Image source={{ uri: document.pages?.[0]?.uri || document.uri }} style={styles.documentThumbImage} resizeMode="cover" /> : <View style={styles.documentThumbEmpty}><Text style={styles.documentThumbEmptyGlyph}>✎</Text></View>}<View style={styles.thumbBadge}><Text style={styles.thumbBadgeText}>{pageCount}</Text></View></View>
                   <View style={styles.documentInfo}>
                     <Text style={styles.documentName} numberOfLines={1}>{document.title || 'Sem título'}</Text>
@@ -821,7 +821,7 @@ function EditorScreen({ document, onSave, onChange }) {
             { id: 'select', glyph: '⌁', label: 'Laço' },
             { id: 'move', glyph: '✥', label: 'Mover' },
             { id: 'text', glyph: 'T', label: 'Texto' },
-          ].map(item => <Pressable key={item.id} onPress={() => { setTool(item.id); if (item.id !== 'select') { setSelectedStrokeIds([]); selectedIdsRef.current = []; setLassoPoints([]); lassoRef.current = []; } }} style={[styles.examLikeQuickTool, tool === item.id && styles.examLikeQuickToolActive]}>
+          ].map(item => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={item.label} accessibilityState={{ selected: tool === item.id }} onPress={() => { setTool(item.id); if (item.id !== 'select') { setSelectedStrokeIds([]); selectedIdsRef.current = []; setLassoPoints([]); lassoRef.current = []; } }} style={[styles.examLikeQuickTool, tool === item.id && styles.examLikeQuickToolActive]}>
             <Text style={styles.examLikeQuickGlyph}>{item.glyph}</Text>
             <Text style={[styles.examLikeQuickLabel, tool === item.id && styles.examLikeQuickLabelActive]}>{item.label}</Text>
           </Pressable>)}
