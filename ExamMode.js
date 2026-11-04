@@ -531,8 +531,10 @@ function ExamEditor({ exam, onSave, onBack }) {
         pinchStart.current = {
           distance: Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY),
           zoom: zoomRef.current,
-          centerX: (a.pageX + b.pageX) / 2,
-          centerY: (a.pageY + b.pageY) / 2,
+          focal: {
+            x: ((a.locationX ?? e.nativeEvent.locationX) + (b.locationX ?? e.nativeEvent.locationX)) / 2 - canvasSizeRef.current.width / 2,
+            y: ((a.locationY ?? e.nativeEvent.locationY) + (b.locationY ?? e.nativeEvent.locationY)) / 2 - canvasSizeRef.current.height / 2,
+          },
           pan: { ...panRef.current },
         };
         return;
@@ -594,6 +596,27 @@ function ExamEditor({ exam, onSave, onBack }) {
       setPaths(pathsRef.current);
       setRedo([]);
     },
+    onPanResponderStart: e => {
+      const touches = e.nativeEvent.touches || [];
+      if (touches.length < 2) return;
+      activePath.current = null;
+      selectionGesture.current = null;
+      lassoRef.current = [];
+      setLasso([]);
+      panStart.current = null;
+      const [a, b] = touches;
+      const distance = Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
+      if (distance <= 0) return;
+      pinchStart.current = {
+        distance,
+        zoom: zoomRef.current,
+        focal: {
+          x: ((a.locationX ?? e.nativeEvent.locationX) + (b.locationX ?? e.nativeEvent.locationX)) / 2 - canvasSizeRef.current.width / 2,
+          y: ((a.locationY ?? e.nativeEvent.locationY) + (b.locationY ?? e.nativeEvent.locationY)) / 2 - canvasSizeRef.current.height / 2,
+        },
+        pan: { ...panRef.current },
+      };
+    },
     onPanResponderMove: e => {
       const touches = e.nativeEvent.touches || [];
       if (touches.length >= 2) {
@@ -603,7 +626,15 @@ function ExamEditor({ exam, onSave, onBack }) {
         const [a, b] = touches;
         const distance = Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
         if (!pinchStart.current && distance > 0) {
-          pinchStart.current = { distance, zoom: zoomRef.current, centerX: (a.pageX + b.pageX) / 2, centerY: (a.pageY + b.pageY) / 2, pan: { ...panRef.current } };
+          pinchStart.current = {
+            distance,
+            zoom: zoomRef.current,
+            focal: {
+              x: ((a.locationX ?? e.nativeEvent.locationX) + (b.locationX ?? e.nativeEvent.locationX)) / 2 - canvasSizeRef.current.width / 2,
+              y: ((a.locationY ?? e.nativeEvent.locationY) + (b.locationY ?? e.nativeEvent.locationY)) / 2 - canvasSizeRef.current.height / 2,
+            },
+            pan: { ...panRef.current },
+          };
           panStart.current = null;
           return;
         }
@@ -611,9 +642,14 @@ function ExamEditor({ exam, onSave, onBack }) {
           const nextZoom = Math.min(3, Math.max(0.5, pinchStart.current.zoom * distance / pinchStart.current.distance));
           zoomRef.current = nextZoom;
           setZoom(nextZoom);
-          const centerX = (a.pageX + b.pageX) / 2;
-          const centerY = (a.pageY + b.pageY) / 2;
-          const nextPan = { x: pinchStart.current.pan.x + centerX - pinchStart.current.centerX, y: pinchStart.current.pan.y + centerY - pinchStart.current.centerY };
+          const focal = {
+            x: ((a.locationX ?? e.nativeEvent.locationX) + (b.locationX ?? e.nativeEvent.locationX)) / 2 - canvasSizeRef.current.width / 2,
+            y: ((a.locationY ?? e.nativeEvent.locationY) + (b.locationY ?? e.nativeEvent.locationY)) / 2 - canvasSizeRef.current.height / 2,
+          };
+          const nextPan = {
+            x: focal.x - ((pinchStart.current.focal.x - pinchStart.current.pan.x) / pinchStart.current.zoom) * nextZoom,
+            y: focal.y - ((pinchStart.current.focal.y - pinchStart.current.pan.y) / pinchStart.current.zoom) * nextZoom,
+          };
           panRef.current = nextPan;
           setPan(nextPan);
         }
