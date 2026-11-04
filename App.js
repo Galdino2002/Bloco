@@ -417,6 +417,8 @@ function EditorScreen({ document, onSave, onChange }) {
         pinchStart.current = {
           distance: Math.hypot(first.pageX - second.pageX, first.pageY - second.pageY),
           zoom: zoomRef.current,
+          pan: { ...panOffsetRef.current },
+          focal: { x: ((first.locationX ?? 0) + (second.locationX ?? 0)) / 2 - canvasSizeRef.current.width / 2, y: ((first.locationY ?? 0) + (second.locationY ?? 0)) / 2 - canvasSizeRef.current.height / 2 },
         };
         return;
       }
@@ -463,13 +465,20 @@ function EditorScreen({ document, onSave, onChange }) {
         const [first, second] = touches;
         const distance = Math.hypot(first.pageX - second.pageX, first.pageY - second.pageY);
         if (!pinchStart.current && distance > 0) {
-          pinchStart.current = { distance, zoom: zoomRef.current };
+          pinchStart.current = { distance, zoom: zoomRef.current, pan: { ...panOffsetRef.current }, focal: { x: ((first.locationX ?? 0) + (second.locationX ?? 0)) / 2 - canvasSizeRef.current.width / 2, y: ((first.locationY ?? 0) + (second.locationY ?? 0)) / 2 - canvasSizeRef.current.height / 2 } };
           return;
         }
         if (pinchStart.current?.distance > 0) {
           const nextZoom = Math.min(3, Math.max(0.5, pinchStart.current.zoom * distance / pinchStart.current.distance));
+          const focal = { x: ((first.locationX ?? 0) + (second.locationX ?? 0)) / 2 - canvasSizeRef.current.width / 2, y: ((first.locationY ?? 0) + (second.locationY ?? 0)) / 2 - canvasSizeRef.current.height / 2 };
+          const nextPan = {
+            x: focal.x - ((pinchStart.current.focal.x - pinchStart.current.pan.x) / pinchStart.current.zoom) * nextZoom,
+            y: focal.y - ((pinchStart.current.focal.y - pinchStart.current.pan.y) / pinchStart.current.zoom) * nextZoom,
+          };
           zoomRef.current = nextZoom;
+          panOffsetRef.current = nextPan;
           setZoom(nextZoom);
+          setPanOffset(nextPan);
         }
         return;
       }
@@ -875,7 +884,9 @@ function BlocoApp() {
     const serialized = JSON.stringify(snapshot);
     persistenceQueue.current = persistenceQueue.current.catch(() => undefined).then(async () => {
       const previous = await AsyncStorage.getItem(NOTEBOOKS_STORAGE_KEY);
-      if (previous) await AsyncStorage.setItem(NOTEBOOKS_BACKUP_KEY, previous);
+      if (previous) {
+        try { if (Array.isArray(JSON.parse(previous))) await AsyncStorage.setItem(NOTEBOOKS_BACKUP_KEY, previous); } catch { /* keep the last valid backup */ }
+      }
       await AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, serialized);
     });
     return persistenceQueue.current;
