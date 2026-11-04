@@ -194,7 +194,7 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
               const annotationCount = (document.pages || [{ paths: document.paths || [] }]).reduce((sum, page) => sum + (page.paths?.length || 0), 0);
               return <View key={document.id} style={styles.documentCard}>
                 <Pressable onPress={() => onOpen(document)} style={({ pressed }) => [styles.documentOpenArea, pressed && { opacity: 0.75 }]}>
-                  <View style={styles.documentThumb}><Image source={{ uri: document.pages?.[0]?.uri || document.uri }} style={styles.documentThumbImage} /><View style={styles.thumbBadge}><Text style={styles.thumbBadgeText}>✎</Text></View></View>
+                  <View style={styles.documentThumb}>{document.pages?.[0]?.uri || document.uri ? <Image source={{ uri: document.pages?.[0]?.uri || document.uri }} style={styles.documentThumbImage} resizeMode="cover" /> : <View style={styles.documentThumbEmpty}><Text style={styles.documentThumbEmptyGlyph}>✎</Text></View>}<View style={styles.thumbBadge}><Text style={styles.thumbBadgeText}>✎</Text></View></View>
                   <View style={styles.documentInfo}><Text style={styles.documentName} numberOfLines={1}>{document.title || 'Minha prova'}</Text><Text style={styles.documentMeta}>{pageCount} {pageCount === 1 ? 'página' : 'páginas'} · {annotationCount} traços</Text><Text style={styles.documentDate}>{document.updatedAt ? `Atualizado em ${new Date(document.updatedAt).toLocaleDateString('pt-BR')}` : 'Ainda não editado'}</Text></View>
                   <Text style={styles.documentArrow}>›</Text>
                 </Pressable>
@@ -593,7 +593,20 @@ function EditorScreen({ document, onSave, onChange }) {
         <View style={styles.examLikeCanvas} onLayout={(event) => setCanvasSize(event.nativeEvent.layout)}>
           <View style={[styles.zoomContent, { transform: [{ translateX: panOffset.x }, { translateY: panOffset.y }, { scale: zoom }] }]}>
             {currentPage.uri
-              ? <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" />
+              ? <>
+                  <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" />
+                  <TextInput
+                    value={pageText}
+                    onChangeText={setPageText}
+                    onEndEditing={() => recordPathSnapshot()}
+                    editable={tool === 'text'}
+                    placeholder={tool === 'text' ? 'Digite nesta página...' : ''}
+                    placeholderTextColor="#A0AAA1"
+                    multiline
+                    textAlignVertical="top"
+                    style={[styles.pageTextInput, styles.pageTextOnImage]}
+                  />
+                </>
               : <View style={styles.blankPage}>
                   <PageBackground type={pageBackground} />
                   <TextInput value={pageText} onChangeText={setPageText} onEndEditing={() => recordPathSnapshot()} editable={tool === 'text'} placeholder={tool === 'text' ? 'Digite nesta página...' : 'Selecione Texto para digitar'} placeholderTextColor="#A0AAA1" multiline textAlignVertical="top" style={styles.pageTextInput} />
@@ -946,6 +959,9 @@ const styles = StyleSheet.create({
   deleteButtonText: { color: COLORS.rose, fontSize: 10, fontWeight: '700' },
   documentThumb: { width: 54, height: 58, backgroundColor: '#F1F0E9', borderRadius: 10, overflow: 'hidden' },
   documentThumbImage: { width: '100%', height: '100%' },
+  documentThumbEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8F0E9' },
+  documentThumbEmptyGlyph: { color: COLORS.green, fontSize: 24, fontWeight: '700' },
+  pageTextOnImage: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, padding: 18, color: COLORS.ink, backgroundColor: 'transparent' },
   thumbBadge: { position: 'absolute', right: 3, bottom: 3, width: 19, height: 19, borderRadius: 10, backgroundColor: COLORS.ink, alignItems: 'center', justifyContent: 'center' },
   thumbBadgeText: { color: 'white', fontSize: 11 },
   documentInfo: { flex: 1, marginLeft: 12 },
