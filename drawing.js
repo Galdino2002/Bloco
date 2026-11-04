@@ -13,11 +13,24 @@ export function pathToSvg(points) {
   return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
 }
 
+function pointOnSegment(point, start, end) {
+  const cross = (point.x - start.x) * (end.y - start.y) - (point.y - start.y) * (end.x - start.x);
+  if (Math.abs(cross) > 1e-8) return false;
+  const dot = (point.x - start.x) * (end.x - start.x) + (point.y - start.y) * (end.y - start.y);
+  if (dot < 0) return false;
+  const lengthSquared = (end.x - start.x) ** 2 + (end.y - start.y) ** 2;
+  return dot <= lengthSquared;
+}
+
 export function isPointInPolygon(point, polygon) {
+  if (!point || !Array.isArray(polygon) || polygon.length < 3) return false;
   let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i += 1) {
-    const intersects = ((polygon[i].y > point.y) !== (polygon[j].y > point.y))
-      && point.x < ((polygon[j].x - polygon[i].x) * (point.y - polygon[i].y)) / (polygon[j].y - polygon[i].y) + polygon[i].x;
+    const current = polygon[i];
+    const previous = polygon[j];
+    if (pointOnSegment(point, previous, current)) return true;
+    const intersects = ((current.y > point.y) !== (previous.y > point.y))
+      && point.x < ((previous.x - current.x) * (point.y - current.y)) / (previous.y - current.y) + current.x;
     if (intersects) inside = !inside;
   }
   return inside;
@@ -31,19 +44,36 @@ function segmentsIntersect(a, b, c, d) {
   const abD = orientation(a, b, d);
   const cdA = orientation(c, d, a);
   const cdB = orientation(c, d, b);
-  if ((abC > 0) !== (abD > 0) && (cdA > 0) !== (cdB > 0)) return true;
-  return (abC === 0 && onSegment(a, c, b))
-    || (abD === 0 && onSegment(a, d, b))
-    || (cdA === 0 && onSegment(c, a, d))
-    || (cdB === 0 && onSegment(c, b, d));
+  if (abC * abD < 0 && cdA * cdB < 0) return true;
+  return (Math.abs(abC) <= 1e-8 && onSegment(a, c, b))
+    || (Math.abs(abD) <= 1e-8 && onSegment(a, d, b))
+    || (Math.abs(cdA) <= 1e-8 && onSegment(c, a, d))
+    || (Math.abs(cdB) <= 1e-8 && onSegment(c, b, d));
 }
 
 export function pathIntersectsPolygon(path, polygon) {
-  if (!path?.points?.length || polygon.length < 3) return false;
-  if (path.points.some(point => isPointInPolygon(point, polygon))) return true;
-  for (let i = 1; i < path.points.length; i += 1) {
+  const points = Array.isArray(path?.points) ? path.points : [];
+  if (!points.length || !Array.isArray(polygon) || polygon.length < 3) return false;
+  if (points.some(point => isPointInPolygon(point, polygon))) return true;
+
+  const pathBounds = {
+    minX: Math.min(...points.map(point => point.x)),
+    maxX: Math.max(...points.map(point => point.x)),
+    minY: Math.min(...points.map(point => point.y)),
+    maxY: Math.max(...points.map(point => point.y)),
+  };
+  const polygonBounds = {
+    minX: Math.min(...polygon.map(point => point.x)),
+    maxX: Math.max(...polygon.map(point => point.x)),
+    minY: Math.min(...polygon.map(point => point.y)),
+    maxY: Math.max(...polygon.map(point => point.y)),
+  };
+  if (pathBounds.maxX < polygonBounds.minX || pathBounds.minX > polygonBounds.maxX
+    || pathBounds.maxY < polygonBounds.minY || pathBounds.minY > polygonBounds.maxY) return false;
+
+  for (let i = 1; i < points.length; i += 1) {
     for (let j = 0; j < polygon.length; j += 1) {
-      if (segmentsIntersect(path.points[i - 1], path.points[i], polygon[j], polygon[(j + 1) % polygon.length])) return true;
+      if (segmentsIntersect(points[i - 1], points[i], polygon[j], polygon[(j + 1) % polygon.length])) return true;
     }
   }
   return false;
@@ -82,7 +112,7 @@ export function pathIsSelected(path, polygon) {
 }
 
 export function boundsForPaths(paths) {
-  const points = paths.flatMap(path => path.points);
+  const points = (Array.isArray(paths) ? paths : []).flatMap(path => Array.isArray(path?.points) ? path.points : []);
   if (!points.length) return null;
   const xs = points.map(point => point.x);
   const ys = points.map(point => point.y);
