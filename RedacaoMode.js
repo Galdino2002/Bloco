@@ -11,6 +11,7 @@ import * as Sharing from 'expo-sharing';
 import Svg, { G, Line, Path, Rect } from 'react-native-svg';
 import { eraseAtPoint, getHighlighterStyle, pathIntersectsPolygon } from './drawing';
 import { ContextToolbar, design, IconButton, ScreenHeader } from './designSystem';
+import { commitHistory, createHistory, redoHistory, undoHistory } from './drawingHistory';
 
 const { readArrayWithBackup, writeArrayWithBackup } = storage;
 
@@ -74,7 +75,9 @@ export default function RedacaoMode({ onExit }) {
   const [mode, setMode] = useState('write');
   const [color, setColor] = useState(COLORS[0]);
   const [paths, setPaths] = useState([]);
-  const [redo, setRedo] = useState([]);
+  const [pathHistory, setPathHistory] = useState(() => createHistory([]));
+  const pathHistoryRef = useRef(pathHistory);
+  pathHistoryRef.current = pathHistory;
   const [loaded, setLoaded] = useState(false);
   const [sharingDrawing, setSharingDrawing] = useState(false);
   const [saveState, setSaveState] = useState('saved');
@@ -117,6 +120,39 @@ export default function RedacaoMode({ onExit }) {
   penWidthRef.current = penWidth;
   selectedIdsRef.current = selectedIds;
   lassoRef.current = lasso;
+
+  const applyPaths = nextPaths => {
+    pathsRef.current = nextPaths;
+    setPaths(nextPaths);
+    const nextHistory = commitHistory(pathHistoryRef.current, nextPaths);
+    pathHistoryRef.current = nextHistory;
+    setPathHistory(nextHistory);
+  };
+
+  const recordPathHistory = () => {
+    if (JSON.stringify(pathHistoryRef.current.present) === JSON.stringify(pathsRef.current)) return;
+    const nextHistory = commitHistory(pathHistoryRef.current, pathsRef.current);
+    pathHistoryRef.current = nextHistory;
+    setPathHistory(nextHistory);
+  };
+
+  const undoPaths = () => {
+    const nextHistory = undoHistory(pathHistoryRef.current);
+    if (nextHistory === pathHistoryRef.current) return;
+    pathHistoryRef.current = nextHistory;
+    setPathHistory(nextHistory);
+    pathsRef.current = nextHistory.present;
+    setPaths(nextHistory.present);
+  };
+
+  const redoPaths = () => {
+    const nextHistory = redoHistory(pathHistoryRef.current);
+    if (nextHistory === pathHistoryRef.current) return;
+    pathHistoryRef.current = nextHistory;
+    setPathHistory(nextHistory);
+    pathsRef.current = nextHistory.present;
+    setPaths(nextHistory.present);
+  };
 
   useEffect(() => {
     readArrayWithBackup(AsyncStorage, STORAGE_KEY, BACKUP_KEY)
@@ -178,7 +214,9 @@ export default function RedacaoMode({ onExit }) {
     setMode(draft.mode || 'write');
     setPaths(draft.paths || []);
     pathsRef.current = draft.paths || [];
-    setRedo([]);
+    const nextHistory = createHistory(draft.paths || []);
+    pathHistoryRef.current = nextHistory;
+    setPathHistory(nextHistory);
     setSaveState('saved');
   };
 
@@ -202,7 +240,9 @@ export default function RedacaoMode({ onExit }) {
     setMode('write');
     setPaths([]);
     pathsRef.current = [];
-    setRedo([]);
+    const nextHistory = createHistory([]);
+    pathHistoryRef.current = nextHistory;
+    setPathHistory(nextHistory);
     setSaveState('saving');
   };
 
@@ -368,13 +408,13 @@ export default function RedacaoMode({ onExit }) {
       }
       if (canvasToolRef.current === 'eraser') {
         const next = eraseAtPoint(pathsRef.current, point, 24);
-        pathsRef.current = next; setPaths(next); setRedo([]); return;
+        pathsRef.current = next; setPaths(next);  return;
       }
       const isMarker = canvasToolRef.current === 'highlighter';
       const marker = markerTypeRef.current;
       const markerStyle = getHighlighterStyle(marker, markerWidthRef.current);
       const stroke = { id: String(Date.now()) + Math.random(), points: [point], color: colorRef.current, width: isMarker ? markerStyle.width : penWidthRef.current, opacity: isMarker ? markerStyle.opacity : 1, kind: isMarker ? 'highlighter' : 'pen' };
-      activePath.current = stroke; pathsRef.current = [...pathsRef.current, stroke]; setPaths(pathsRef.current); setRedo([]);
+      activePath.current = stroke; pathsRef.current = [...pathsRef.current, stroke]; setPaths(pathsRef.current); 
     },
     onPanResponderStart: event => {
       const touches = event.nativeEvent.touches || [];
@@ -457,13 +497,17 @@ export default function RedacaoMode({ onExit }) {
         selectedIdsRef.current = ids; setSelectedIds(ids); lassoRef.current = []; setLasso([]);
       } else if (canvasToolRef.current === 'select' && selectionRef.current?.type === 'resize') {
         const resized = transformSelected(selectionRef.current.original, selectedIdsRef.current, selectionRef.current.factor || 1);
-        pathsRef.current = resized; setPaths(resized); setRedo([]);
+        pathsRef.current = resized; setPaths(resized); 
       } else if (canvasToolRef.current === 'select' && selectionRef.current?.type === 'move') {
-        setRedo([]);
+        
       }
+      recordPathHistory();
       selectionRef.current = null; activePath.current = null; pinchStart.current = null; moveStart.current = null;
     },
-    onPanResponderTerminate: () => { activePath.current = null; pinchStart.current = null; moveStart.current = null; selectionRef.current = null; lassoRef.current = []; setLasso([]); },
+    onPanResponderTerminate: () => {
+      recordPathHistory();
+      activePath.current = null; pinchStart.current = null; moveStart.current = null; selectionRef.current = null; lassoRef.current = []; setLasso([]);
+    },
   }), []);
 
   if (loadError) return <SafeAreaView style={styles.safe}><View style={{ flex: 1, justifyContent: 'center', padding: 26, gap: 14 }}><Text style={{ color: INK, fontSize: 22, fontWeight: '800' }}>Não foi possível carregar suas redações</Text><Text style={{ color: '#89938A', fontSize: 13, lineHeight: 20 }}>{loadError}</Text><Pressable onPress={() => { setLoaded(false); setLoadError(''); setLoadAttempt(value => value + 1); }} style={{ backgroundColor: GREEN, padding: 15, borderRadius: 12, alignItems: 'center' }}><Text style={{ color: '#FFF', fontWeight: '700' }}>Tentar novamente</Text></Pressable><Pressable onPress={onExit} style={{ padding: 12, alignItems: 'center' }}><Text style={{ color: GREEN, fontWeight: '700' }}>Voltar</Text></Pressable></View></SafeAreaView>;
@@ -523,9 +567,9 @@ export default function RedacaoMode({ onExit }) {
         ) : (
           <View style={styles.drawArea}>
             <ContextToolbar>
-              <IconButton label="↶" accessibilityLabel="Desfazer" onPress={() => { if (paths.length) { setRedo(old => [...old, paths[paths.length - 1]]); setPaths(old => old.slice(0, -1)); } }} disabled={!paths.length} />
-              <IconButton label="↷" accessibilityLabel="Refazer" onPress={() => { if (redo.length) { setPaths(old => [...old, redo[redo.length - 1]]); setRedo(old => old.slice(0, -1)); } }} disabled={!redo.length} />
-              <Pressable onPress={() => Alert.alert('Limpar folha?', 'Apagar todos os traços desta folha?', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Limpar', style: 'destructive', onPress: () => { setPaths([]); setRedo([]); } }])}><Text style={styles.toolText}>Limpar</Text></Pressable>
+              <IconButton label="↶" accessibilityLabel="Desfazer" onPress={undoPaths} disabled={pathHistory.past.length <= 1} />
+              <IconButton label="↷" accessibilityLabel="Refazer" onPress={redoPaths} disabled={!pathHistory.future.length} />
+              <Pressable onPress={() => Alert.alert('Limpar folha?', 'Apagar todos os traços desta folha?', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Limpar', style: 'destructive', onPress: () => applyPaths([]) }])}><Text style={styles.toolText}>Limpar</Text></Pressable>
             </ContextToolbar>
             <View style={styles.canvasModeBar}>
               {[
@@ -536,12 +580,12 @@ export default function RedacaoMode({ onExit }) {
             {canvasTool === 'select' && <View style={styles.selectionToolbar}>
               <Text style={styles.selectionHint}>{selectedIds.length ? `${selectedIds.length} selecionado(s) · arraste para mover ou use os atalhos.` : 'Contorne a escrita com o dedo para selecionar.'}</Text>
               {selectedIds.length > 0 && <View style={styles.selectionActions}>
-                <Pressable style={styles.selectionAction} onPress={() => { const next = transformSelected(paths, selectedIds, 1.15); pathsRef.current = next; setPaths(next); setRedo([]); }}><Text style={styles.toolText}>＋ Tamanho</Text></Pressable>
-                <Pressable style={styles.selectionAction} onPress={() => { const next = transformSelected(paths, selectedIds, 0.87); pathsRef.current = next; setPaths(next); setRedo([]); }}><Text style={styles.toolText}>− Tamanho</Text></Pressable>
-                <Pressable style={styles.selectionAction} onPress={() => { const next = transformSelected(paths, selectedIds, 1, Math.PI / 12); pathsRef.current = next; setPaths(next); setRedo([]); }}><Text style={styles.toolText}>↻ Girar</Text></Pressable>
-                <Pressable style={styles.selectionAction} onPress={() => { setClipboard(paths.filter(path => selectedIds.includes(path.id))); const next = paths.filter(path => !selectedIds.includes(path.id)); pathsRef.current = next; setPaths(next); setSelectedIds([]); setRedo([]); }}><Text style={styles.toolText}>Cortar</Text></Pressable>
-                <Pressable style={styles.selectionAction} onPress={() => { if (!clipboard.length) return; const pasted = clipboard.map(path => ({ ...path, id: String(Date.now()) + Math.random(), points: path.points.map(p => ({ x: p.x + 24, y: p.y + 24 })) })); const next = [...paths, ...pasted]; pathsRef.current = next; setPaths(next); setSelectedIds(pasted.map(path => path.id)); setRedo([]); }}><Text style={styles.toolText}>Colar</Text></Pressable>
-                <Pressable style={styles.selectionAction} onPress={() => { const next = paths.filter(path => !selectedIds.includes(path.id)); pathsRef.current = next; setPaths(next); setSelectedIds([]); setRedo([]); }}><Text style={[styles.toolText, { color: '#B44D45' }]}>Excluir</Text></Pressable>
+                <Pressable style={styles.selectionAction} onPress={() => { const next = transformSelected(paths, selectedIds, 1.15); applyPaths(next);  }}><Text style={styles.toolText}>＋ Tamanho</Text></Pressable>
+                <Pressable style={styles.selectionAction} onPress={() => { const next = transformSelected(paths, selectedIds, 0.87); applyPaths(next);  }}><Text style={styles.toolText}>− Tamanho</Text></Pressable>
+                <Pressable style={styles.selectionAction} onPress={() => { const next = transformSelected(paths, selectedIds, 1, Math.PI / 12); applyPaths(next);  }}><Text style={styles.toolText}>↻ Girar</Text></Pressable>
+                <Pressable style={styles.selectionAction} onPress={() => { setClipboard(paths.filter(path => selectedIds.includes(path.id))); const next = paths.filter(path => !selectedIds.includes(path.id)); applyPaths(next); setSelectedIds([]);  }}><Text style={styles.toolText}>Cortar</Text></Pressable>
+                <Pressable style={styles.selectionAction} onPress={() => { if (!clipboard.length) return; const pasted = clipboard.map(path => ({ ...path, id: String(Date.now()) + Math.random(), points: path.points.map(p => ({ x: p.x + 24, y: p.y + 24 })) })); const next = [...paths, ...pasted]; applyPaths(next); setSelectedIds(pasted.map(path => path.id));  }}><Text style={styles.toolText}>Colar</Text></Pressable>
+                <Pressable style={styles.selectionAction} onPress={() => { const next = paths.filter(path => !selectedIds.includes(path.id)); pathsRef.current = next; setPaths(next); setSelectedIds([]);  }}><Text style={[styles.toolText, { color: '#B44D45' }]}>Excluir</Text></Pressable>
                 <Pressable style={styles.selectionAction} onPress={() => setSelectedIds([])}><Text style={styles.toolText}>Nova seleção</Text></Pressable>
               </View>}
             </View>}
