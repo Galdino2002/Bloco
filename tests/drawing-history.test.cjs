@@ -41,7 +41,7 @@ test('keeps the configured history limit', () => {
   history = commitHistory(history, [1, 2, 3]);
   history = commitHistory(history, [1, 2, 3, 4]);
   assert.equal(history.past.length, 3);
-  assert.deepEqual(undoHistory(history).present, [1, 2]);
+  assert.deepEqual(undoHistory(history).present, [1, 2, 3]);
 });
 
 test('does not retain references to committed mutable input', () => {
