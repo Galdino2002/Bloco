@@ -52,6 +52,20 @@ function distanceToSegment(point, start, end) {
   return Math.hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy));
 }
 
+function eraseWholeStrokesAtPoint(paths, point, radius) {
+  return paths.filter(stroke => {
+    const points = stroke.points || [];
+    const threshold = radius + (stroke.width || 1) / 2;
+    if (points.length <= 1) {
+      return !points.length || Math.hypot(points[0].x - point.x, points[0].y - point.y) > threshold;
+    }
+    for (let index = 1; index < points.length; index += 1) {
+      if (distanceToSegment(point, points[index - 1], points[index]) <= threshold) return false;
+    }
+    return true;
+  });
+}
+
 function pathToSvg(points) {
   if (!points.length) return '';
   return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
@@ -226,6 +240,9 @@ function EditorScreen({ document, onSave, onChange }) {
   const [markerWidth, setMarkerWidth] = useState(18);
   const [toolsExpanded, setToolsExpanded] = useState(false);
   const [strokeWidth, setStrokeWidth] = useState(4);
+  const [penOpacity, setPenOpacity] = useState(1);
+  const [eraserSize, setEraserSize] = useState(24);
+  const [eraserMode, setEraserMode] = useState('partial');
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
@@ -244,11 +261,14 @@ function EditorScreen({ document, onSave, onChange }) {
   const markerTypeRef = useRef(markerType);
   const markerWidthRef = useRef(markerWidth);
   const widthRef = useRef(strokeWidth);
+  const penOpacityRef = useRef(penOpacity);
+  const eraserSizeRef = useRef(eraserSize);
+  const eraserModeRef = useRef(eraserMode);
   const selectedIdsRef = useRef([]);
   const lassoRef = useRef([]);
   const selectionGestureRef = useRef(null);
   const pathHistoryRef = useRef(pathHistory);
-  pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType; markerWidthRef.current = markerWidth; widthRef.current = strokeWidth;
+  pathsRef.current = paths; toolRef.current = tool; colorRef.current = color; markerTypeRef.current = markerType; markerWidthRef.current = markerWidth; widthRef.current = strokeWidth; penOpacityRef.current = penOpacity; eraserSizeRef.current = eraserSize; eraserModeRef.current = eraserMode;
   selectedIdsRef.current=selectedStrokeIds; lassoRef.current=lassoPoints;
   pathHistoryRef.current = pathHistory;
 
@@ -321,7 +341,9 @@ function EditorScreen({ document, onSave, onChange }) {
       const point = screenToDocument({ x: event.nativeEvent.locationX, y: event.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panOffsetRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2} });
       if (toolRef.current === 'eraser') {
         const previous = pathsRef.current;
-        const next = eraseAtPoint(previous, point, 22);
+        const next = eraserModeRef.current === 'whole'
+          ? eraseWholeStrokesAtPoint(previous, point, eraserSizeRef.current)
+          : eraseAtPoint(previous, point, eraserSizeRef.current);
         const changed = next.length !== previous.length || next.some((path, index) => path !== previous[index]);
         if (changed) {
           pathsRef.current = next;
@@ -333,7 +355,7 @@ function EditorScreen({ document, onSave, onChange }) {
       const highlighter = toolRef.current === 'highlighter';
       const marker = markerTypeRef.current;
       const markerStyle = getHighlighterStyle(marker, markerWidthRef.current);
-      const nextPath = { id: `${Date.now()}-${Math.random()}`, points: [point], color: colorRef.current, width: highlighter ? markerStyle.width : widthRef.current, opacity: highlighter ? markerStyle.opacity : 1, kind: highlighter ? 'highlighter' : 'pen' };
+      const nextPath = { id: `${Date.now()}-${Math.random()}`, points: [point], color: colorRef.current, width: highlighter ? markerStyle.width : widthRef.current, opacity: highlighter ? markerStyle.opacity : penOpacityRef.current, kind: highlighter ? 'highlighter' : 'pen' };
       activePath.current = nextPath;
       pathsRef.current = [...pathsRef.current, nextPath];
       setPaths(pathsRef.current);
@@ -384,7 +406,9 @@ function EditorScreen({ document, onSave, onChange }) {
       const point = screenToDocument({ x: event.nativeEvent.locationX, y: event.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panOffsetRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2} });
       if (toolRef.current === 'eraser') {
         const previous = pathsRef.current;
-        const next = eraseAtPoint(previous, point, 22);
+        const next = eraserModeRef.current === 'whole'
+          ? eraseWholeStrokesAtPoint(previous, point, eraserSizeRef.current)
+          : eraseAtPoint(previous, point, eraserSizeRef.current);
         const changed = next.length !== previous.length || next.some((path, index) => path !== previous[index]);
         if (changed) {
           pathsRef.current = next;
@@ -472,75 +496,131 @@ function EditorScreen({ document, onSave, onChange }) {
     const timer = setTimeout(() => {
       onChange({ ...document, title: titleRef.current, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
     }, 250);
-    return () => clearTimeout(timer);
-  }, [pages, paths, pageText, pageBackground, pageIndex, title]);
-
-  return (
-    <SafeAreaView style={styles.editorSafe}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.paper} />
-      <View style={styles.editorHeader}>
-        <Pressable onPress={save} style={styles.backButton}><Text style={styles.backArrow}>‹</Text></Pressable>
-        <View style={styles.editorTitleWrap}><TextInput value={title} onChangeText={nextTitle => { titleRef.current = nextTitle; setTitle(nextTitle); onChange({ ...document, title: nextTitle, updatedAt: Date.now() }); }} style={styles.editorTitleInput} maxLength={70} /><Text style={styles.editorSubtitle}>Texto e escrita manual salvos automaticamente</Text></View>
-        <Pressable onPress={save} style={styles.saveButton}><Text style={styles.saveButtonText}>Salvar</Text></Pressable>
+    return (
+    <SafeAreaView style={styles.examLikeEditorSafe}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.ink} />
+      <View style={styles.examLikeHeader}>
+        <Pressable onPress={save} style={styles.examLikeBack}><Text style={styles.examLikeBackText}>‹</Text></Pressable>
+        <View style={styles.examLikeTitleWrap}>
+          <TextInput value={title} onChangeText={nextTitle => { titleRef.current = nextTitle; setTitle(nextTitle); onChange({ ...document, title: nextTitle, updatedAt: Date.now() }); }} style={styles.examLikeTitleInput} maxLength={70} />
+          <Text style={styles.examLikeSubtitle}>Nota · salvamento automático</Text>
+        </View>
+        <Pressable onPress={save} style={styles.examLikeSave}><Text style={styles.examLikeSaveText}>Salvar</Text></Pressable>
       </View>
+
       <ContextToolbar>
         <IconButton label="↶" accessibilityLabel="Desfazer" onPress={undo} disabled={pathHistory.past.length <= 1} />
         <IconButton label="↷" accessibilityLabel="Refazer" onPress={redo} disabled={!pathHistory.future.length} />
-        <IconButton label="⌫" accessibilityLabel="Limpar página" onPress={() => { if (pathsRef.current.length) applyPathChange([]); setSelectedStrokeIds([]); }} />
-        <View style={styles.editorSpacer} />
-        <View style={styles.pageCounter}><Text style={styles.pageCounterText}>{String(pageIndex + 1).padStart(2, '0')} / {String(pages.length).padStart(2, '0')}</Text></View>
+        <View style={{ flex: 1 }} />
+        <View style={styles.examLikeCounter}><Text style={styles.examLikeCounterText}>{String(pageIndex + 1).padStart(2, '0')} / {String(pages.length).padStart(2, '0')}</Text></View>
       </ContextToolbar>
-      <View style={styles.canvasArea}>
-        <View style={styles.canvasPaper} onLayout={(event) => setCanvasSize(event.nativeEvent.layout)}>
+
+      <View style={styles.examLikeCanvasArea}>
+        <View style={styles.examLikeCanvas} onLayout={(event) => setCanvasSize(event.nativeEvent.layout)}>
           <View style={[styles.zoomContent, { transform: [{ translateX: panOffset.x }, { translateY: panOffset.y }, { scale: zoom }] }]}>
-            {currentPage.uri ? <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" /> : <View style={styles.blankPage}><PageBackground type={pageBackground} /><TextInput value={pageText} onChangeText={setPageText} onEndEditing={() => recordPathSnapshot()} placeholder="Digite nesta página..." placeholderTextColor="#A0AAA1" multiline textAlignVertical="top" style={styles.pageTextInput} /></View>}
+            {currentPage.uri
+              ? <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" />
+              : <View style={styles.blankPage}>
+                  <PageBackground type={pageBackground} />
+                  <TextInput value={pageText} onChangeText={setPageText} onEndEditing={() => recordPathSnapshot()} placeholder="Digite nesta página..." placeholderTextColor="#A0AAA1" multiline textAlignVertical="top" style={styles.pageTextInput} />
+                </View>}
             <View pointerEvents="none" style={StyleSheet.absoluteFill}>
               <Svg width={canvasSize.width} height={canvasSize.height}>
-                {paths.map((path) => <Path key={path.id} d={pathToSvg(path.points)} stroke={path.color} strokeWidth={path.width} strokeOpacity={path.opacity ?? 1} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}{lassoPoints.length>1&&<Path d={pathToSvg(lassoPoints)} stroke={COLORS.green} strokeWidth={2} strokeDasharray="5 4" fill="none"/>}{selectedStrokeIds.length>0&&(()=>{const b=getStrokeBounds(paths.filter(path=>selectedStrokeIds.includes(path.id)));return b?<><Rect x={b.minX-7} y={b.minY-7} width={Math.max(20,b.maxX-b.minX+14)} height={Math.max(20,b.maxY-b.minY+14)} stroke={COLORS.green} strokeWidth={1.5} strokeDasharray="5 4" fill="none"/><Rect x={b.maxX+1} y={b.maxY+1} width={12} height={12} rx={3} fill={COLORS.green}/></>:null;})()}
+                {paths.map(path => <Path key={path.id} d={pathToSvg(path.points)} stroke={path.color} strokeWidth={path.width} strokeOpacity={path.opacity ?? 1} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}
+                {lassoPoints.length > 1 && <Path d={pathToSvg(lassoPoints)} stroke={COLORS.green} strokeWidth={2} strokeDasharray="5 4" fill="none" />}
+                {selectedStrokeIds.length > 0 && (() => {
+                  const bounds = getStrokeBounds(paths.filter(path => selectedStrokeIds.includes(path.id)));
+                  return bounds ? <><Rect x={bounds.minX - 7} y={bounds.minY - 7} width={Math.max(20, bounds.maxX - bounds.minX + 14)} height={Math.max(20, bounds.maxY - bounds.minY + 14)} stroke={COLORS.green} strokeWidth={1.5} strokeDasharray="5 4" fill="none" /><Rect x={bounds.maxX + 1} y={bounds.maxY + 1} width={12} height={12} rx={3} fill={COLORS.green} /></> : null;
+                })()}
               </Svg>
             </View>
             <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers} />
           </View>
         </View>
-        <View style={styles.canvasHintRow}>
-          <Text style={styles.canvasHintText}>{tool==='select'?(selectedStrokeIds.length?'Arraste a seleção para mover':'Contorne a escrita para selecionar'):tool === 'move' ? '✥ Arraste para posicionar a folha' : '✎ Desenhe com o dedo sobre a folha'}</Text>
-          <View style={styles.zoomControls}>
-            <Pressable onPress={() => setZoom((value) => Math.max(0.5, Number((value - 0.25).toFixed(2))))} style={styles.zoomButton}><Text style={styles.zoomButtonText}>−</Text></Pressable>
-            <Text style={styles.zoomValue}>{Math.round(zoom * 100)}%</Text>
-            <Pressable onPress={() => setZoom((value) => Math.min(3, Number((value + 0.25).toFixed(2))))} style={styles.zoomButton}><Text style={styles.zoomButtonText}>＋</Text></Pressable>
-            <Pressable onPress={() => { setZoom(1); setPanOffset({ x: 0, y: 0 }); }} style={styles.zoomReset}><Text style={styles.zoomResetText}>Ajustar</Text></Pressable>
-          </View>
-        </View>
       </View>
-      <View style={styles.pageNavigation}>
-        <Pressable onPress={() => { const newPage = { id: `page-${Date.now()}`, paths: [], text: '', background: 'plain' }; setPages(old => [...old, newPage]); setPageIndex(pages.length); setPaths([]); pathsRef.current = []; const nextHistory = createHistory({ paths: [], text: '', background: 'plain' }); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); setPageText(''); setPageBackground('plain'); }} style={styles.pageNavButton}><Text style={styles.pageNavText}>＋ Página</Text></Pressable>
-        <Pressable onPress={() => { const source = pages[pageIndex] || {}; const copy = { ...source, id: `page-${Date.now()}`, paths: JSON.parse(JSON.stringify(paths)), text: pageText, background: pageBackground }; setPages(old => [...old.slice(0, pageIndex + 1), copy, ...old.slice(pageIndex + 1)]); setPageIndex(pageIndex + 1); setPaths(copy.paths); pathsRef.current = copy.paths; const nextHistory = createHistory({ paths: copy.paths, text: copy.text, background: copy.background }); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); setPageText(copy.text); setPageBackground(copy.background); }} style={styles.pageNavButton}><Text style={styles.pageNavText}>Duplicar</Text></Pressable>
-        <Pressable disabled={pageIndex === 0} onPress={() => changePage(pageIndex - 1)} style={[styles.pageNavButton, pageIndex === 0 && styles.toolDisabled]}><Text style={styles.pageNavText}>‹ Anterior</Text></Pressable>
-        <Text style={styles.pageNavLabel}>Página {pageIndex + 1} de {pages.length}</Text>
-        <Pressable disabled={pageIndex === pages.length - 1} onPress={() => changePage(pageIndex + 1)} style={[styles.pageNavButton, pageIndex === pages.length - 1 && styles.toolDisabled]}><Text style={styles.pageNavText}>Próxima ›</Text></Pressable>
-        <Pressable disabled={pages.length <= 1} onPress={() => Alert.alert('Excluir página?', 'O conteúdo desta página será removido.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Excluir', style: 'destructive', onPress: () => { const next = pages.filter((_, index) => index !== pageIndex); const nextIndex = Math.max(0, pageIndex - 1); const nextPage = next[nextIndex] || {}; const nextPaths = nextPage.paths || []; setPages(next); setPageIndex(nextIndex); setPaths(nextPaths); pathsRef.current = nextPaths; const nextHistory = createHistory({ paths: nextPaths, text: nextPage.text || '', background: nextPage.background || 'plain' }); pathHistoryRef.current = nextHistory; setPathHistory(nextHistory); setPageText(nextPage.text || ''); setPageBackground(nextPage.background || 'plain'); } }])} style={[styles.pageNavButton, pages.length <= 1 && styles.toolDisabled]}><Text style={styles.pageNavText}>Excluir</Text></Pressable>
-      </View>
-      <ScrollView style={[styles.drawingPanel, { maxHeight: 285 }]} contentContainerStyle={{ paddingBottom: 10 }} showsVerticalScrollIndicator={false}>
-        <View style={styles.compactToolRow}>
-          <Pressable onPress={() => setTool('pen')} style={[styles.compactTool, tool === 'pen' && styles.compactToolActive]}><Text style={styles.compactToolGlyph}>✎</Text><Text style={styles.compactToolText}>{tool === 'pen' ? 'Caneta' : tool === 'highlighter' ? 'Marca-texto' : tool === 'eraser' ? 'Borracha' : tool === 'move' ? 'Mover folha' : 'Laço'}</Text></Pressable>
-          <Pressable onPress={() => { setTool('select'); setSelectedStrokeIds([]); }} style={[styles.compactTool, tool === 'select' && styles.compactToolActive]}><Text style={styles.compactToolGlyph}>⌁</Text><Text style={styles.compactToolText}>Laço</Text></Pressable>
-          <Pressable onPress={() => setToolsExpanded(value => !value)} style={[styles.moreToolsButton, toolsExpanded && styles.moreToolsButtonActive]}><Text style={styles.moreToolsGlyph}>{toolsExpanded ? '⌃' : '•••'}</Text><Text style={styles.moreToolsText}>{toolsExpanded ? 'Fechar' : 'Ferramentas'}</Text></Pressable>
+
+      <View style={styles.examLikePageControls}>
+        <Pressable disabled={pageIndex === 0} onPress={() => changePage(pageIndex - 1)} style={[styles.examLikePageButton, pageIndex === 0 && styles.toolDisabled]}><Text style={styles.examLikePageButtonText}>‹</Text></Pressable>
+        <View style={styles.examLikePageProgress}>
+          <Text style={styles.examLikePageLabel}>Página {pageIndex + 1} de {pages.length}</Text>
+          <View style={styles.examLikeProgressTrack}><View style={[styles.examLikeProgressFill, { width: `${((pageIndex + 1) / Math.max(1, pages.length)) * 100}%` }]} /></View>
         </View>
-        {toolsExpanded && <View style={styles.expandedTools}>
-          <View style={styles.toolModeRow}>
-            <Pressable onPress={() => setTool('pen')} style={[styles.modeButton, tool === 'pen' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'pen' && styles.modeGlyphActive]}>✎</Text><Text style={[styles.modeText, tool === 'pen' && styles.modeTextActive]}>Caneta</Text></Pressable>
-            <Pressable onPress={() => setTool('highlighter')} style={[styles.modeButton, tool === 'highlighter' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'highlighter' && styles.modeGlyphActive]}>▰</Text><Text style={[styles.modeText, tool === 'highlighter' && styles.modeTextActive]}>Marca-texto</Text></Pressable>
-            <Pressable onPress={() => setTool('move')} style={[styles.modeButton, tool === 'move' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'move' && styles.modeGlyphActive]}>✥</Text><Text style={[styles.modeText, tool === 'move' && styles.modeTextActive]}>Mover folha</Text></Pressable>
-            <Pressable onPress={() => setTool('eraser')} style={[styles.modeButton, tool === 'eraser' && styles.modeButtonActive]}><Text style={[styles.modeGlyph, tool === 'eraser' && styles.modeGlyphActive]}>▱</Text><Text style={[styles.modeText, tool === 'eraser' && styles.modeTextActive]}>Borracha</Text></Pressable>
-          </View>
-          <View style={styles.toolSettingsRow}><Text style={styles.toolSettingsLabel}>Espessura da caneta</Text><View style={styles.widthOptions}>{[2, 4, 7].map((width) => <Pressable key={width} onPress={() => { setStrokeWidth(width); setTool('pen'); }} style={[styles.widthButton, strokeWidth === width && tool === 'pen' && styles.widthButtonActive]}><View style={[styles.widthDot, { width: width + 3, height: width + 3 }]} /></Pressable>)}</View></View>
-          {tool === 'highlighter' && <><View style={styles.toolSettingsRow}><Text style={styles.toolSettingsLabel}>Espessura do marca-texto</Text><View style={styles.widthOptions}>{[10, 18, 28].map((width) => <Pressable key={width} onPress={() => setMarkerWidth(width)} style={[styles.widthButton, markerWidth === width && styles.widthButtonActive]}><View style={[styles.markerWidthPreview, { height: Math.min(18, Math.max(6, width / 1.5)) }]} /></Pressable>)}</View></View><View style={styles.markerTypes}><Text style={styles.markerLabel}>ESTILO</Text>{[['classic','Clássico'],['pastel','Pastel'],['bold','Forte'],['underline','Sublinhado']].map(([id,label]) => <Pressable key={id} onPress={() => setMarkerType(id)} style={[styles.markerType, markerType === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, markerType === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View></>}
-          <View style={styles.markerTypes}><Text style={styles.markerLabel}>FUNDO</Text>{[['plain','Branco'],['ruled','Pautado'],['grid','Quadriculado'],['dotted','Pontilhado']].map(([id,label]) => <Pressable key={id} onPress={() => { setPageBackground(id); recordPathSnapshot({ background: id }); }} style={[styles.markerType, pageBackground === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, pageBackground === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View>
+        <Pressable disabled={pageIndex === pages.length - 1} onPress={() => changePage(pageIndex + 1)} style={[styles.examLikePageButton, pageIndex === pages.length - 1 && styles.toolDisabled]}><Text style={styles.examLikePageButtonText}>›</Text></Pressable>
+      </View>
+
+      <ScrollView style={[styles.examLikeDrawPanel, { maxHeight: toolsExpanded ? 310 : 116 }]} contentContainerStyle={{ paddingBottom: toolsExpanded ? 9 : 4 }} showsVerticalScrollIndicator={false}>
+        <Text style={styles.examLikeHint}>{tool === 'select' ? (selectedStrokeIds.length ? `${selectedStrokeIds.length} selecionado(s) · arraste para mover` : 'Contorne a escrita com o dedo para selecionar.') : 'Escolha uma ferramenta para escrever ou anotar.'}</Text>
+        {selectedStrokeIds.length > 0 && <View style={styles.selectionActionRow}>
+          <Text style={styles.selectionCount}>{selectedStrokeIds.length} selecionado(s)</Text>
+          <Pressable onPress={() => applyPathChange(resizeStrokes(pathsRef.current, selectedStrokeIds, 1.15))} style={styles.selectionAction}><Text style={styles.selectionActionText}>＋ Tamanho</Text></Pressable>
+          <Pressable onPress={() => applyPathChange(resizeStrokes(pathsRef.current, selectedStrokeIds, 0.87))} style={styles.selectionAction}><Text style={styles.selectionActionText}>− Tamanho</Text></Pressable>
+          <Pressable onPress={() => applyPathChange(rotateStrokes(pathsRef.current, selectedStrokeIds, Math.PI / 12))} style={styles.selectionAction}><Text style={styles.selectionActionText}>↻ Girar</Text></Pressable>
+          <Pressable onPress={() => { const picked = pathsRef.current.filter(path => selectedStrokeIds.includes(path.id)); setSelectedClipboard(picked); applyPathChange(pathsRef.current.filter(path => !selectedStrokeIds.includes(path.id))); setSelectedStrokeIds([]); }} style={styles.selectionAction}><Text style={styles.selectionActionText}>Cortar</Text></Pressable>
+          <Pressable onPress={() => { if (!selectedClipboard.length) return; const pasted = selectedClipboard.map(path => ({ ...path, id: `${Date.now()}-${Math.random()}`, points: path.points.map(point => ({ x: point.x + 24, y: point.y + 24 })) })); applyPathChange([...pathsRef.current, ...pasted]); setSelectedStrokeIds(pasted.map(path => path.id)); }} style={styles.selectionAction}><Text style={styles.selectionActionText}>Colar</Text></Pressable>
+          <Pressable onPress={() => { applyPathChange(pathsRef.current.filter(path => !selectedStrokeIds.includes(path.id))); setSelectedStrokeIds([]); }} style={styles.selectionAction}><Text style={[styles.selectionActionText, { color: COLORS.rose }]}>Excluir</Text></Pressable>
+          <Pressable onPress={() => setSelectedStrokeIds([])} style={styles.selectionAction}><Text style={styles.selectionActionText}>Nova seleção</Text></Pressable>
         </View>}
-        {selectedStrokeIds.length>0&&<View style={styles.selectionActionRow}><Text style={styles.selectionCount}>{selectedStrokeIds.length} selecionado(s) · arraste para mover</Text><Pressable onPress={()=>applyPathChange(resizeStrokes(pathsRef.current,selectedStrokeIds,1.15))} style={styles.selectionAction}><Text style={styles.selectionActionText}>＋ Tamanho</Text></Pressable><Pressable onPress={()=>applyPathChange(resizeStrokes(pathsRef.current,selectedStrokeIds,0.87))} style={styles.selectionAction}><Text style={styles.selectionActionText}>− Tamanho</Text></Pressable><Pressable onPress={()=>applyPathChange(rotateStrokes(pathsRef.current,selectedStrokeIds,Math.PI/12))} style={styles.selectionAction}><Text style={styles.selectionActionText}>↻ Girar</Text></Pressable><Pressable onPress={()=>{const picked=pathsRef.current.filter(path=>selectedStrokeIds.includes(path.id));setSelectedClipboard(picked);applyPathChange(pathsRef.current.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);}} style={styles.selectionAction}><Text style={styles.selectionActionText}>Cortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(path=>({...path,id:`${Date.now()}-${Math.random()}`,points:path.points.map(p=>({x:p.x+24,y:p.y+24}))}));applyPathChange([...pathsRef.current,...pasted]);setSelectedStrokeIds(pasted.map(path=>path.id));}} style={styles.selectionAction}><Text style={styles.selectionActionText}>Colar</Text></Pressable><Pressable onPress={()=>{applyPathChange(pathsRef.current.filter(path=>!selectedStrokeIds.includes(path.id)));setSelectedStrokeIds([]);}} style={styles.selectionAction}><Text style={[styles.selectionActionText,{color:COLORS.rose}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedStrokeIds([])} style={styles.selectionAction}><Text style={styles.selectionActionText}>Nova seleção</Text></Pressable></View>}<View style={styles.colorRow}><Text style={styles.colorLabel}>COR</Text><ScrollView horizontal style={{ flex: 1 }} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colorScroll}>{PALETTE.map((item) => <Pressable key={item} onPress={() => setColor(item)} style={[styles.colorButton, color === item && styles.colorButtonSelected]}><View style={[styles.colorDot, { backgroundColor: item, borderWidth: item === '#FFFFFF' ? 1 : 0, borderColor: '#AEB5AE' }]} /></Pressable>)}</ScrollView><Text style={styles.annotationCount}>{paths.length} traços</Text></View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.examLikeQuickTools}>
+          {[
+            { id: 'pen', glyph: '✎', label: 'Caneta' },
+            { id: 'highlighter', glyph: '▰', label: 'Marca-texto' },
+            { id: 'eraser', glyph: '⌫', label: 'Borracha' },
+            { id: 'select', glyph: '⌁', label: 'Laço' },
+            { id: 'move', glyph: '✥', label: 'Mover' },
+          ].map(item => <Pressable key={item.id} onPress={() => { setTool(item.id); if (item.id !== 'select') { setSelectedStrokeIds([]); selectedIdsRef.current = []; setLassoPoints([]); lassoRef.current = []; } }} style={[styles.examLikeQuickTool, tool === item.id && styles.examLikeQuickToolActive]}>
+            <Text style={styles.examLikeQuickGlyph}>{item.glyph}</Text>
+            <Text style={[styles.examLikeQuickLabel, tool === item.id && styles.examLikeQuickLabelActive]}>{item.label}</Text>
+          </Pressable>)}
+          <Pressable onPress={() => setToolsExpanded(value => !value)} style={[styles.moreToolsButton, toolsExpanded && styles.moreToolsButtonActive]}><Text style={styles.moreToolsGlyph}>{toolsExpanded ? '⌃' : '•••'}</Text><Text style={styles.moreToolsText}>{toolsExpanded ? 'Fechar' : 'Mais'}</Text></Pressable>
+        </ScrollView>
+
+        {toolsExpanded && <View style={styles.expandedTools}>
+          <View style={styles.examLikeActionTools}>
+            <Pressable onPress={() => setTool('pen')} style={[styles.examLikeTool, tool === 'pen' && styles.examLikeToolActive]}><Text style={styles.examLikeToolText}>✎ Caneta</Text></Pressable>
+            <Pressable onPress={() => setTool('highlighter')} style={[styles.examLikeTool, tool === 'highlighter' && styles.examLikeToolActive]}><Text style={styles.examLikeToolText}>▰ Marca-texto</Text></Pressable>
+            <Pressable onPress={() => setTool('eraser')} style={[styles.examLikeTool, tool === 'eraser' && styles.examLikeToolActive]}><Text style={styles.examLikeToolText}>⌫ Borracha</Text></Pressable>
+            <Pressable onPress={() => setTool('move')} style={[styles.examLikeTool, tool === 'move' && styles.examLikeToolActive]}><Text style={styles.examLikeToolText}>✥ Mover folha</Text></Pressable>
+            <Pressable onPress={() => Alert.alert('Limpar anotações desta página?', 'Esta ação pode ser desfeita pelo botão Desfazer.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Limpar página', style: 'destructive', onPress: () => { applyPathChange([]); setSelectedStrokeIds([]); selectedIdsRef.current = []; } }])} style={styles.examLikeTool}><Text style={styles.examLikeToolText}>⌫ Limpar página</Text></Pressable>
+          </View>
+          {tool === 'pen' && <>
+            <View style={styles.strokePicker}>
+              <View style={styles.strokePickerHeader}><Text style={styles.paletteTitle}>ESPESSURA DA CANETA</Text><Text style={styles.strokeValue}>{strokeWidth}px</Text></View>
+              <View style={styles.strokeOptions}>{[{ width: 2, label: 'Fina' }, { width: 4, label: 'Média' }, { width: 7, label: 'Grossa' }, { width: 11, label: 'Extra' }].map(option => <Pressable key={option.width} onPress={() => setStrokeWidth(option.width)} style={[styles.strokeOption, strokeWidth === option.width && styles.strokeOptionActive]}><View style={styles.strokePreview}><View style={[styles.strokeLine, { height: option.width, borderRadius: option.width / 2 }]} /></View><Text style={[styles.strokeOptionLabel, strokeWidth === option.width && styles.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View>
+            </View>
+            <View style={styles.strokePicker}>
+              <Text style={styles.paletteTitle}>OPACIDADE</Text>
+              <View style={styles.strokeOptions}>{[{ value: 0.45, label: '45%' }, { value: 0.7, label: '70%' }, { value: 0.85, label: '85%' }, { value: 1, label: '100%' }].map(option => <Pressable key={option.value} onPress={() => setPenOpacity(option.value)} style={[styles.strokeOption, penOpacity === option.value && styles.strokeOptionActive]}><View style={[styles.opacityPreview, { backgroundColor: color, opacity: option.value }]} /><Text style={[styles.strokeOptionLabel, penOpacity === option.value && styles.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View>
+            </View>
+          </>}
+          {tool === 'eraser' && <View style={styles.strokePicker}>
+            <View style={styles.strokePickerHeader}><Text style={styles.paletteTitle}>TAMANHO DA BORRACHA</Text><Text style={styles.strokeValue}>{eraserSize}px</Text></View>
+            <View style={styles.strokeOptions}>{[{ value: 12, label: 'Pequena' }, { value: 24, label: 'Média' }, { value: 40, label: 'Grande' }, { value: 60, label: 'Extra' }].map(option => <Pressable key={option.value} onPress={() => setEraserSize(option.value)} style={[styles.strokeOption, eraserSize === option.value && styles.strokeOptionActive]}><View style={styles.strokePreview}><View style={[styles.eraserPreview, { width: Math.min(42, option.value), height: Math.min(18, option.value / 2) }]} /></View><Text style={[styles.strokeOptionLabel, eraserSize === option.value && styles.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View>
+            <View style={styles.markerTypes}><Text style={styles.paletteTitle}>MODO DE APAGAR</Text><Pressable onPress={() => setEraserMode('partial')} style={[styles.markerType, eraserMode === 'partial' && styles.markerTypeActive]}><Text style={[styles.markerTypeText, eraserMode === 'partial' && styles.markerTypeTextActive]}>Parte do traço</Text></Pressable><Pressable onPress={() => setEraserMode('whole')} style={[styles.markerType, eraserMode === 'whole' && styles.markerTypeActive]}><Text style={[styles.markerTypeText, eraserMode === 'whole' && styles.markerTypeTextActive]}>Traço inteiro</Text></Pressable></View>
+          </View>}
+          {tool === 'highlighter' && <>
+            <View style={styles.strokePicker}><View style={styles.strokePickerHeader}><Text style={styles.paletteTitle}>ESPESSURA DO MARCA-TEXTO</Text><Text style={styles.strokeValue}>{markerWidth}px</Text></View><View style={styles.strokeOptions}>{[{ width: 10, label: 'Fina' }, { width: 18, label: 'Média' }, { width: 28, label: 'Larga' }].map(option => <Pressable key={option.width} onPress={() => setMarkerWidth(option.width)} style={[styles.strokeOption, markerWidth === option.width && styles.strokeOptionActive]}><View style={styles.strokePreview}><View style={[styles.markerStrokeLine, { height: Math.min(18, Math.max(6, option.width / 1.5)) }]} /></View><Text style={[styles.strokeOptionLabel, markerWidth === option.width && styles.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View></View>
+            <View style={styles.markerTypes}><Text style={styles.paletteTitle}>ESTILO</Text>{[{ id: 'classic', label: 'Clássico' }, { id: 'pastel', label: 'Pastel' }, { id: 'bold', label: 'Forte' }, { id: 'underline', label: 'Sublinhado' }].map(item => <Pressable key={item.id} onPress={() => setMarkerType(item.id)} style={[styles.markerType, markerType === item.id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, markerType === item.id && styles.markerTypeTextActive]}>{item.label}</Text></Pressable>)}</View>
+          </>}
+          <View style={styles.markerTypes}><Text style={styles.paletteTitle}>FUNDO</Text>{[['plain', 'Branco'], ['ruled', 'Pautado'], ['grid', 'Quadriculado'], ['dotted', 'Pontilhado']].map(([id, label]) => <Pressable key={id} onPress={() => { setPageBackground(id); recordPathSnapshot({ background: id }); }} style={[styles.markerType, pageBackground === id && styles.markerTypeActive]}><Text style={[styles.markerTypeText, pageBackground === id && styles.markerTypeTextActive]}>{label}</Text></Pressable>)}</View>
+        </View>}
+
+        {toolsExpanded && <View style={styles.examLikeBottomTools}>
+          <View style={styles.paletteSection}><Text style={styles.paletteTitle}>CORES</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.palette}>{PALETTE.map(item => <Pressable key={item} onPress={() => setColor(item)} style={[styles.swatch, { backgroundColor: item, borderColor: item === '#FFFFFF' ? '#AEB5AE' : item }, color === item && styles.swatchSelected]} />)}</ScrollView></View>
+          <View style={styles.examLikeBottomRow}>
+            <View style={styles.zoomControls}>
+              <Pressable style={styles.zoomButton} onPress={() => { const next = Math.max(0.5, Number((zoom - 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={styles.zoomButtonText}>−</Text></Pressable>
+              <Text style={styles.zoomValue}>{Math.round(zoom * 100)}%</Text>
+              <Pressable style={styles.zoomButton} onPress={() => { const next = Math.min(3, Number((zoom + 0.25).toFixed(2))); zoomRef.current = next; setZoom(next); }}><Text style={styles.zoomButtonText}>＋</Text></Pressable>
+              <Pressable style={styles.zoomReset} onPress={() => { zoomRef.current = 1; setZoom(1); panOffsetRef.current = { x: 0, y: 0 }; setPanOffset({ x: 0, y: 0 }); }}><Text style={styles.zoomResetText}>Ajustar</Text></Pressable>
+            </View>
+            <Text style={styles.annotationCount}>{paths.length} traços</Text>
+          </View>
+          <Pressable onPress={save} style={styles.examLikeExitButton}><Text style={styles.examLikeExitButtonText}>Salvar e sair</Text></Pressable>
+        </View>}
       </ScrollView>
     </SafeAreaView>
   );
+
 }
 
 function BlocoApp() {
@@ -822,6 +902,42 @@ const styles = StyleSheet.create({
   footerNote: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 26, gap: 8 },
   footerLeaf: { color: COLORS.green, fontSize: 13 },
   footerText: { color: '#9AA298', fontSize: 10, letterSpacing: 0.2 },
+  examLikeEditorSafe: { flex: 1, backgroundColor: '#F1F2EF' },
+  examLikeHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, paddingVertical: 9, backgroundColor: COLORS.ink, borderBottomWidth: 1, borderColor: COLORS.ink },
+  examLikeBack: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#E8F0E9', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  examLikeBackText: { color: COLORS.ink, fontSize: 30, marginTop: -4 },
+  examLikeTitleWrap: { flex: 1, minWidth: 0 },
+  examLikeTitleInput: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', paddingVertical: 0 },
+  examLikeSubtitle: { color: '#C1CEC3', fontSize: 10, marginTop: 3 },
+  examLikeSave: { backgroundColor: '#315C49', paddingHorizontal: 13, paddingVertical: 9, borderRadius: 11, borderWidth: 1, borderColor: '#6E8A79' },
+  examLikeSaveText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  examLikeCounter: { backgroundColor: COLORS.greenLight, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9 },
+  examLikeCounterText: { color: COLORS.green, fontSize: 10, fontWeight: '800' },
+  examLikeCanvasArea: { flex: 1, marginHorizontal: 9, marginTop: 8, marginBottom: 6, backgroundColor: '#F1F2EF' },
+  examLikeCanvas: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 5, overflow: 'hidden', elevation: 2, shadowColor: '#202522', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+  examLikePageControls: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#E4E7E2' },
+  examLikePageButton: { width: 40, height: 36, borderRadius: 11, backgroundColor: COLORS.greenLight, alignItems: 'center', justifyContent: 'center' },
+  examLikePageButtonText: { color: COLORS.green, fontSize: 24, lineHeight: 26, fontWeight: '700' },
+  examLikePageProgress: { flex: 1, alignItems: 'center', marginHorizontal: 12 },
+  examLikePageLabel: { color: COLORS.muted, fontSize: 10, fontWeight: '700' },
+  examLikeProgressTrack: { width: '100%', maxWidth: 150, height: 3, borderRadius: 4, backgroundColor: '#E4EAE4', marginTop: 6, overflow: 'hidden' },
+  examLikeProgressFill: { height: '100%', borderRadius: 4, backgroundColor: COLORS.green },
+  examLikeDrawPanel: { paddingHorizontal: 12, paddingTop: 9, paddingBottom: 10, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderColor: '#E4E7E2', borderTopLeftRadius: 18, borderTopRightRadius: 18 },
+  examLikeHint: { color: '#77847A', fontSize: 10, marginBottom: 7 },
+  examLikeQuickTools: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 5 },
+  examLikeQuickTool: { minWidth: 66, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 9, paddingVertical: 7, borderRadius: 11, backgroundColor: '#F4F5F1' },
+  examLikeQuickToolActive: { backgroundColor: '#E0ECE1', borderWidth: 1, borderColor: '#A9C4AE' },
+  examLikeQuickGlyph: { color: '#52675A', fontSize: 17, lineHeight: 20 },
+  examLikeQuickLabel: { color: '#667269', fontSize: 9, fontWeight: '700', marginTop: 2 },
+  examLikeQuickLabelActive: { color: COLORS.green },
+  examLikeActionTools: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  examLikeTool: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 9, backgroundColor: '#F2F3EF' },
+  examLikeToolActive: { backgroundColor: COLORS.greenLight },
+  examLikeToolText: { color: COLORS.green, fontSize: 11, fontWeight: '700' },
+  examLikeBottomTools: { borderTopWidth: 1, borderTopColor: '#F0F1EC', paddingTop: 9 },
+  examLikeBottomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 },
+  examLikeExitButton: { backgroundColor: COLORS.ink, padding: 13, borderRadius: 12, alignItems: 'center', marginTop: 5 },
+  examLikeExitButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
   editorSafe: { flex: 1, backgroundColor: '#F1F2EF' },
   editorHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 9, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E7E9E5' },
   backButton: { width: 38, height: 38, borderRadius: 13, backgroundColor: '#ECEFE8', alignItems: 'center', justifyContent: 'center' },
