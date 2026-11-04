@@ -1,19 +1,22 @@
+'use strict';
+
 const DEFAULT_LIMIT = 80;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-export function createHistory(initialValue = [], limit = DEFAULT_LIMIT) {
+function createHistory(initialValue = [], limit = DEFAULT_LIMIT) {
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? limit : DEFAULT_LIMIT;
   return {
     past: [clone(initialValue)],
     present: clone(initialValue),
     future: [],
-    limit,
+    limit: safeLimit,
   };
 }
 
-export function commitHistory(history, value) {
+function commitHistory(history, value) {
   const next = clone(value);
   const past = [...history.past, clone(history.present)];
   return {
@@ -24,7 +27,7 @@ export function commitHistory(history, value) {
   };
 }
 
-export function undoHistory(history) {
+function undoHistory(history) {
   if (history.past.length <= 1) return history;
   const past = history.past.slice(0, -1);
   const present = past[past.length - 1];
@@ -36,7 +39,7 @@ export function undoHistory(history) {
   };
 }
 
-export function redoHistory(history) {
+function redoHistory(history) {
   if (!history.future.length) return history;
   const [present, ...future] = history.future;
   return {
@@ -47,3 +50,4 @@ export function redoHistory(history) {
   };
 }
 
+module.exports = { createHistory, commitHistory, undoHistory, redoHistory };
