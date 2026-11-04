@@ -8,12 +8,13 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { File } from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import storage from './storage';
-const { readArrayWithBackup, writeArrayWithBackup } = storage;
 import { WebView } from 'react-native-webview';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { distanceToSegment, eraseAtPoint, getHighlighterStyle, pathIntersectsPolygon, screenToDocument } from './drawing';
 import { commitHistory, createHistory, redoHistory, undoHistory } from './drawingHistory';
 import { ContextToolbar, design, IconButton, ScreenHeader } from './designSystem';
+
+const { readArrayWithBackup, writeArrayWithBackup } = storage;
 
 const STORAGE_KEY = '@bloco:exams:v1';
 const BACKUP_KEY = '@bloco:exams:backup:v1';
