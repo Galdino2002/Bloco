@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { readArrayWithBackup, writeArrayWithBackup } = require('../storage.cjs');
+const { readArrayWithBackup, writeArrayWithBackup } = require('../storage');
 function createStorage(initial = {}) {
   const values = new Map(Object.entries(initial));
   return { values, async getItem(key) { return values.has(key) ? values.get(key) : null; }, async setItem(key, value) { values.set(key, value); }, async removeItem(key) { values.delete(key); } };
