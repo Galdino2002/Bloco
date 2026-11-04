@@ -67,6 +67,8 @@ function Action({ label, onPress, secondary = false }) {
 
 export default function RedacaoMode({ onExit }) {
   const [drafts, setDrafts] = useState([]);
+  const [loadError, setLoadError] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [draftQuery, setDraftQuery] = useState('');
   const [active, setActive] = useState(null);
   const [mode, setMode] = useState('write');
@@ -118,9 +120,9 @@ export default function RedacaoMode({ onExit }) {
         if (recovered) Alert.alert('Redações recuperadas', 'O Bloco restaurou suas redações a partir do backup automático.');
         setDrafts(items);
       })
-      .catch(() => Alert.alert('Erro', 'Não foi possível carregar suas redações.'))
+      .catch(error => setLoadError(error?.message || 'Não foi possível carregar suas redações. Seus dados não foram substituídos.'))
       .finally(() => setLoaded(true));
-  }, []);
+  }, [loadAttempt]);
 
   const persist = async (items) => {
     await writeDraftsWithBackup(items);
@@ -404,6 +406,8 @@ export default function RedacaoMode({ onExit }) {
     },
     onPanResponderTerminate: () => { activePath.current = null; pinchStart.current = null; moveStart.current = null; selectionRef.current = null; lassoRef.current = []; setLasso([]); },
   }), []);
+
+  if (loadError) return <SafeAreaView style={styles.safe}><View style={{ flex: 1, justifyContent: 'center', padding: 26, gap: 14 }}><Text style={{ color: INK, fontSize: 22, fontWeight: '800' }}>Não foi possível carregar suas redações</Text><Text style={{ color: '#89938A', fontSize: 13, lineHeight: 20 }}>{loadError}</Text><Pressable onPress={() => { setLoaded(false); setLoadError(''); setLoadAttempt(value => value + 1); }} style={{ backgroundColor: GREEN, padding: 15, borderRadius: 12, alignItems: 'center' }}><Text style={{ color: '#FFF', fontWeight: '700' }}>Tentar novamente</Text></Pressable><Pressable onPress={onExit} style={{ padding: 12, alignItems: 'center' }}><Text style={{ color: GREEN, fontWeight: '700' }}>Voltar</Text></Pressable></View></SafeAreaView>;
 
   if (active) {
     return (
