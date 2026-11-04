@@ -7,8 +7,10 @@ async function readArrayWithBackup(storage, key, backupKey) {
  }
  const backupRaw = await storage.getItem(backupKey);
  if (backupRaw === null) return { items: [], recovered: false };
- try { const backup = JSON.parse(backupRaw); if (!Array.isArray(backup)) return { items: [], recovered: false }; await storage.setItem(key, backupRaw); return { items: backup, recovered: true }; }
- catch { return { items: [], recovered: false }; }
+ const backup = JSON.parse(backupRaw);
+ if (!Array.isArray(backup)) throw new Error('O backup local também está inválido. Verifique a recuperação antes de gravar novos dados.');
+ await storage.setItem(key, backupRaw);
+ return { items: backup, recovered: true };
 }
 async function writeArrayWithBackup(storage, key, backupKey, items) {
  if (!Array.isArray(items)) throw new TypeError('O conteúdo a salvar precisa ser uma lista');
