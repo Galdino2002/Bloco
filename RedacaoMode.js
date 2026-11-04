@@ -6,12 +6,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import storage from './storage';
-const { readArrayWithBackup, writeArrayWithBackup } = storage;
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import Svg, { G, Line, Path, Rect } from 'react-native-svg';
 import { eraseAtPoint, getHighlighterStyle, pathIntersectsPolygon } from './drawing';
 import { ContextToolbar, design, IconButton, ScreenHeader } from './designSystem';
+
+const { readArrayWithBackup, writeArrayWithBackup } = storage;
 
 const STORAGE_KEY = '@bloco:redacoes:v1';
 const BACKUP_KEY = '@bloco:redacoes:backup:v1';
