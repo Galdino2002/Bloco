@@ -46,5 +46,7 @@ Use este roteiro em um aparelho com Expo Go SDK 57. Faça os testes com uma cóp
 - [ ] Conferir telas em celular pequeno e tablet.
 - [ ] Conferir teclado aberto, rolagem e áreas de toque.
 - [ ] Verificar contraste, textos cortados, estados vazios e mensagens de erro.
+- [ ] Confirmar que as ferramentas principais aparecem uma única vez; o menu “Mais” deve concentrar apenas opções contextuais.
+- [ ] Verificar estados visuais de ferramenta selecionada, desfazer/refazer desabilitados e salvamento em andamento.
 - [ ] Confirmar que ações destrutivas pedem confirmação.
 - [ ] Conferir que controles têm rótulos acessíveis e estados claros.
