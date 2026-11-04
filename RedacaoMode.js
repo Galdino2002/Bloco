@@ -112,7 +112,10 @@ export default function RedacaoMode({ onExit }) {
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
-      .then(raw => setDrafts(raw ? JSON.parse(raw) : []))
+      .then(raw => {
+        const parsed = raw ? JSON.parse(raw) : [];
+        setDrafts(Array.isArray(parsed) ? parsed : []);
+      })
       .catch(() => Alert.alert('Erro', 'Não foi possível carregar suas redações.'))
       .finally(() => setLoaded(true));
   }, []);

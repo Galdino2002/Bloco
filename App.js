@@ -203,6 +203,9 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
 
 function EditorScreen({ document, onSave, onChange }) {
   const initialPages = document.pages?.length ? document.pages : [{ id: 'page-1', uri: document.uri, paths: document.paths || [] }];
+  const [title, setTitle] = useState(document.title || 'Minha nota');
+  const titleRef = useRef(title);
+  titleRef.current = title;
   const [pages, setPages] = useState(initialPages);
   const [pageIndex, setPageIndex] = useState(0);
   const [paths, setPaths] = useState(initialPages[0]?.paths || []);
@@ -461,23 +464,23 @@ function EditorScreen({ document, onSave, onChange }) {
   };
   const save = () => {
     const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths, text: pageText, background: pageBackground } : page);
-    onSave({ ...document, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
+    onSave({ ...document, title: titleRef.current, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
   };
   const currentPage = pages[pageIndex];
   useEffect(() => {
     const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths, text: pageText, background: pageBackground } : page);
     const timer = setTimeout(() => {
-      onChange({ ...document, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
-    }, 350);
+      onChange({ ...document, title: titleRef.current, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
+    }, 250);
     return () => clearTimeout(timer);
-  }, [pages, paths, pageText, pageBackground, pageIndex]);
+  }, [pages, paths, pageText, pageBackground, pageIndex, title]);
 
   return (
     <SafeAreaView style={styles.editorSafe}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.paper} />
       <View style={styles.editorHeader}>
         <Pressable onPress={save} style={styles.backButton}><Text style={styles.backArrow}>‹</Text></Pressable>
-        <View style={styles.editorTitleWrap}><TextInput value={document.title || 'Minha nota'} onChangeText={title => onChange({ ...document, title, updatedAt: Date.now() })} style={styles.editorTitleInput} maxLength={70} /><Text style={styles.editorSubtitle}>Texto e escrita manual salvos automaticamente</Text></View>
+        <View style={styles.editorTitleWrap}><TextInput value={title} onChangeText={nextTitle => { titleRef.current = nextTitle; setTitle(nextTitle); onChange({ ...document, title: nextTitle, updatedAt: Date.now() }); }} style={styles.editorTitleInput} maxLength={70} /><Text style={styles.editorSubtitle}>Texto e escrita manual salvos automaticamente</Text></View>
         <Pressable onPress={save} style={styles.saveButton}><Text style={styles.saveButtonText}>Salvar</Text></Pressable>
       </View>
       <ContextToolbar>
