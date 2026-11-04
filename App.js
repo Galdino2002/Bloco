@@ -193,7 +193,7 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
   const toggleSelected = id => setSelectedIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
   const moveSelected = folder => {
     documents.filter(item => selectedIds.includes(item.id)).forEach(item => {
-      const normalizedPath = typeof folder === 'string' ? folder.trim().replace(/^\\/+|\\/+$/g, '') : '';
+      const normalizedPath = typeof folder === 'string' ? folder.split('/').map(part => part.trim()).filter(Boolean).join('/') : '';
       const segments = normalizedPath.split('/').filter(Boolean);
       onUpdate({ ...item, folderPath: normalizedPath || null, folderName: segments.length ? segments[segments.length - 1] : null, updatedAt: Date.now() });
     });
@@ -595,7 +595,7 @@ function EditorScreen({ document, onSave, onChange }) {
       const pageMarkup = snapshot.pages.map((page, index) => {
         const image = page.uri ? `<img class="page-image" src="${escapeHtml(page.uri)}" />` : '';
         const strokes = (page.paths || []).map(stroke => `<path d="${escapeHtml(pathToSvg(stroke.points || []))}" stroke="${escapeHtml(stroke.color || '#202124')}" stroke-width="${Number(stroke.width) || 2}" stroke-opacity="${Number(stroke.opacity ?? 1)}" stroke-linecap="round" stroke-linejoin="round" fill="none" />`).join('');
-        const typed = escapeHtml(page.text || '').replace(/\\n/g, '<br/>');
+        const typed = escapeHtml(page.text || '').split('\n').join('<br/>');
         return `<section class="page"><header>${escapeHtml(snapshot.title || 'Minha nota')} · Página ${index + 1}</header><div class="sheet">${image}<div class="typed">${typed}</div><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">${strokes}</svg></div></section>`;
       }).join('');
       const html = `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><style>@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#203B32;margin:0}.page{page-break-after:always;break-after:page}.page:last-child{page-break-after:auto;break-after:auto}header{font-size:10px;color:#69766D;margin:0 0 8px}.sheet{position:relative;width:100%;height:265mm;overflow:hidden;background:#fff;border:1px solid #e7e8e1}.page-image{position:absolute;width:100%;height:100%;object-fit:contain;inset:0}.typed{position:absolute;inset:12mm 10mm;white-space:normal;overflow-wrap:anywhere;font-size:12px;line-height:1.6;z-index:1}svg{position:absolute;inset:0;width:100%;height:100%;z-index:2}</style></head><body>${pageMarkup}</body></html>`;
@@ -1044,7 +1044,9 @@ function BlocoApp() {
 
   const exportBackup = async () => {
     try {
-      const payload = { format: 'bloco-backup', version: 1, exportedAt: new Date().toISOString(), documents: documentsRef.current };
+      const [examsRaw, draftsRaw] = await Promise.all([AsyncStorage.getItem('@bloco:exams:v1'), AsyncStorage.getItem('@bloco:redacoes:v1')]);
+      const parseStoredArray = raw => { try { const value = raw ? JSON.parse(raw) : []; return Array.isArray(value) ? value : []; } catch { return []; } };
+      const payload = { format: 'bloco-backup', version: 2, exportedAt: new Date().toISOString(), documents: documentsRef.current, exams: parseStoredArray(examsRaw), drafts: parseStoredArray(draftsRaw) };
       const uri = `${FileSystem.cacheDirectory}bloco-backup-${Date.now()}.json`;
       await FileSystem.writeAsStringAsync(uri, JSON.stringify(payload, null, 2), { encoding: FileSystem.EncodingType.UTF8 });
       await Sharing.shareAsync(uri, { mimeType: 'application/json', dialogTitle: 'Exportar backup do Bloco' });
@@ -1057,12 +1059,19 @@ function BlocoApp() {
       const raw = await FileSystem.readAsStringAsync(result.assets[0].uri, { encoding: FileSystem.EncodingType.UTF8 });
       const parsed = JSON.parse(raw);
       const restored = Array.isArray(parsed) ? parsed : parsed?.documents;
-      if (!Array.isArray(restored) || restored.some(item => !item || item.id == null || (item.pages != null && !Array.isArray(item.pages)))) throw new Error('Este arquivo não parece ser um backup válido do Bloco.');
-      Alert.alert('Restaurar backup?', `Serão restaurados ${restored.length} documentos. O conteúdo atual será preservado no backup automático.`, [
+      const restoredExams = Array.isArray(parsed?.exams) ? parsed.exams : null;
+      const restoredDrafts = Array.isArray(parsed?.drafts) ? parsed.drafts : null;
+      if (!Array.isArray(restored) || restored.some(item => !item || item.id == null || (item.pages != null && !Array.isArray(item.pages))) || (restoredExams && restoredExams.some(item => !item || item.id == null)) || (restoredDrafts && restoredDrafts.some(item => !item || item.id == null))) throw new Error('Este arquivo não parece ser um backup válido do Bloco.');
+      Alert.alert('Restaurar backup?', `Serão restaurados ${restored.length} documentos${restoredExams ? `, ${restoredExams.length} provas` : ''}${restoredDrafts ? ` e ${restoredDrafts.length} redações` : ''}. O conteúdo atual ficará preservado nos backups automáticos.`, [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Restaurar', style: 'destructive', onPress: async () => {
-          try { const saved = await commitDocuments(restored, true); if (saved !== false) Alert.alert('Backup restaurado', 'Seus documentos foram recuperados.'); }
-          catch (error) { Alert.alert('Falha ao restaurar', error?.message || 'Não foi possível restaurar o backup.'); }
+          try {
+            const [currentExams, currentDrafts] = await Promise.all([AsyncStorage.getItem('@bloco:exams:v1'), AsyncStorage.getItem('@bloco:redacoes:v1')]);
+            if (restoredExams) { if (currentExams) await AsyncStorage.setItem('@bloco:exams:backup:v1', currentExams); await AsyncStorage.setItem('@bloco:exams:v1', JSON.stringify(restoredExams)); }
+            if (restoredDrafts) { if (currentDrafts) await AsyncStorage.setItem('@bloco:redacoes:backup:v1', currentDrafts); await AsyncStorage.setItem('@bloco:redacoes:v1', JSON.stringify(restoredDrafts)); }
+            const saved = await commitDocuments(restored, true);
+            if (saved !== false) Alert.alert('Backup restaurado', 'Cadernos, provas e redações incluídos no arquivo foram recuperados.');
+          } catch (error) { Alert.alert('Falha ao restaurar', error?.message || 'Não foi possível restaurar o backup.'); }
         } },
       ]);
     } catch (error) { console.error('Erro ao importar backup:', error); Alert.alert('Backup inválido', error?.message || 'Não foi possível ler este arquivo.'); }
