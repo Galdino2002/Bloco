@@ -108,6 +108,8 @@ function Button({ title, onPress, secondary = false, disabled = false }) {
 
 export default function ExamMode({ onExit }) {
   const [saved, setSaved] = useState([]);
+  const [loadError, setLoadError] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [savedSearch, setSavedSearch] = useState('');
   const [savedFilter, setSavedFilter] = useState('all');
   const [selected, setSelected] = useState(null);
@@ -120,14 +122,14 @@ export default function ExamMode({ onExit }) {
   const webRef = useRef(null);
   const pagesRef = useRef([]);
 
-  useEffect(() => { loadSaved(); }, []);
+  useEffect(() => { loadSaved(); }, [loadAttempt]);
   const loadSaved = async () => {
     try {
       const { items, recovered } = await readArrayWithBackup(AsyncStorage, STORAGE_KEY, BACKUP_KEY);
       if (recovered) Alert.alert('Provas recuperadas', 'O Bloco restaurou suas provas a partir do backup automático.');
       setSaved(items.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)));
-    } catch {
-      Alert.alert('Erro ao carregar provas', 'Não foi possível ler as provas salvas neste aparelho.');
+    } catch (error) {
+      setLoadError(error?.message || 'Não foi possível ler as provas salvas neste aparelho. Seus dados não foram substituídos.');
     }
   };
   const persist = async (items) => {
@@ -263,6 +265,8 @@ export default function ExamMode({ onExit }) {
       } catch (e) { Alert.alert('Erro', 'Não foi possível excluir todos os arquivos da prova.'); }
     } },
   ]);
+
+  if (loadError) return <SafeAreaView style={s.safe}><View style={{ flex: 1, justifyContent: 'center', padding: 26, gap: 14 }}><Text style={{ color: INK, fontSize: 22, fontWeight: '800' }}>Não foi possível carregar suas provas</Text><Text style={{ color: '#89938A', fontSize: 13, lineHeight: 20 }}>{loadError}</Text><Button title="Tentar novamente" onPress={() => { setLoadError(''); setLoadAttempt(value => value + 1); }} /></View></SafeAreaView>;
 
   if (stage === 'editor' && active) {
     return <ExamEditor exam={active} onSave={saveExam} onBack={() => saveExam(active)} />;
