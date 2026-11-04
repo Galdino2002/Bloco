@@ -14,6 +14,16 @@ import { commitHistory, createHistory, redoHistory, undoHistory } from './drawin
 import { ContextToolbar, design, IconButton, ScreenHeader } from './designSystem';
 
 const STORAGE_KEY = '@bloco:exams:v1';
+const BACKUP_KEY = '@bloco:exams:backup:v1';
+
+async function writeExamsWithBackup(items) {
+  const previous = await AsyncStorage.getItem(STORAGE_KEY);
+  if (previous) {
+    try { if (Array.isArray(JSON.parse(previous))) await AsyncStorage.setItem(BACKUP_KEY, previous); } catch { /* preserve the last known good backup */ }
+  }
+  await writeExamsWithBackup(items);
+}
+
 const DIR = FileSystem.documentDirectory + 'bloco-exams/';
 const GREEN = '#315C49';
 const INK = '#203B32';
@@ -122,9 +132,21 @@ export default function ExamMode({ onExit }) {
   useEffect(() => { loadSaved(); }, []);
   const loadSaved = async () => {
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      const items = Array.isArray(parsed) ? parsed : [];
+      let items;
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(parsed)) throw new Error('Armazenamento inválido');
+        items = parsed;
+      } catch (error) {
+        const backupRaw = await AsyncStorage.getItem(BACKUP_KEY);
+        if (!backupRaw) throw error;
+        const backup = JSON.parse(backupRaw);
+        if (!Array.isArray(backup)) throw error;
+        await AsyncStorage.setItem(STORAGE_KEY, backupRaw);
+        items = backup;
+        Alert.alert('Provas recuperadas', 'O Bloco restaurou suas provas a partir do backup automático.');
+      }
       setSaved(items.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)));
     } catch (e) {
       Alert.alert('Erro ao carregar provas', 'Não foi possível ler as provas salvas neste aparelho.');
@@ -436,7 +458,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         const next = list.map(item => item.id === exam.id
           ? { ...item, pages: currentPages, currentPage: snapshot.index, zoom: snapshot.zoom, pan: snapshot.pan, remaining: snapshot.remaining, endAt: endAtRef.current, elapsed, status, updatedAt: Date.now() }
           : item);
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        await writeExamsWithBackup(next);
         setSaveState('saved');
       })
       .catch(error => {
