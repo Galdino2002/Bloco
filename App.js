@@ -487,16 +487,90 @@ function EditorScreen({ document, onSave, onChange }) {
     setRedoPaths([]);
   };
   const save = () => {
-    const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths, text: pageText, background: pageBackground } : page);
-    onSave({ ...document, title: titleRef.current, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
+    const updatedPages = pages.map((page, index) => index === pageIndex
+      ? { ...page, paths, text: pageText, background: pageBackground }
+      : page);
+    onSave({
+      ...document,
+      title: titleRef.current,
+      pages: updatedPages,
+      uri: updatedPages[0]?.uri,
+      paths: updatedPages[0]?.paths || [],
+      updatedAt: Date.now(),
+    });
   };
   const currentPage = pages[pageIndex];
+  const documentRef = useRef(document);
+  const onChangeRef = useRef(onChange);
+  documentRef.current = document;
+  onChangeRef.current = onChange;
+
   useEffect(() => {
-    const updatedPages = pages.map((page, index) => index === pageIndex ? { ...page, paths, text: pageText, background: pageBackground } : page);
+    const updatedPages = pages.map((page, index) => index === pageIndex
+      ? { ...page, paths, text: pageText, background: pageBackground }
+      : page);
     const timer = setTimeout(() => {
-      onChange({ ...document, title: titleRef.current, pages: updatedPages, uri: updatedPages[0]?.uri, paths: updatedPages[0]?.paths || [], updatedAt: Date.now() });
-    }, 250);
-    return (
+      const latestDocument = documentRef.current;
+      onChangeRef.current({
+        ...latestDocument,
+        title: titleRef.current,
+        pages: updatedPages,
+        uri: updatedPages[0]?.uri,
+        paths: updatedPages[0]?.paths || [],
+        updatedAt: Date.now(),
+      });
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [pageIndex, pages, paths, pageText, pageBackground, title]);
+
+  const addPage = () => {
+    const current = { ...pages[pageIndex], paths, text: pageText, background: pageBackground };
+    const nextPage = { id: `page-${Date.now()}`, paths: [], text: '', background: 'plain' };
+    const nextPages = [...pages.map((page, index) => index === pageIndex ? current : page), nextPage];
+    setPages(nextPages);
+    setPageIndex(nextPages.length - 1);
+    pathsRef.current = [];
+    setPaths([]);
+    setPageText('');
+    setPageBackground('plain');
+    setSelectedStrokeIds([]);
+    selectedIdsRef.current = [];
+    setLassoPoints([]);
+    lassoRef.current = [];
+    const nextHistory = createHistory({ paths: [], text: '', background: 'plain' });
+    pathHistoryRef.current = nextHistory;
+    setPathHistory(nextHistory);
+    setZoom(1);
+    setPanOffset({ x: 0, y: 0 });
+  };
+
+  const removeCurrentPage = () => {
+    if (pages.length <= 1) {
+      Alert.alert('Não é possível excluir', 'Um caderno precisa ter pelo menos uma página.');
+      return;
+    }
+    Alert.alert('Excluir página?', 'O conteúdo desta página será removido do caderno.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Excluir página', style: 'destructive', onPress: () => {
+        const nextPages = pages.filter((_, index) => index !== pageIndex);
+        const nextIndex = Math.max(0, Math.min(pageIndex, nextPages.length - 1));
+        const next = nextPages[nextIndex];
+        setPages(nextPages);
+        setPageIndex(nextIndex);
+        pathsRef.current = next.paths || [];
+        setPaths(next.paths || []);
+        setPageText(next.text || '');
+        setPageBackground(next.background || 'plain');
+        setSelectedStrokeIds([]);
+        selectedIdsRef.current = [];
+        const nextHistory = createHistory({ paths: next.paths || [], text: next.text || '', background: next.background || 'plain' });
+        pathHistoryRef.current = nextHistory;
+        setPathHistory(nextHistory);
+      } },
+    ]);
+  };
+
+  return (
     <SafeAreaView style={styles.examLikeEditorSafe}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.ink} />
       <View style={styles.examLikeHeader}>
@@ -522,7 +596,7 @@ function EditorScreen({ document, onSave, onChange }) {
               ? <Image source={{ uri: currentPage.uri }} style={styles.examImage} resizeMode="contain" />
               : <View style={styles.blankPage}>
                   <PageBackground type={pageBackground} />
-                  <TextInput value={pageText} onChangeText={setPageText} onEndEditing={() => recordPathSnapshot()} placeholder="Digite nesta página..." placeholderTextColor="#A0AAA1" multiline textAlignVertical="top" style={styles.pageTextInput} />
+                  <TextInput value={pageText} onChangeText={setPageText} onEndEditing={() => recordPathSnapshot()} editable={tool === 'text'} placeholder={tool === 'text' ? 'Digite nesta página...' : 'Selecione Texto para digitar'} placeholderTextColor="#A0AAA1" multiline textAlignVertical="top" style={styles.pageTextInput} />
                 </View>}
             <View pointerEvents="none" style={StyleSheet.absoluteFill}>
               <Svg width={canvasSize.width} height={canvasSize.height}>
@@ -534,7 +608,7 @@ function EditorScreen({ document, onSave, onChange }) {
                 })()}
               </Svg>
             </View>
-            <View style={StyleSheet.absoluteFill} {...panResponder.panHandlers} />
+            <View pointerEvents={tool === 'text' ? 'none' : 'auto'} style={StyleSheet.absoluteFill} {...panResponder.panHandlers} />
           </View>
         </View>
       </View>
@@ -545,11 +619,13 @@ function EditorScreen({ document, onSave, onChange }) {
           <Text style={styles.examLikePageLabel}>Página {pageIndex + 1} de {pages.length}</Text>
           <View style={styles.examLikeProgressTrack}><View style={[styles.examLikeProgressFill, { width: `${((pageIndex + 1) / Math.max(1, pages.length)) * 100}%` }]} /></View>
         </View>
-        <Pressable disabled={pageIndex === pages.length - 1} onPress={() => changePage(pageIndex + 1)} style={[styles.examLikePageButton, pageIndex === pages.length - 1 && styles.toolDisabled]}><Text style={styles.examLikePageButtonText}>›</Text></Pressable>
+        <Pressable onPress={addPage} style={styles.examLikePageButton} accessibilityRole="button" accessibilityLabel="Adicionar página"><Text style={styles.examLikePageButtonText}>＋</Text></Pressable>
+        <Pressable onPress={removeCurrentPage} style={[styles.examLikePageButton, { marginLeft: 6 }]} accessibilityRole="button" accessibilityLabel="Excluir página"><Text style={styles.examLikePageButtonText}>⌫</Text></Pressable>
+        <Pressable disabled={pageIndex === pages.length - 1} onPress={() => changePage(pageIndex + 1)} style={[styles.examLikePageButton, { marginLeft: 6 }, pageIndex === pages.length - 1 && styles.toolDisabled]}><Text style={styles.examLikePageButtonText}>›</Text></Pressable>
       </View>
 
       <ScrollView style={[styles.examLikeDrawPanel, { maxHeight: toolsExpanded ? 310 : 116 }]} contentContainerStyle={{ paddingBottom: toolsExpanded ? 9 : 4 }} showsVerticalScrollIndicator={false}>
-        <Text style={styles.examLikeHint}>{tool === 'select' ? (selectedStrokeIds.length ? `${selectedStrokeIds.length} selecionado(s) · arraste para mover` : 'Contorne a escrita com o dedo para selecionar.') : 'Escolha uma ferramenta para escrever ou anotar.'}</Text>
+        <Text style={styles.examLikeHint}>{tool === 'select' ? (selectedStrokeIds.length ? `${selectedStrokeIds.length} selecionado(s) · arraste para mover` : 'Contorne a escrita com o dedo para selecionar.') : tool === 'text' ? 'Toque na folha para digitar. Volte à caneta para desenhar.' : 'Escolha uma ferramenta para escrever ou anotar.'}</Text>
         {selectedStrokeIds.length > 0 && <View style={styles.selectionActionRow}>
           <Text style={styles.selectionCount}>{selectedStrokeIds.length} selecionado(s)</Text>
           <Pressable onPress={() => applyPathChange(resizeStrokes(pathsRef.current, selectedStrokeIds, 1.15))} style={styles.selectionAction}><Text style={styles.selectionActionText}>＋ Tamanho</Text></Pressable>
@@ -567,6 +643,7 @@ function EditorScreen({ document, onSave, onChange }) {
             { id: 'eraser', glyph: '⌫', label: 'Borracha' },
             { id: 'select', glyph: '⌁', label: 'Laço' },
             { id: 'move', glyph: '✥', label: 'Mover' },
+            { id: 'text', glyph: 'T', label: 'Texto' },
           ].map(item => <Pressable key={item.id} onPress={() => { setTool(item.id); if (item.id !== 'select') { setSelectedStrokeIds([]); selectedIdsRef.current = []; setLassoPoints([]); lassoRef.current = []; } }} style={[styles.examLikeQuickTool, tool === item.id && styles.examLikeQuickToolActive]}>
             <Text style={styles.examLikeQuickGlyph}>{item.glyph}</Text>
             <Text style={[styles.examLikeQuickLabel, tool === item.id && styles.examLikeQuickLabelActive]}>{item.label}</Text>
@@ -580,6 +657,7 @@ function EditorScreen({ document, onSave, onChange }) {
             <Pressable onPress={() => setTool('highlighter')} style={[styles.examLikeTool, tool === 'highlighter' && styles.examLikeToolActive]}><Text style={styles.examLikeToolText}>▰ Marca-texto</Text></Pressable>
             <Pressable onPress={() => setTool('eraser')} style={[styles.examLikeTool, tool === 'eraser' && styles.examLikeToolActive]}><Text style={styles.examLikeToolText}>⌫ Borracha</Text></Pressable>
             <Pressable onPress={() => setTool('move')} style={[styles.examLikeTool, tool === 'move' && styles.examLikeToolActive]}><Text style={styles.examLikeToolText}>✥ Mover folha</Text></Pressable>
+            <Pressable onPress={() => setTool('text')} style={[styles.examLikeTool, tool === 'text' && styles.examLikeToolActive]}><Text style={styles.examLikeToolText}>T Texto</Text></Pressable>
             <Pressable onPress={() => Alert.alert('Limpar anotações desta página?', 'Esta ação pode ser desfeita pelo botão Desfazer.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Limpar página', style: 'destructive', onPress: () => { applyPathChange([]); setSelectedStrokeIds([]); selectedIdsRef.current = []; } }])} style={styles.examLikeTool}><Text style={styles.examLikeToolText}>⌫ Limpar página</Text></Pressable>
           </View>
           {tool === 'pen' && <>
