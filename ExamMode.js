@@ -79,14 +79,6 @@ function svgPath(points, close = false) {
   if (!points || !points.length) return '';
   return points.map((p, i) => (i ? 'L ' : 'M ') + p.x + ' ' + p.y).join(' ') + (close ? ' Z' : '');
 }
-function insidePolygon(p, polygon) {
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const a = polygon[i], b = polygon[j];
-    if (((a.y > p.y) !== (b.y > p.y)) && p.x < ((b.x-a.x)*(p.y-a.y))/((b.y-a.y)||0.00001)+a.x) inside = !inside;
-  }
-  return inside;
-}
 function eraseWholeStrokesAtPoint(strokes, point, radius) {
   return strokes.filter(stroke => {
     const points = stroke.points || [];
@@ -123,7 +115,7 @@ export default function ExamMode({ onExit }) {
   const [selected, setSelected] = useState(null);
   const [active, setActive] = useState(null);
   const [stage, setStage] = useState('choose');
-  const [busy, setBusy] = useState(false);
+  const [, setBusy] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [webReady, setWebReady] = useState(false);
   const [pdfBase64, setPdfBase64] = useState(null);
@@ -149,7 +141,7 @@ export default function ExamMode({ onExit }) {
         Alert.alert('Provas recuperadas', 'O Bloco restaurou suas provas a partir do backup automático.');
       }
       setSaved(items.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)));
-    } catch (e) {
+    } catch {
       Alert.alert('Erro ao carregar provas', 'Não foi possível ler as provas salvas neste aparelho.');
     }
   };
@@ -361,7 +353,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const [index, setIndex] = useState(Math.min(exam.currentPage || 0, Math.max(0, (exam.pages?.length || 1) - 1)));
   const initialPage = exam.pages?.[Math.min(exam.currentPage || 0, Math.max(0, (exam.pages?.length || 1) - 1))] || exam.pages?.[0];
   const [paths, setPaths] = useState(initialPage?.paths || []);
-  const [redo, setRedo] = useState([]);
+  const [, setRedo] = useState([]);
   const [pathHistory, setPathHistory] = useState(() => createHistory(initialPage?.paths || []));
   const [tool, setTool] = useState('pen');
   const [selectedIds, setSelectedIds] = useState([]);
@@ -468,16 +460,19 @@ function ExamEditor({ exam, onSave, onBack }) {
       });
   };
 
+  const persistLatestSnapshotRef = useRef(persistLatestSnapshot);
+  persistLatestSnapshotRef.current = persistLatestSnapshot;
+
   // Protege anotações recentes: salva após pequenas pausas na edição,
   // sem esperar exclusivamente pelo intervalo periódico de 10 segundos.
   useEffect(() => {
-    const timeout = setTimeout(persistLatestSnapshot, 850);
+    const timeout = setTimeout(() => persistLatestSnapshotRef.current(), 850);
     return () => clearTimeout(timeout);
   }, [pages, index, paths, zoom, pan, paused, finalized]);
 
   // Salvamento periódico também atualiza o cronômetro mesmo sem interação.
   useEffect(() => {
-    const id = setInterval(persistLatestSnapshot, 10000);
+    const id = setInterval(() => persistLatestSnapshotRef.current(), 10000);
     return () => clearInterval(id);
   }, [exam.id, exam.duration, finalized, paused]);
 
