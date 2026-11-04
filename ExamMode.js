@@ -154,7 +154,7 @@ export default function ExamMode({ onExit }) {
     }
   };
   const persist = async (items) => {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    await writeExamsWithBackup(items);
     setSaved(items);
   };
 
@@ -497,7 +497,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         const next = list.map(item => item.id === exam.id
           ? { ...item, pages: currentPages, currentPage: index, zoom, pan, remaining: nextRemaining, endAt: nextEndAt, elapsed, status: nextStatus, updatedAt: Date.now() }
           : item);
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        await writeExamsWithBackup(next);
       })
       .catch(error => console.error('Erro ao persistir estado da prova:', error));
   };
