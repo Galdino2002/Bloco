@@ -42,6 +42,12 @@ test('does not silently return an empty list when the only backup is corrupt', a
   const storage = createStorage({ backup: '{broken' });
   await assert.rejects(readArrayWithBackup(storage, 'current', 'backup'));
 });
+test('prefers a valid primary over an older backup', async () => {
+  const storage = createStorage({ current: '[{"id":"current"}]', backup: '[{"id":"older"}]' });
+  const result = await readArrayWithBackup(storage, 'current', 'backup');
+  assert.equal(result.recovered, false);
+  assert.deepEqual(result.items, [{ id: 'current' }]);
+});
 test('rejects non-array snapshots', async () => {
   await assert.rejects(writeArrayWithBackup(createStorage(), 'current', 'backup', {}), /lista/);
 });
