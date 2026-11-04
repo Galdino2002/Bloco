@@ -11,7 +11,7 @@ import { WebView } from 'react-native-webview';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { distanceToSegment, eraseAtPoint, getHighlighterStyle, pathIntersectsPolygon, screenToDocument } from './drawing';
 import { commitHistory, createHistory, redoHistory, undoHistory } from './drawingHistory';
-import { ContextToolbar, design, IconButton } from './designSystem';
+import { ContextToolbar, design, IconButton, ScreenHeader } from './designSystem';
 
 const STORAGE_KEY = '@bloco:exams:v1';
 const DIR = FileSystem.documentDirectory + 'bloco-exams/';
@@ -270,7 +270,7 @@ export default function ExamMode({ onExit }) {
 
   return <SafeAreaView style={s.safe}>
     <StatusBar barStyle="dark-content" backgroundColor={PAPER} />
-    <View style={s.header}><Pressable onPress={onExit} style={s.back}><Text style={s.backText}>‹</Text></Pressable><View style={{ flex: 1 }}><Text style={s.brand}>Ambiente de provas</Text><Text style={s.sub}>Escolha a prova e prepare seu tempo</Text></View></View>
+    <View style={{ paddingHorizontal: 18, paddingTop: 8 }}><ScreenHeader eyebrow="BLOCO · SIMULADOS" title="Ambiente de provas" subtitle="Escolha uma prova e organize seu tempo" onBack={onExit} /></View>
     {stage === 'choose' && <ScrollView contentContainerStyle={s.content}>
       <Text style={s.section}>Escolha o exame</Text>
       {EXAMS.map(exam => <Pressable key={exam.id} onPress={() => { setSelected(exam); setStage('setup'); }} style={({ pressed }) => [s.examCard, pressed && { opacity: 0.75 }]}><View style={s.examBadge}><Text style={s.examBadgeText}>{exam.id.startsWith('ENEM') ? 'ENEM' : exam.id}</Text></View><View style={{ flex: 1 }}><Text style={s.examTitle}>{exam.name}</Text><Text style={s.examDescription}>{exam.description}</Text><Text style={s.examDuration}>Tempo: {exam.durationLabel}</Text></View><Text style={s.chevron}>›</Text></Pressable>)}
