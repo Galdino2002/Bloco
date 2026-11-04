@@ -140,7 +140,9 @@ export default function RedacaoMode({ onExit }) {
       .catch(error => {
         console.error('Erro no salvamento automático da redação:', error);
         setSaveState('error');
+        throw error;
       });
+    return persistenceQueue.current;
   };
 
   const openDraft = (draft) => {
@@ -183,16 +185,14 @@ export default function RedacaoMode({ onExit }) {
     if (!active) return;
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     const updated = { ...active, mode, paths, updatedAt: Date.now() };
-    const next = drafts.some(item => item.id === updated.id)
-      ? drafts.map(item => item.id === updated.id ? updated : item)
-      : [updated, ...drafts];
     try {
-      await persist(next);
+      await queuePersistDraft(updated);
+      await persistenceQueue.current;
       setActive(null);
       setSaveState('saved');
       Alert.alert('Redação salva', 'Seu rascunho foi salvo neste aparelho.');
     } catch {
-      Alert.alert('Erro ao salvar', 'Não foi possível salvar. Verifique o espaço disponível no aparelho.');
+      Alert.alert('Erro ao salvar', 'Não foi possível salvar. Suas alterações continuam abertas; tente novamente.');
     }
   };
 

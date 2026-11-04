@@ -611,7 +611,9 @@ function ExamEditor({ exam, onSave, onBack }) {
       const p = screenToDocument({ x: e.nativeEvent.locationX, y: e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2} });
       if (toolRef.current === 'eraser') {
         const previous = pathsRef.current;
-        const next = eraseAtPoint(previous, p, 24);
+        const next = eraserModeRef.current === 'whole'
+          ? eraseWholeStrokesAtPoint(previous, p, eraserSizeRef.current)
+          : eraseAtPoint(previous, p, eraserSizeRef.current);
         const changed = next.length !== previous.length || next.some((path, index) => path !== previous[index]);
         if (changed) {
           pathsRef.current = next;

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  AppState,
   Image,
   Modal,
   PanResponder,
@@ -547,28 +548,75 @@ function BlocoApp() {
   const [redacaoMode, setRedacaoMode] = useState(false);
   const persistenceTimer = useRef(null);
   const persistenceQueue = useRef(Promise.resolve());
+  const documentsRef = useRef([]);
+
+  documentsRef.current = documents;
+
+  const enqueueDocumentsSave = (snapshot) => {
+    const serialized = JSON.stringify(snapshot);
+    persistenceQueue.current = persistenceQueue.current
+      .catch(() => undefined)
+      .then(() => AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, serialized));
+    return persistenceQueue.current;
+  };
+
+  const scheduleDocumentsSave = (snapshot) => {
+    clearTimeout(persistenceTimer.current);
+    persistenceTimer.current = setTimeout(() => {
+      enqueueDocumentsSave(snapshot).catch(error => {
+        console.error('Erro ao salvar cadernos:', error);
+        Alert.alert('Erro ao salvar cadernos', error?.message || 'Não foi possível salvar suas anotações.');
+      });
+    }, 250);
+  };
 
   useEffect(() => {
+    let mounted = true;
     AsyncStorage.getItem(NOTEBOOKS_STORAGE_KEY)
-      .then(raw => setDocuments(raw ? JSON.parse(raw) : []))
+      .then(raw => {
+        const parsed = raw ? JSON.parse(raw) : [];
+        const recovered = Array.isArray(parsed) ? parsed : [];
+        if (mounted) {
+          documentsRef.current = recovered;
+          setDocuments(recovered);
+        }
+      })
       .catch(error => Alert.alert('Erro ao carregar cadernos', error?.message || 'Não foi possível recuperar suas anotações.'))
-      .finally(() => setDocumentsLoaded(true));
+      .finally(() => {
+        if (mounted) setDocumentsLoaded(true);
+      });
+    return () => { mounted = false; };
   }, []);
 
   useEffect(() => {
-    if (!documentsLoaded) return;
-    clearTimeout(persistenceTimer.current);
-    persistenceTimer.current = setTimeout(() => {
-      persistenceQueue.current = persistenceQueue.current
-        .catch(() => undefined)
-        .then(() => AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, JSON.stringify(documents)))
-        .catch(error => {
-          console.error('Erro ao salvar cadernos:', error);
-          Alert.alert('Erro ao salvar cadernos', error?.message || 'Não foi possível salvar suas anotações.');
+    const subscription = AppState.addEventListener('change', nextState => {
+      if (nextState !== 'active') {
+        clearTimeout(persistenceTimer.current);
+        enqueueDocumentsSave(documentsRef.current).catch(error => {
+          console.error('Erro ao salvar cadernos em segundo plano:', error);
         });
-    }, 350);
-    return () => clearTimeout(persistenceTimer.current);
-  }, [documents, documentsLoaded]);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => () => {
+    clearTimeout(persistenceTimer.current);
+    enqueueDocumentsSave(documentsRef.current).catch(error => {
+      console.error('Erro ao finalizar persistência dos cadernos:', error);
+    });
+  }, []);
+
+  const commitDocuments = (next, immediate = false) => {
+    documentsRef.current = next;
+    setDocuments(next);
+    if (immediate) {
+      clearTimeout(persistenceTimer.current);
+      return enqueueDocumentsSave(next);
+    }
+    scheduleDocumentsSave(next);
+    return Promise.resolve();
+  };
 
   const importImages = async () => {
     try {
@@ -603,28 +651,53 @@ function BlocoApp() {
       Alert.alert('Não foi possível importar as imagens', error?.message || 'Tente selecionar as imagens novamente.');
     }
   };
+
   const createNote = () => {
     const now = Date.now();
     setActiveDocument({ id: `${now}`, title: 'Minha nota', pages: [{ id: `page-${now}`, paths: [], text: '' }], createdAt: now, updatedAt: now });
   };
 
-  const saveDocument = (document) => {
-    setDocuments((previous) => {
-      const exists = previous.some((item) => item.id === document.id);
-      return exists ? previous.map((item) => item.id === document.id ? document : item) : [document, ...previous];
-    });
-    setActiveDocument(null);
+  const saveDocument = async (document) => {
+    const current = documentsRef.current;
+    const exists = current.some(item => item.id === document.id);
+    const next = exists
+      ? current.map(item => item.id === document.id ? document : item)
+      : [document, ...current];
+    try {
+      await commitDocuments(next, true);
+      setActiveDocument(null);
+    } catch (error) {
+      console.error('Erro ao salvar documento:', error);
+      Alert.alert('Não foi possível salvar', 'Suas alterações continuam abertas. Tente salvar novamente.');
+    }
   };
-  const updateDocument = (document) => setDocuments(previous => {
-    const exists = previous.some(item => item.id === document.id);
-    return exists ? previous.map(item => item.id === document.id ? document : item) : [document, ...previous];
-  });
-  const deleteDocument = (documentId, permanent = false) => setDocuments(previous => permanent
-    ? previous.filter(item => item.id !== documentId)
-    : previous.map(item => item.id === documentId ? { ...item, deletedAt: Date.now(), updatedAt: Date.now() } : item));
+
+  const updateDocument = (document) => {
+    const current = documentsRef.current;
+    const exists = current.some(item => item.id === document.id);
+    const next = exists
+      ? current.map(item => item.id === document.id ? document : item)
+      : [document, ...current];
+    commitDocuments(next);
+  };
+
+  const deleteDocument = (documentId, permanent = false) => {
+    const current = documentsRef.current;
+    const next = permanent
+      ? current.filter(item => item.id !== documentId)
+      : current.map(item => item.id === documentId ? { ...item, deletedAt: Date.now(), updatedAt: Date.now() } : item);
+    commitDocuments(next);
+  };
+
   const duplicateDocument = (document) => {
-    const duplicate = JSON.parse(JSON.stringify({ ...document, id: `${Date.now()}-${Math.random()}`, title: `${document.title || 'Caderno'} (cópia)`, createdAt: Date.now(), updatedAt: Date.now() }));
-    setDocuments(previous => [duplicate, ...previous]);
+    const duplicate = JSON.parse(JSON.stringify({
+      ...document,
+      id: `${Date.now()}-${Math.random()}`,
+      title: `${document.title || 'Caderno'} (cópia)`,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }));
+    commitDocuments([duplicate, ...documentsRef.current]);
   };
 
   if (!documentsLoaded) return <SafeAreaView style={styles.safeArea}><Text style={styles.loadingText}>Recuperando seus cadernos...</Text></SafeAreaView>;
@@ -633,7 +706,6 @@ function BlocoApp() {
   if (redacaoMode) return <RedacaoMode onExit={() => setRedacaoMode(false)} />;
   return <HomeScreen documents={documents} onImport={importImages} onCreateNote={createNote} onOpen={setActiveDocument} onDelete={deleteDocument} onUpdate={updateDocument} onDuplicate={duplicateDocument} onExam={() => setExamMode(true)} onRedacao={() => setRedacaoMode(true)} />;
 }
-
 export default function App() {
   return (
     <SafeAreaProvider>
