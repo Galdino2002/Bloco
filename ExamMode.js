@@ -109,6 +109,7 @@ function Button({ title, onPress, secondary = false, disabled = false }) {
 export default function ExamMode({ onExit }) {
   const [saved, setSaved] = useState([]);
   const [loadError, setLoadError] = useState('');
+  const [savedLoaded, setSavedLoaded] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [savedSearch, setSavedSearch] = useState('');
   const [savedFilter, setSavedFilter] = useState('all');
@@ -130,6 +131,8 @@ export default function ExamMode({ onExit }) {
       setSaved(items.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)));
     } catch (error) {
       setLoadError(error?.message || 'Não foi possível ler as provas salvas neste aparelho. Seus dados não foram substituídos.');
+    } finally {
+      setSavedLoaded(true);
     }
   };
   const persist = async (items) => {
@@ -266,7 +269,8 @@ export default function ExamMode({ onExit }) {
     } },
   ]);
 
-  if (loadError) return <SafeAreaView style={s.safe}><View style={{ flex: 1, justifyContent: 'center', padding: 26, gap: 14 }}><Text style={{ color: INK, fontSize: 22, fontWeight: '800' }}>Não foi possível carregar suas provas</Text><Text style={{ color: '#89938A', fontSize: 13, lineHeight: 20 }}>{loadError}</Text><Button title="Tentar novamente" onPress={() => { setLoadError(''); setLoadAttempt(value => value + 1); }} /></View></SafeAreaView>;
+  if (!savedLoaded) return <SafeAreaView style={s.safe}><View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={GREEN} /><Text style={{ color: '#89938A', marginTop: 12 }}>Carregando suas provas...</Text></View></SafeAreaView>;
+  if (loadError) return <SafeAreaView style={s.safe}><View style={{ flex: 1, justifyContent: 'center', padding: 26, gap: 14 }}><Text style={{ color: INK, fontSize: 22, fontWeight: '800' }}>Não foi possível carregar suas provas</Text><Text style={{ color: '#89938A', fontSize: 13, lineHeight: 20 }}>{loadError}</Text><Button title="Tentar novamente" onPress={() => { setSavedLoaded(false); setLoadError(''); setLoadAttempt(value => value + 1); }} /></View></SafeAreaView>;
 
   if (stage === 'editor' && active) {
     return <ExamEditor exam={active} onSave={saveExam} onBack={() => saveExam(active)} />;
