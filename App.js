@@ -74,6 +74,41 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>\"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[character]));
 }
 
+
+async function packLocalPageAssets(items) {
+  return Promise.all(items.map(async item => {
+    const sourcePages = Array.isArray(item.pages) ? item.pages : item.uri ? [{ id: `page-${item.id || 'legacy'}`, uri: item.uri, paths: item.paths || [] }] : null;
+    if (!sourcePages) return item;
+    const pages = await Promise.all(sourcePages.map(async page => {
+      if (!page.uri || !String(page.uri).startsWith('file://')) return page;
+      const info = await FileSystem.getInfoAsync(page.uri);
+      if (!info.exists) throw new Error(`Não foi possível incluir a imagem da página ${page.fileName || page.id || ''} no backup.`);
+      const base64 = await FileSystem.readAsStringAsync(page.uri, { encoding: FileSystem.EncodingType.Base64 });
+      const extension = String(page.uri).split('?')[0].split('.').pop()?.toLowerCase() || 'jpg';
+      return { ...page, backupAssetBase64: base64, backupAssetExtension: extension };
+    }));
+    return { ...item, pages };
+  }));
+}
+
+async function restoreLocalPageAssets(items) {
+  const directory = `${FileSystem.documentDirectory}bloco-backup-assets/`;
+  const info = await FileSystem.getInfoAsync(directory);
+  if (!info.exists) await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
+  return Promise.all(items.map(async item => {
+    if (!Array.isArray(item.pages)) return item;
+    const pages = await Promise.all(item.pages.map(async (page, index) => {
+      if (!page.backupAssetBase64) return page;
+      const extension = String(page.backupAssetExtension || 'jpg').replace(/[^a-z0-9]/gi, '') || 'jpg';
+      const uri = `${directory}${Date.now()}-${index}-${Math.random().toString(36).slice(2)}.${extension}`;
+      await FileSystem.writeAsStringAsync(uri, page.backupAssetBase64, { encoding: FileSystem.EncodingType.Base64 });
+      const { backupAssetBase64, backupAssetExtension, ...cleanPage } = page;
+      return { ...cleanPage, uri };
+    }));
+    return { ...item, pages, uri: pages[0]?.uri || item.uri, paths: pages[0]?.paths || item.paths || [] };
+  }));
+}
+
 function pathToSvg(points) {
   if (!points.length) return '';
   return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
@@ -144,7 +179,7 @@ function PageBackground({ type }) {
   </View>;
 }
 
-function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExam, onRedacao, onUpdate, onDuplicate }) {
+function HomeScreen({ documents, onImport, onExportBackup, onImportBackup, onCreateNote, onOpen, onDelete, onExam, onRedacao, onUpdate, onDuplicate }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('updated');
@@ -1057,7 +1092,9 @@ function BlocoApp() {
     try {
       const [examsRaw, draftsRaw] = await Promise.all([AsyncStorage.getItem('@bloco:exams:v1'), AsyncStorage.getItem('@bloco:redacoes:v1')]);
       const parseStoredArray = raw => { try { const value = raw ? JSON.parse(raw) : []; return Array.isArray(value) ? value : []; } catch { return []; } };
-      const payload = { format: 'bloco-backup', version: 2, exportedAt: new Date().toISOString(), documents: documentsRef.current, exams: parseStoredArray(examsRaw), drafts: parseStoredArray(draftsRaw) };
+      const documentsWithAssets = await packLocalPageAssets(documentsRef.current);
+      const examsWithAssets = await packLocalPageAssets(parseStoredArray(examsRaw));
+      const payload = { format: 'bloco-backup', version: 3, exportedAt: new Date().toISOString(), documents: documentsWithAssets, exams: examsWithAssets, drafts: parseStoredArray(draftsRaw) };
       const uri = `${FileSystem.cacheDirectory}bloco-backup-${Date.now()}.json`;
       await FileSystem.writeAsStringAsync(uri, JSON.stringify(payload, null, 2), { encoding: FileSystem.EncodingType.UTF8 });
       await Sharing.shareAsync(uri, { mimeType: 'application/json', dialogTitle: 'Exportar backup do Bloco' });
@@ -1078,9 +1115,11 @@ function BlocoApp() {
         { text: 'Restaurar', style: 'destructive', onPress: async () => {
           try {
             const [currentExams, currentDrafts] = await Promise.all([AsyncStorage.getItem('@bloco:exams:v1'), AsyncStorage.getItem('@bloco:redacoes:v1')]);
-            if (restoredExams) { if (currentExams) await AsyncStorage.setItem('@bloco:exams:backup:v1', currentExams); await AsyncStorage.setItem('@bloco:exams:v1', JSON.stringify(restoredExams)); }
+            const restoredDocuments = await restoreLocalPageAssets(restored);
+            const restoredExamItems = restoredExams ? await restoreLocalPageAssets(restoredExams) : null;
+            if (restoredExamItems) { if (currentExams) await AsyncStorage.setItem('@bloco:exams:backup:v1', currentExams); await AsyncStorage.setItem('@bloco:exams:v1', JSON.stringify(restoredExamItems)); }
             if (restoredDrafts) { if (currentDrafts) await AsyncStorage.setItem('@bloco:redacoes:backup:v1', currentDrafts); await AsyncStorage.setItem('@bloco:redacoes:v1', JSON.stringify(restoredDrafts)); }
-            const saved = await commitDocuments(restored, true);
+            const saved = await commitDocuments(restoredDocuments, true);
             if (saved !== false) Alert.alert('Backup restaurado', 'Cadernos, provas e redações incluídos no arquivo foram recuperados.');
           } catch (error) { Alert.alert('Falha ao restaurar', error?.message || 'Não foi possível restaurar o backup.'); }
         } },
