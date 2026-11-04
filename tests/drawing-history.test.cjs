@@ -9,7 +9,7 @@ test('creates an isolated initial snapshot', () => {
   const history = createHistory(initial);
   initial[0].points[0].x = 99;
   assert.equal(history.present[0].points[0].x, 1);
-  assert.deepEqual(history.present, history.past[0]);
+  assert.equal(history.past.length, 0);
 });
 
 test('undoes and redoes complete drawing snapshots', () => {
