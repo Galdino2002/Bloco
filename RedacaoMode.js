@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, PanResponder, Pressable, ScrollView, Share, StatusBar,
+  Alert, AppState, PanResponder, Pressable, ScrollView, Share, StatusBar,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -104,7 +104,11 @@ export default function RedacaoMode({ onExit }) {
   const zoomRef = useRef(1);
   zoomRef.current = zoom;
   const activePath = useRef(null);
+  const activeDraftRef = useRef(active);
+  const modeRef = useRef(mode);
   const pathsRef = useRef(paths);
+  activeDraftRef.current = active;
+  modeRef.current = mode;
   const colorRef = useRef(color);
   pathsRef.current = paths;
   colorRef.current = color;
@@ -151,6 +155,16 @@ export default function RedacaoMode({ onExit }) {
       });
     return persistenceQueue.current;
   };
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextState => {
+      if (nextState !== 'active' && activeDraftRef.current) {
+        if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+        queuePersistDraft({ ...activeDraftRef.current, mode: modeRef.current, paths: pathsRef.current, updatedAt: Date.now() });
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   const openDraft = (draft) => {
     setActive(draft);
