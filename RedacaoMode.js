@@ -129,8 +129,13 @@ export default function RedacaoMode({ onExit }) {
   }, [loadAttempt]);
 
   const persist = async (items) => {
-    await writeDraftsWithBackup(items);
-    setDrafts(items);
+    persistenceQueue.current = persistenceQueue.current
+      .catch(() => undefined)
+      .then(async () => {
+        await writeDraftsWithBackup(items);
+        setDrafts(items);
+      });
+    return persistenceQueue.current;
   };
 
   const queuePersistDraft = (draft) => {
@@ -139,8 +144,7 @@ export default function RedacaoMode({ onExit }) {
     persistenceQueue.current = persistenceQueue.current
       .catch(() => undefined)
       .then(async () => {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        const current = raw ? JSON.parse(raw) : [];
+        const { items: current } = await readArrayWithBackup(AsyncStorage, STORAGE_KEY, BACKUP_KEY);
         const next = current.some(item => item.id === draft.id)
           ? current.map(item => item.id === draft.id ? draft : item)
           : [draft, ...current];
@@ -344,9 +348,18 @@ export default function RedacaoMode({ onExit }) {
           const box = getBounds(pathsRef.current.filter(stroke => selectedIdsRef.current.includes(stroke.id)));
           const center = box ? { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 } : point;
           const handle = box ? { x: box.maxX + 7, y: box.maxY + 7 } : point;
+          const inside = !!box && point.x >= box.minX - 14 && point.x <= box.maxX + 14 && point.y >= box.minY - 14 && point.y <= box.maxY + 14;
           if (box && Math.hypot(point.x - handle.x, point.y - handle.y) < 28) {
             selectionRef.current = { type: 'resize', center, startDistance: Math.max(1, Math.hypot(handle.x - center.x, handle.y - center.y)), original: pathsRef.current, factor: 1 };
-          } else selectionRef.current = { type: 'move', start: point, original: pathsRef.current };
+          } else if (inside) {
+            selectionRef.current = { type: 'move', start: point, original: pathsRef.current };
+          } else {
+            selectedIdsRef.current = [];
+            setSelectedIds([]);
+            selectionRef.current = { type: 'lasso' };
+            lassoRef.current = [point];
+            setLasso([point]);
+          }
         } else {
           selectionRef.current = { type: 'lasso' };
           lassoRef.current = [point]; setLasso([point]);
@@ -363,19 +376,48 @@ export default function RedacaoMode({ onExit }) {
       const stroke = { id: String(Date.now()) + Math.random(), points: [point], color: colorRef.current, width: isMarker ? markerStyle.width : penWidthRef.current, opacity: isMarker ? markerStyle.opacity : 1, kind: isMarker ? 'highlighter' : 'pen' };
       activePath.current = stroke; pathsRef.current = [...pathsRef.current, stroke]; setPaths(pathsRef.current); setRedo([]);
     },
+    onPanResponderStart: event => {
+      const touches = event.nativeEvent.touches || [];
+      if (touches.length < 2) return;
+      activePath.current = null;
+      selectionRef.current = null;
+      lassoRef.current = [];
+      setLasso([]);
+      const [a, b] = touches;
+      const distance = Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
+      if (distance <= 0) return;
+      const focal = {
+        x: ((a.locationX ?? event.nativeEvent.locationX) + (b.locationX ?? event.nativeEvent.locationX)) / 2,
+        y: ((a.locationY ?? event.nativeEvent.locationY) + (b.locationY ?? event.nativeEvent.locationY)) / 2,
+      };
+      pinchStart.current = { distance, zoom: zoomRef.current, focal, pan: { ...panRef.current } };
+    },
     onPanResponderMove: event => {
       const touches = event.nativeEvent.touches || [];
       if (touches.length >= 2) {
         activePath.current = null;
+        selectionRef.current = null;
+        lassoRef.current = [];
+        setLasso([]);
         const [a, b] = touches;
         const distance = Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
-        if (!pinchStart.current && distance > 0) pinchStart.current = { distance, zoom: zoomRef.current, centerX: (a.pageX + b.pageX) / 2, centerY: (a.pageY + b.pageY) / 2, pan: panRef.current };
+        const focal = {
+          x: ((a.locationX ?? event.nativeEvent.locationX) + (b.locationX ?? event.nativeEvent.locationX)) / 2,
+          y: ((a.locationY ?? event.nativeEvent.locationY) + (b.locationY ?? event.nativeEvent.locationY)) / 2,
+        };
+        if (!pinchStart.current && distance > 0) {
+          pinchStart.current = { distance, zoom: zoomRef.current, focal, pan: { ...panRef.current } };
+        }
         if (pinchStart.current?.distance && distance > 0) {
           const nextZoom = Math.max(0.25, Math.min(3, pinchStart.current.zoom * distance / pinchStart.current.distance));
-          zoomRef.current = nextZoom; setZoom(nextZoom);
-          const centerX = (a.pageX + b.pageX) / 2, centerY = (a.pageY + b.pageY) / 2;
-          const nextPan = { x: pinchStart.current.pan.x + centerX - pinchStart.current.centerX, y: pinchStart.current.pan.y + centerY - pinchStart.current.centerY };
-          panRef.current = nextPan; setPan(nextPan);
+          const nextPan = {
+            x: focal.x - ((pinchStart.current.focal.x - pinchStart.current.pan.x) / pinchStart.current.zoom) * nextZoom,
+            y: focal.y - ((pinchStart.current.focal.y - pinchStart.current.pan.y) / pinchStart.current.zoom) * nextZoom,
+          };
+          zoomRef.current = nextZoom;
+          setZoom(nextZoom);
+          panRef.current = nextPan;
+          setPan(nextPan);
         }
         return;
       }
