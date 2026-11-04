@@ -43,4 +43,4 @@ No terminal, execute: `git pull origin main`, `npm install`, `npm test`, `npm ru
 
 A suíte `npm test` verifica a camada compartilhada de leitura, gravação e recuperação de listas com backup. O lint verifica problemas estáticos e o CI também gera o bundle Android com `npx expo export --platform android`. Esses testes não substituem a validação manual no Expo Go: importação de arquivos, gestos de desenho, zoom, impressão/PDF, compartilhamento e comportamento em segundo plano precisam ser exercitados em aparelhos reais.
 
-Consulte `docs/QA_CHECKLIST.md` para o roteiro de validação antes de publicar uma versão.
+Consulte `docs/QA_CHECKLIST.md` para o roteiro de validação antes de publicar uma versão. Consulte `docs/SECURITY.md` para o resultado da auditoria de dependências e as limitações conhecidas do Expo SDK 57.
