@@ -1072,15 +1072,30 @@ function BlocoApp() {
       Alert.alert('Restaurar backup?', `Serão restaurados ${restored.length} documentos${restoredExams ? `, ${restoredExams.length} provas` : ''}${restoredDrafts ? ` e ${restoredDrafts.length} redações` : ''}. O conteúdo atual ficará preservado nos backups automáticos.`, [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Restaurar', style: 'destructive', onPress: async () => {
+          const [currentExams, currentDrafts] = await Promise.all([AsyncStorage.getItem('@bloco:exams:v1'), AsyncStorage.getItem('@bloco:redacoes:v1')]);
+          const currentDocuments = documentsRef.current;
           try {
-            const [currentExams, currentDrafts] = await Promise.all([AsyncStorage.getItem('@bloco:exams:v1'), AsyncStorage.getItem('@bloco:redacoes:v1')]);
             const restoredDocuments = await restoreLocalPageAssets(restored);
             const restoredExamItems = restoredExams ? await restoreLocalPageAssets(restoredExams) : null;
-            if (restoredExamItems) { if (currentExams) await AsyncStorage.setItem('@bloco:exams:backup:v1', currentExams); await AsyncStorage.setItem('@bloco:exams:v1', JSON.stringify(restoredExamItems)); }
-            if (restoredDrafts) { if (currentDrafts) await AsyncStorage.setItem('@bloco:redacoes:backup:v1', currentDrafts); await AsyncStorage.setItem('@bloco:redacoes:v1', JSON.stringify(restoredDrafts)); }
+            if (restoredExamItems) {
+              if (currentExams !== null) await AsyncStorage.setItem('@bloco:exams:backup:v1', currentExams);
+              await AsyncStorage.setItem('@bloco:exams:v1', JSON.stringify(restoredExamItems));
+            }
+            if (restoredDrafts) {
+              if (currentDrafts !== null) await AsyncStorage.setItem('@bloco:redacoes:backup:v1', currentDrafts);
+              await AsyncStorage.setItem('@bloco:redacoes:v1', JSON.stringify(restoredDrafts));
+            }
             const saved = await commitDocuments(restoredDocuments, true);
-            if (saved !== false) Alert.alert('Backup restaurado', 'Cadernos, provas e redações incluídos no arquivo foram recuperados.');
-          } catch (error) { Alert.alert('Falha ao restaurar', error?.message || 'Não foi possível restaurar o backup.'); }
+            if (saved === false) throw new Error('Não foi possível gravar os cadernos restaurados.');
+            Alert.alert('Backup restaurado', 'Cadernos, provas e redações incluídos no arquivo foram recuperados.');
+          } catch (error) {
+            const rollbackErrors = [];
+            try { if (currentExams === null) await AsyncStorage.removeItem('@bloco:exams:v1'); else await AsyncStorage.setItem('@bloco:exams:v1', currentExams); } catch (rollbackError) { rollbackErrors.push(rollbackError); }
+            try { if (currentDrafts === null) await AsyncStorage.removeItem('@bloco:redacoes:v1'); else await AsyncStorage.setItem('@bloco:redacoes:v1', currentDrafts); } catch (rollbackError) { rollbackErrors.push(rollbackError); }
+            try { await commitDocuments(currentDocuments, true); } catch (rollbackError) { rollbackErrors.push(rollbackError); }
+            const message = rollbackErrors.length ? 'A restauração falhou e a recuperação automática também encontrou um erro. Não feche o aplicativo; faça uma cópia dos dados antes de tentar novamente.' : (error?.message || 'Não foi possível restaurar o backup. Os dados anteriores foram preservados.');
+            Alert.alert('Falha ao restaurar', message);
+          }
         } },
       ]);
     } catch (error) { console.error('Erro ao importar backup:', error); Alert.alert('Backup inválido', error?.message || 'Não foi possível ler este arquivo.'); }
