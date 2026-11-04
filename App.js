@@ -401,10 +401,14 @@ function EditorScreen({ document, onSave, onChange }) {
   });
   const applySnapshot = (snapshot) => {
     const nextPaths = snapshot?.paths || [];
+    const nextText = snapshot?.text || '';
+    const nextBackground = snapshot?.background || 'plain';
     pathsRef.current = nextPaths;
+    pageTextRef.current = nextText;
+    pageBackgroundRef.current = nextBackground;
     setPaths(nextPaths);
-    setPageText(snapshot?.text || '');
-    setPageBackground(snapshot?.background || 'plain');
+    setPageText(nextText);
+    setPageBackground(nextBackground);
   };
   const applyPathChange = (nextPaths, record = true) => {
     pathsRef.current = nextPaths;
