@@ -282,6 +282,7 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
 function EditorScreen({ document, onSave, onChange }) {
   const initialPages = document.pages?.length ? document.pages : [{ id: 'page-1', uri: document.uri, paths: document.paths || [] }];
   const [title, setTitle] = useState(document.title || 'Minha nota');
+  const [saveState, setSaveState] = useState('saved');
   const titleRef = useRef(title);
   titleRef.current = title;
   const [pages, setPages] = useState(initialPages);
@@ -570,21 +571,31 @@ function EditorScreen({ document, onSave, onChange }) {
   onChangeRef.current = onChange;
 
   useEffect(() => {
+    let active = true;
     const updatedPages = pages.map((page, index) => index === pageIndex
       ? { ...page, paths, text: pageText, background: pageBackground }
       : page);
-    const timer = setTimeout(() => {
+    setSaveState('pending');
+    const timer = setTimeout(async () => {
+      if (!active) return;
+      setSaveState('saving');
       const latestDocument = documentRef.current;
-      onChangeRef.current({
-        ...latestDocument,
-        title: titleRef.current,
-        pages: updatedPages,
-        uri: updatedPages[0]?.uri,
-        paths: updatedPages[0]?.paths || [],
-        updatedAt: Date.now(),
-      });
+      try {
+        await onChangeRef.current({
+          ...latestDocument,
+          title: titleRef.current,
+          pages: updatedPages,
+          uri: updatedPages[0]?.uri,
+          paths: updatedPages[0]?.paths || [],
+          updatedAt: Date.now(),
+        });
+        if (active) setSaveState('saved');
+      } catch (error) {
+        console.error('Erro no salvamento automático da nota:', error);
+        if (active) setSaveState('error');
+      }
     }, 450);
-    return () => clearTimeout(timer);
+    return () => { active = false; clearTimeout(timer); };
   }, [pageIndex, pages, paths, pageText, pageBackground, title]);
 
   const addPage = () => {
@@ -641,7 +652,7 @@ function EditorScreen({ document, onSave, onChange }) {
         <Pressable onPress={save} style={styles.examLikeBack}><Text style={styles.examLikeBackText}>‹</Text></Pressable>
         <View style={styles.examLikeTitleWrap}>
           <TextInput value={title} onChangeText={nextTitle => { titleRef.current = nextTitle; setTitle(nextTitle); onChange({ ...document, title: nextTitle, updatedAt: Date.now() }); }} style={styles.examLikeTitleInput} maxLength={70} />
-          <Text style={styles.examLikeSubtitle}>Nota · salvamento automático</Text>
+          <Text style={styles.examLikeSubtitle}>{saveState === 'pending' || saveState === 'saving' ? 'Salvando alterações…' : saveState === 'error' ? 'Falha ao salvar · tente novamente' : 'Todas as alterações salvas'}</Text>
         </View>
         <Pressable onPress={save} style={styles.examLikeSave}><Text style={styles.examLikeSaveText}>Salvar</Text></Pressable>
       </View>
@@ -800,12 +811,15 @@ function BlocoApp() {
 
   const scheduleDocumentsSave = (snapshot) => {
     clearTimeout(persistenceTimer.current);
-    persistenceTimer.current = setTimeout(() => {
-      enqueueDocumentsSave(snapshot).catch(error => {
-        console.error('Erro ao salvar cadernos:', error);
-        Alert.alert('Erro ao salvar cadernos', error?.message || 'Não foi possível salvar suas anotações.');
-      });
-    }, 250);
+    return new Promise((resolve, reject) => {
+      persistenceTimer.current = setTimeout(() => {
+        enqueueDocumentsSave(snapshot).then(resolve).catch(error => {
+          console.error('Erro ao salvar cadernos:', error);
+          Alert.alert('Erro ao salvar cadernos', error?.message || 'Não foi possível salvar suas anotações.');
+          reject(error);
+        });
+      }, 250);
+    });
   };
 
   useEffect(() => {
@@ -852,8 +866,7 @@ function BlocoApp() {
       clearTimeout(persistenceTimer.current);
       return enqueueDocumentsSave(next);
     }
-    scheduleDocumentsSave(next);
-    return Promise.resolve();
+    return scheduleDocumentsSave(next);
   };
 
   const importImages = async () => {
