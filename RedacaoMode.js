@@ -156,11 +156,14 @@ export default function RedacaoMode({ onExit }) {
     return persistenceQueue.current;
   };
 
+  const queuePersistDraftRef = useRef(queuePersistDraft);
+  queuePersistDraftRef.current = queuePersistDraft;
+
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextState => {
       if (nextState !== 'active' && activeDraftRef.current) {
         if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-        queuePersistDraft({ ...activeDraftRef.current, mode: modeRef.current, paths: pathsRef.current, updatedAt: Date.now() });
+        queuePersistDraftRef.current({ ...activeDraftRef.current, mode: modeRef.current, paths: pathsRef.current, updatedAt: Date.now() });
       }
     });
     return () => subscription.remove();
