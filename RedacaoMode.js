@@ -112,12 +112,11 @@ export default function RedacaoMode({ onExit }) {
   lassoRef.current = lasso;
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then(async raw => {
-        try { const parsed = raw ? JSON.parse(raw) : []; if (!Array.isArray(parsed)) throw new Error('Armazenamento inválido'); return parsed; }
-        catch (error) { const backupRaw = await AsyncStorage.getItem(BACKUP_KEY); if (!backupRaw) throw error; const backup = JSON.parse(backupRaw); if (!Array.isArray(backup)) throw error; await AsyncStorage.setItem(STORAGE_KEY, backupRaw); Alert.alert('Redações recuperadas', 'O Bloco restaurou suas redações a partir do backup automático.'); return backup; }
+    readArrayWithBackup(AsyncStorage, STORAGE_KEY, BACKUP_KEY)
+      .then(({ items, recovered }) => {
+        if (recovered) Alert.alert('Redações recuperadas', 'O Bloco restaurou suas redações a partir do backup automático.');
+        setDrafts(items);
       })
-      .then(setDrafts)
       .catch(() => Alert.alert('Erro', 'Não foi possível carregar suas redações.'))
       .finally(() => setLoaded(true));
   }, []);
