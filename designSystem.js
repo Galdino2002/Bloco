@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-// Shared visual language for the Bloco editor.
+// Shared visual language for all Bloco workspaces.
 // Kept dependency-free so it remains compatible with Expo Go.
 export const design = {
   colors: {
@@ -47,13 +47,13 @@ export function IconButton({
       hitSlop={4}
       style={({ pressed }) => ({
         minWidth: 44,
-        minHeight: 44, borderRadius: 14,
+        minHeight: 44,
         paddingHorizontal: 10,
         borderRadius: design.radius.md,
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: active ? design.colors.accentWash : design.colors.surface,
-        borderWidth: active ? 1 : 1,
+        borderWidth: 1,
         borderColor: active ? '#C9DCCF' : design.colors.border,
         opacity: disabled ? 0.32 : pressed ? 0.62 : 1,
       })}
