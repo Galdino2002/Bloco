@@ -1047,11 +1047,13 @@ function BlocoApp() {
 
   const exportBackup = async () => {
     try {
-      const [examsRaw, draftsRaw] = await Promise.all([AsyncStorage.getItem('@bloco:exams:v1'), AsyncStorage.getItem('@bloco:redacoes:v1')]);
-      const parseStoredArray = raw => { try { const value = raw ? JSON.parse(raw) : []; return Array.isArray(value) ? value : []; } catch { return []; } };
+      const [examsState, draftsState] = await Promise.all([
+        readArrayWithBackup(AsyncStorage, '@bloco:exams:v1', '@bloco:exams:backup:v1'),
+        readArrayWithBackup(AsyncStorage, '@bloco:redacoes:v1', '@bloco:redacoes:backup:v1'),
+      ]);
       const documentsWithAssets = await packLocalPageAssets(documentsRef.current);
-      const examsWithAssets = await packLocalPageAssets(parseStoredArray(examsRaw));
-      const payload = { format: 'bloco-backup', version: 3, exportedAt: new Date().toISOString(), documents: documentsWithAssets, exams: examsWithAssets, drafts: parseStoredArray(draftsRaw) };
+      const examsWithAssets = await packLocalPageAssets(examsState.items);
+      const payload = { format: 'bloco-backup', version: 3, exportedAt: new Date().toISOString(), documents: documentsWithAssets, exams: examsWithAssets, drafts: draftsState.items };
       const uri = `${FileSystem.cacheDirectory}bloco-backup-${Date.now()}.json`;
       await FileSystem.writeAsStringAsync(uri, JSON.stringify(payload, null, 2), { encoding: FileSystem.EncodingType.UTF8 });
       await Sharing.shareAsync(uri, { mimeType: 'application/json', dialogTitle: 'Exportar backup do Bloco' });
