@@ -25,9 +25,10 @@ import Svg, { Path, Rect } from 'react-native-svg';
 import ExamMode from './ExamMode';
 import RedacaoMode from './RedacaoMode';
 import { eraseAtPoint, getHighlighterStyle, pathIntersectsPolygon, screenToDocument } from './drawing';
-import { commitHistory, createHistory, redoHistory, undoHistory } from './drawingHistory';
+import drawingHistory from './drawingHistory';
 import { ContextToolbar, IconButton, ScreenTitle } from './designSystem';
 
+const { commitHistory, createHistory, redoHistory, undoHistory } = drawingHistory;
 const { readArrayWithBackup, writeArrayWithBackup } = storage;
 
 const NOTEBOOKS_STORAGE_KEY = '@bloco:notebooks:v1';
