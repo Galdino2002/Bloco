@@ -38,6 +38,10 @@ test('keeps the previous snapshot when the primary write fails', async () => {
   assert.equal(storage.values.get('backup'), '[{"id":"old"}]');
   assert.equal(storage.values.get('current'), '[{"id":"old"}]');
 });
+test('does not silently return an empty list when the only backup is corrupt', async () => {
+  const storage = createStorage({ backup: '{broken' });
+  await assert.rejects(readArrayWithBackup(storage, 'current', 'backup'));
+});
 test('rejects non-array snapshots', async () => {
   await assert.rejects(writeArrayWithBackup(createStorage(), 'current', 'backup', {}), /lista/);
 });
