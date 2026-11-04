@@ -5,25 +5,25 @@ import { Pressable, Text, View } from 'react-native';
 // Kept dependency-free so it remains compatible with Expo Go.
 export const design = {
   colors: {
-    canvas: '#F3F3F1',
+    canvas: '#F5F6F3',
     surface: '#FFFFFF',
-    surfaceMuted: '#F1F2EF',
-    ink: '#202522',
-    inkSoft: '#68716B',
+    surfaceMuted: '#F0F3EF',
+    ink: '#1F3027',
+    inkSoft: '#68766D',
     accent: '#315C49',
     accentStrong: '#244B39',
-    accentWash: '#E2ECE5',
-    border: '#E5E7E3',
-    borderStrong: '#CDD4CE',
+    accentWash: '#E7EFE8',
+    border: '#E3E8E2',
+    borderStrong: '#CCD7CE',
     warning: '#B86B35',
     danger: '#B4514A',
     white: '#FFFFFF',
   },
   spacing: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 },
-  radius: { sm: 9, md: 13, lg: 18, xl: 24, pill: 999 },
+  radius: { sm: 10, md: 14, lg: 18, xl: 24, pill: 999 },
   typography: {
-    title: { fontSize: 24, lineHeight: 29, fontWeight: '700' },
-    section: { fontSize: 17, lineHeight: 22, fontWeight: '700' },
+    title: { fontSize: 25, lineHeight: 31, fontWeight: '700', letterSpacing: -0.5 },
+    section: { fontSize: 17, lineHeight: 23, fontWeight: '700', letterSpacing: -0.2 },
     body: { fontSize: 14, lineHeight: 20 },
     caption: { fontSize: 11, lineHeight: 15 },
     label: { fontSize: 10, lineHeight: 13, fontWeight: '800', letterSpacing: 0.8 },
@@ -46,15 +46,15 @@ export function IconButton({
       onPress={onPress}
       hitSlop={4}
       style={({ pressed }) => ({
-        minWidth: 42,
-        minHeight: 42,
+        minWidth: 44,
+        minHeight: 44, borderRadius: 14,
         paddingHorizontal: 10,
         borderRadius: design.radius.md,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: active ? design.colors.accentWash : 'transparent',
+        backgroundColor: active ? design.colors.accentWash : design.colors.surface,
         borderWidth: active ? 1 : 1,
-        borderColor: active ? '#C9DCCF' : 'transparent',
+        borderColor: active ? '#C9DCCF' : design.colors.border,
         opacity: disabled ? 0.32 : pressed ? 0.62 : 1,
       })}
     >
@@ -110,7 +110,7 @@ export function ScreenHeader({ eyebrow, title, subtitle, onBack, right }) {
 
 export function ScreenTitle({ eyebrow, title, subtitle, right }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: design.spacing.lg }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: design.spacing.xl }}>
       <View style={{ flex: 1 }}>
         {eyebrow ? <Text style={{ ...design.typography.label, color: design.colors.accent, marginBottom: 5 }}>{eyebrow}</Text> : null}
         <Text numberOfLines={2} style={{ ...design.typography.title, color: design.colors.ink }}>{title}</Text>
@@ -131,18 +131,18 @@ export function ContextToolbar({ children }) {
       justifyContent: 'center',
       rowGap: 5,
       columnGap: 5,
-      minHeight: 54,
+      minHeight: 56,
       paddingHorizontal: 9,
       paddingVertical: 6,
       backgroundColor: design.colors.surface,
       borderWidth: 1,
       borderColor: design.colors.border,
-      borderRadius: 16,
+      borderRadius: 18,
       marginHorizontal: 10,
       marginVertical: 5,
       shadowColor: '#18251D',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.07,
+      shadowOpacity: 0.06,
       shadowRadius: 8,
       elevation: 2,
     }}>
