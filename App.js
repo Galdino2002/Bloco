@@ -20,7 +20,6 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import storage from './storage';
-const { readArrayWithBackup, writeArrayWithBackup } = storage;
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect } from 'react-native-svg';
 import ExamMode from './ExamMode';
@@ -28,6 +27,8 @@ import RedacaoMode from './RedacaoMode';
 import { eraseAtPoint, getHighlighterStyle, pathIntersectsPolygon, screenToDocument } from './drawing';
 import { commitHistory, createHistory, redoHistory, undoHistory } from './drawingHistory';
 import { ContextToolbar, IconButton, ScreenTitle } from './designSystem';
+
+const { readArrayWithBackup, writeArrayWithBackup } = storage;
 
 const NOTEBOOKS_STORAGE_KEY = '@bloco:notebooks:v1';
 const NOTEBOOKS_BACKUP_KEY = '@bloco:notebooks:backup:v1';
