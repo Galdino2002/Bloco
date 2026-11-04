@@ -29,3 +29,5 @@ jobs:
         run: npx expo install --check
       - name: Run Expo lint
         run: npx expo lint
+      - name: Build Android JavaScript bundle
+        run: npx expo export --platform android
