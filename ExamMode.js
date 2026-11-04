@@ -11,9 +11,10 @@ import storage from './storage';
 import { WebView } from 'react-native-webview';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { distanceToSegment, eraseAtPoint, getHighlighterStyle, pathIntersectsPolygon, screenToDocument } from './drawing';
-import { commitHistory, createHistory, redoHistory, undoHistory } from './drawingHistory';
+import drawingHistory from './drawingHistory';
 import { ContextToolbar, design, IconButton, ScreenHeader } from './designSystem';
 
+const { commitHistory, createHistory, redoHistory, undoHistory } = drawingHistory;
 const { readArrayWithBackup, writeArrayWithBackup } = storage;
 
 const STORAGE_KEY = '@bloco:exams:v1';
