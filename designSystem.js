@@ -68,6 +68,46 @@ export function IconButton({
   );
 }
 
+export function ScreenHeader({ eyebrow, title, subtitle, onBack, right }) {
+  return (
+    <View style={{
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: design.spacing.md,
+      paddingVertical: design.spacing.md,
+      marginBottom: design.spacing.sm,
+    }}>
+      {onBack ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Voltar"
+          onPress={onBack}
+          hitSlop={6}
+          style={({ pressed }) => ({
+            width: 44,
+            height: 44,
+            borderRadius: design.radius.md,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: design.colors.surface,
+            borderWidth: 1,
+            borderColor: design.colors.border,
+            opacity: pressed ? 0.65 : 1,
+          })}
+        >
+          <Text style={{ color: design.colors.ink, fontSize: 29, lineHeight: 32, marginTop: -3 }}>‹</Text>
+        </Pressable>
+      ) : null}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        {eyebrow ? <Text style={{ ...design.typography.label, color: design.colors.accent, marginBottom: 5 }}>{eyebrow}</Text> : null}
+        <Text numberOfLines={1} style={{ ...design.typography.title, color: design.colors.ink }}>{title}</Text>
+        {subtitle ? <Text numberOfLines={2} style={{ ...design.typography.caption, color: design.colors.inkSoft, marginTop: 4 }}>{subtitle}</Text> : null}
+      </View>
+      {right}
+    </View>
+  );
+}
+
 export function ScreenTitle({ eyebrow, title, subtitle, right }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: design.spacing.lg }}>
