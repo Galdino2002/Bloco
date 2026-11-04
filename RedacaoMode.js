@@ -204,7 +204,8 @@ export default function RedacaoMode({ onExit }) {
     const subscription = AppState.addEventListener('change', nextState => {
       if (nextState !== 'active' && activeDraftRef.current) {
         if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-        queuePersistDraftRef.current({ ...activeDraftRef.current, mode: modeRef.current, paths: pathsRef.current, updatedAt: Date.now() });
+        queuePersistDraftRef.current({ ...activeDraftRef.current, mode: modeRef.current, paths: pathsRef.current, updatedAt: Date.now() })
+          .catch(error => console.error('Falha ao salvar redação em segundo plano:', error));
       }
     });
     return () => subscription.remove();
@@ -257,7 +258,7 @@ export default function RedacaoMode({ onExit }) {
         mode,
         paths,
         updatedAt: Date.now(),
-      });
+      }).catch(error => console.error('Falha no salvamento automático da redação:', error));
     }, 700);
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
