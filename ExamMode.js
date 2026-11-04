@@ -461,9 +461,7 @@ function ExamEditor({ exam, onSave, onBack }) {
     persistenceQueueRef.current = persistenceQueueRef.current
       .catch(() => undefined)
       .then(async () => {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        const parsed = raw ? JSON.parse(raw) : [];
-        const list = Array.isArray(parsed) ? parsed : [];
+        const { items: list } = await readArrayWithBackup(AsyncStorage, STORAGE_KEY, BACKUP_KEY);
         const next = list.map(item => item.id === exam.id
           ? { ...item, pages: currentPages, currentPage: snapshot.index, zoom: snapshot.zoom, pan: snapshot.pan, remaining: snapshot.remaining, endAt: endAtRef.current, elapsed, status, updatedAt: Date.now() }
           : item);
@@ -510,8 +508,7 @@ function ExamEditor({ exam, onSave, onBack }) {
     persistenceQueueRef.current = persistenceQueueRef.current
       .catch(() => undefined)
       .then(async () => {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        const list = raw ? JSON.parse(raw) : [];
+        const { items: list } = await readArrayWithBackup(AsyncStorage, STORAGE_KEY, BACKUP_KEY);
         const next = list.map(item => item.id === exam.id
           ? { ...item, pages: currentPages, currentPage: index, zoom, pan, remaining: nextRemaining, endAt: nextEndAt, elapsed, status: nextStatus, updatedAt: Date.now() }
           : item);
