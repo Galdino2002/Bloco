@@ -481,19 +481,31 @@ function ExamEditor({ exam, onSave, onBack }) {
         pinchStart.current = {
           distance: Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY),
           zoom: zoomRef.current,
+          centerX: (a.pageX + b.pageX) / 2,
+          centerY: (a.pageY + b.pageY) / 2,
+          pan: { ...panRef.current },
         };
         return;
       }
       if (toolRef.current === 'select') {
         activePath.current = null;
         const point = screenToDocument({ x:e.nativeEvent.locationX, y:e.nativeEvent.locationY }, { zoom: zoomRef.current, pan: panRef.current, origin:{x:canvasSizeRef.current.width/2,y:canvasSizeRef.current.height/2} });
-        if (selectedRef.current.length) {
-          const box=boundsFor(pathsRef.current.filter(stroke=>selectedRef.current.includes(stroke.id)));
-          const center=box?{x:(box.minX+box.maxX)/2,y:(box.minY+box.maxY)/2}:point;
-          const handle=box?{x:box.maxX+7,y:box.maxY+7}:point;
-          if(box && Math.hypot(point.x-handle.x,point.y-handle.y)<28) selectionGesture.current={type:'resize',startDistance:Math.max(1,Math.hypot(handle.x-center.x,handle.y-center.y)),center,original:pathsRef.current,factor:1};
-          else selectionGesture.current = { type:'move', start:point, original:pathsRef.current };
-        } else { selectionGesture.current = { type:'lasso' }; lassoRef.current=[point]; setLasso([point]); }
+        const box = selectedRef.current.length ? boundsFor(pathsRef.current.filter(stroke => selectedRef.current.includes(stroke.id))) : null;
+        const center = box ? { x: (box.minX + box.maxX) / 2, y: (box.minY + box.maxY) / 2 } : point;
+        const handle = box ? { x: box.maxX + 7, y: box.maxY + 7 } : point;
+        const nearHandle = !!box && Math.hypot(point.x - handle.x, point.y - handle.y) < 28;
+        const insideSelection = !!box && point.x >= box.minX - 14 && point.x <= box.maxX + 14 && point.y >= box.minY - 14 && point.y <= box.maxY + 14;
+        if (nearHandle) {
+          selectionGesture.current = { type: 'resize', startDistance: Math.max(1, Math.hypot(handle.x - center.x, handle.y - center.y)), center, original: pathsRef.current, factor: 1 };
+        } else if (insideSelection) {
+          selectionGesture.current = { type: 'move', start: point, original: pathsRef.current };
+        } else {
+          selectedRef.current = [];
+          setSelectedIds([]);
+          selectionGesture.current = { type: 'lasso' };
+          lassoRef.current = [point];
+          setLasso([point]);
+        }
         return;
       }
       if (toolRef.current === 'move') {
@@ -539,7 +551,7 @@ function ExamEditor({ exam, onSave, onBack }) {
         const [a, b] = touches;
         const distance = Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
         if (!pinchStart.current && distance > 0) {
-          pinchStart.current = { distance, zoom: zoomRef.current };
+          pinchStart.current = { distance, zoom: zoomRef.current, centerX: (a.pageX + b.pageX) / 2, centerY: (a.pageY + b.pageY) / 2, pan: { ...panRef.current } };
           panStart.current = null;
           return;
         }
@@ -547,6 +559,11 @@ function ExamEditor({ exam, onSave, onBack }) {
           const nextZoom = Math.min(3, Math.max(0.5, pinchStart.current.zoom * distance / pinchStart.current.distance));
           zoomRef.current = nextZoom;
           setZoom(nextZoom);
+          const centerX = (a.pageX + b.pageX) / 2;
+          const centerY = (a.pageY + b.pageY) / 2;
+          const nextPan = { x: pinchStart.current.pan.x + centerX - pinchStart.current.centerX, y: pinchStart.current.pan.y + centerY - pinchStart.current.centerY };
+          panRef.current = nextPan;
+          setPan(nextPan);
         }
         return;
       }
