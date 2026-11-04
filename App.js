@@ -222,15 +222,15 @@ function HomeScreen({ documents, onImport, onExportBackup, onImportBackup, onCre
         <ScreenTitle eyebrow="BLOCO · ESTUDOS E IDEIAS" title="Seu espaço de foco" subtitle="Tudo o que você estuda, em um só lugar" right={<View style={{ flexDirection: 'row', gap: 7 }}><IconButton label="⇧" accessibilityLabel="Exportar backup" onPress={onExportBackup} /><IconButton label="⇩" accessibilityLabel="Restaurar backup" onPress={onImportBackup} /><IconButton label="▧" accessibilityLabel="Importar páginas da galeria" onPress={onImport} /></View>} />
         <View style={styles.searchBox}>
           <Text style={styles.searchIcon}>⌕</Text>
-          <TextInput value={query} onChangeText={setQuery} placeholder="Buscar cadernos e conteúdo" placeholderTextColor={COLORS.muted} style={styles.searchInput} returnKeyType="search" />
+          <TextInput value={query} onChangeText={setQuery} placeholder="Buscar cadernos e conteúdo" placeholderTextColor={COLORS.muted} style={styles.searchInput} returnKeyType="search" accessibilityLabel="Buscar cadernos e conteúdo" />
           {!!query && <Pressable onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Limpar busca"><Text style={styles.searchClear}>×</Text></Pressable>}
         </View>
         <View style={styles.quickLaunchPanel}>
           <View style={styles.quickLaunchHeader}><Text style={styles.quickLaunchTitle}>Criar</Text><Text style={styles.quickLaunchSubtitle}>Escolha como deseja começar</Text></View>
           <View style={styles.quickLaunchRow}>
-            <Pressable onPress={onCreateNote} style={styles.quickLaunchCard} accessibilityRole="button"><Text style={styles.quickLaunchIcon}>＋</Text><Text style={styles.quickLaunchCardTitle}>Nota</Text><Text style={styles.quickLaunchCardText}>Anotar livremente</Text></Pressable>
-            <Pressable onPress={onExam} style={styles.quickLaunchCard} accessibilityRole="button"><Text style={styles.quickLaunchIcon}>◷</Text><Text style={styles.quickLaunchCardTitle}>Prova</Text><Text style={styles.quickLaunchCardText}>Resolver questões</Text></Pressable>
-            <Pressable onPress={onRedacao} style={styles.quickLaunchCard} accessibilityRole="button"><Text style={styles.quickLaunchIcon}>✎</Text><Text style={styles.quickLaunchCardTitle}>Redação</Text><Text style={styles.quickLaunchCardText}>Escrever e revisar</Text></Pressable>
+            <Pressable onPress={onCreateNote} style={styles.quickLaunchCard} accessibilityRole="button" accessibilityLabel="Criar nova nota" accessibilityHint="Abre um caderno em branco para anotações"><Text style={styles.quickLaunchIcon}>＋</Text><Text style={styles.quickLaunchCardTitle}>Nota</Text><Text style={styles.quickLaunchCardText}>Anotar livremente</Text></Pressable>
+            <Pressable onPress={onExam} style={styles.quickLaunchCard} accessibilityRole="button" accessibilityLabel="Abrir ambiente de provas" accessibilityHint="Importe uma prova e resolva as questões nas páginas"><Text style={styles.quickLaunchIcon}>◷</Text><Text style={styles.quickLaunchCardTitle}>Prova</Text><Text style={styles.quickLaunchCardText}>Resolver questões</Text></Pressable>
+            <Pressable onPress={onRedacao} style={styles.quickLaunchCard} accessibilityRole="button" accessibilityLabel="Abrir ambiente de redação" accessibilityHint="Crie uma redação digitada ou manuscrita"><Text style={styles.quickLaunchIcon}>✎</Text><Text style={styles.quickLaunchCardTitle}>Redação</Text><Text style={styles.quickLaunchCardText}>Escrever e revisar</Text></Pressable>
           </View>
         </View>
         <View style={styles.sectionHeading}>
@@ -1195,7 +1195,7 @@ const styles = StyleSheet.create({
   quickLaunchHeader: { marginBottom: 14 },
   quickLaunchTitle: { color: COLORS.ink, fontSize: 17, fontWeight: '800' },
   quickLaunchSubtitle: { color: COLORS.muted, fontSize: 11, marginTop: 4 },
-  quickLaunchRow: { flexDirection: 'row', gap: 8 },
+  quickLaunchRow: { flexDirection: 'row', gap: 8, alignItems: 'stretch' },
   quickLaunchCard: { flex: 1, minHeight: 98, borderRadius: 17, padding: 13, backgroundColor: '#F4F7F3', borderWidth: 1, borderColor: '#E3EAE3' },
   quickLaunchIcon: { color: COLORS.green, fontSize: 19, fontWeight: '800', marginBottom: 6 },
   quickLaunchCardTitle: { color: COLORS.ink, fontSize: 12, fontWeight: '800' },
@@ -1221,13 +1221,13 @@ const styles = StyleSheet.create({
   thumbBadge: { position: 'absolute', right: 3, bottom: 3, width: 19, height: 19, borderRadius: 10, backgroundColor: COLORS.ink, alignItems: 'center', justifyContent: 'center' },
   thumbBadgeText: { color: 'white', fontSize: 11 },
   documentInfo: { flex: 1, marginLeft: 12 },
-  documentName: { color: COLORS.ink, fontWeight: '700', fontSize: 13 },
-  documentMeta: { color: COLORS.muted, fontSize: 10, marginTop: 5 },
-  documentDate: { color: '#A0AAA1', fontSize: 9, marginTop: 4 },
+  documentName: { color: COLORS.ink, fontWeight: '800', fontSize: 14, letterSpacing: -0.15 },
+  documentMeta: { color: COLORS.muted, fontSize: 11, marginTop: 5 },
+  documentDate: { color: '#849087', fontSize: 10, marginTop: 5 },
   documentArrow: { color: '#A4ADA4', fontSize: 25, paddingHorizontal: 8 },
   moreButton: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4EF' },
   moreButtonText: { color: COLORS.green, fontSize: 15, fontWeight: '800', letterSpacing: 1 },
-  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, rowGap: 8, marginBottom: 16 },
   filterChip: { paddingHorizontal: 13, paddingVertical: 9, borderRadius: 999, backgroundColor: '#EEF2ED', borderWidth: 1, borderColor: '#E5EAE4' },
   filterChipActive: { backgroundColor: COLORS.green, borderColor: COLORS.green },
   filterText: { color: COLORS.green, fontSize: 10, fontWeight: '700' },
