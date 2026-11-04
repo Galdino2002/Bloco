@@ -19,6 +19,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import storage from './storage.cjs';
+const { readArrayWithBackup, writeArrayWithBackup } = storage;
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Rect } from 'react-native-svg';
 import ExamMode from './ExamMode';
@@ -888,13 +890,8 @@ function BlocoApp() {
   documentsRef.current = documents;
 
   const enqueueDocumentsSave = snapshot => {
-    const serialized = JSON.stringify(snapshot);
     persistenceQueue.current = persistenceQueue.current.catch(() => undefined).then(async () => {
-      const previous = await AsyncStorage.getItem(NOTEBOOKS_STORAGE_KEY);
-      if (previous) {
-        try { if (Array.isArray(JSON.parse(previous))) await AsyncStorage.setItem(NOTEBOOKS_BACKUP_KEY, previous); } catch { /* keep the last valid backup */ }
-      }
-      await AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, serialized);
+      await writeArrayWithBackup(AsyncStorage, NOTEBOOKS_STORAGE_KEY, NOTEBOOKS_BACKUP_KEY, snapshot);
     });
     return persistenceQueue.current;
   };
@@ -927,24 +924,10 @@ function BlocoApp() {
 
   useEffect(() => {
     let mounted = true;
-    AsyncStorage.getItem(NOTEBOOKS_STORAGE_KEY)
-      .then(async raw => {
-        try {
-          const parsed = raw ? JSON.parse(raw) : [];
-          if (!Array.isArray(parsed)) throw new Error('O armazenamento principal está inválido.');
-          return parsed;
-        } catch (primaryError) {
-          const backupRaw = await AsyncStorage.getItem(NOTEBOOKS_BACKUP_KEY);
-          if (!backupRaw) throw primaryError;
-          const backup = JSON.parse(backupRaw);
-          if (!Array.isArray(backup)) throw primaryError;
-          await AsyncStorage.setItem(NOTEBOOKS_STORAGE_KEY, backupRaw);
-          Alert.alert('Cadernos recuperados', 'O Bloco encontrou um backup automático e recuperou seus documentos.');
-          return backup;
-        }
-      })
-      .then(recovered => {
-        if (mounted) { documentsRef.current = recovered; setDocuments(recovered); }
+    readArrayWithBackup(AsyncStorage, NOTEBOOKS_STORAGE_KEY, NOTEBOOKS_BACKUP_KEY)
+      .then(({ items, recovered }) => {
+        if (recovered) Alert.alert('Cadernos recuperados', 'O Bloco encontrou um backup automático e recuperou seus documentos.');
+        if (mounted) { documentsRef.current = items; setDocuments(items); }
       })
       .catch(error => Alert.alert('Erro ao carregar cadernos', error?.message || 'Não foi possível recuperar suas anotações.'))
       .finally(() => {
