@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, Image, PanResponder, Pressable, ScrollView,
-  StatusBar, StyleSheet, Text, View, ActivityIndicator,
+  StatusBar, StyleSheet, Text, TextInput, View, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -99,6 +99,8 @@ function Button({ title, onPress, secondary = false, disabled = false }) {
 
 export default function ExamMode({ onExit }) {
   const [saved, setSaved] = useState([]);
+  const [savedSearch, setSavedSearch] = useState('');
+  const [savedFilter, setSavedFilter] = useState('all');
   const [selected, setSelected] = useState(null);
   const [active, setActive] = useState(null);
   const [stage, setStage] = useState('choose');
@@ -232,6 +234,18 @@ export default function ExamMode({ onExit }) {
     setStage('choose');
   };
   const resumeExam = (exam) => { setActive(exam); setStage('editor'); };
+
+  const filteredSaved = useMemo(() => {
+    const query = savedSearch.trim().toLocaleLowerCase('pt-BR');
+    return saved.filter(exam => {
+      const matchesQuery = !query || String(exam.title || '').toLocaleLowerCase('pt-BR').includes(query);
+      const status = exam.status || 'Em andamento';
+      const matchesFilter = savedFilter === 'all'
+        || (savedFilter === 'active' && status !== 'Finalizada')
+        || (savedFilter === 'finished' && status === 'Finalizada');
+      return matchesQuery && matchesFilter;
+    });
+  }, [saved, savedSearch, savedFilter]);
   const deleteExam = (exam) => Alert.alert('Excluir prova?', 'O registro e as anotações salvas serão removidos.', [
     { text: 'Cancelar', style: 'cancel' },
     { text: 'Excluir', style: 'destructive', onPress: async () => {
@@ -252,8 +266,53 @@ export default function ExamMode({ onExit }) {
     {stage === 'choose' && <ScrollView contentContainerStyle={s.content}>
       <Text style={s.section}>Escolha o exame</Text>
       {EXAMS.map(exam => <Pressable key={exam.id} onPress={() => { setSelected(exam); setStage('setup'); }} style={({ pressed }) => [s.examCard, pressed && { opacity: 0.75 }]}><View style={s.examBadge}><Text style={s.examBadgeText}>{exam.id.startsWith('ENEM') ? 'ENEM' : exam.id}</Text></View><View style={{ flex: 1 }}><Text style={s.examTitle}>{exam.name}</Text><Text style={s.examDescription}>{exam.description}</Text><Text style={s.examDuration}>Tempo: {exam.durationLabel}</Text></View><Text style={s.chevron}>›</Text></Pressable>)}
-      <Text style={[s.section, { marginTop: 24 }]}>Provas salvas</Text>
-      {!saved.length ? <View style={s.empty}><Text style={s.emptyTitle}>Nenhuma prova salva</Text><Text style={s.emptyText}>Depois de importar um PDF, sua prova ficará disponível aqui para continuar de onde parou.</Text></View> : saved.map(exam => <View key={exam.id} style={s.savedCard}><Pressable onPress={() => resumeExam(exam)} style={{ flex: 1 }}><Text style={s.examTitle}>{exam.title}</Text><Text style={s.examDescription}>{exam.pages?.length || 0} páginas · {formatTime(exam.remaining || 0)} restantes</Text><Text style={s.examDuration}>{exam.status || 'Salva'}</Text></Pressable><Pressable onPress={() => deleteExam(exam)} style={s.delete}><Text style={s.deleteText}>Excluir</Text></Pressable></View>)}
+      <View style={s.savedHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.section, { marginTop: 24, marginBottom: 4 }]}>Suas provas</Text>
+          <Text style={s.savedSummary}>{saved.length} {saved.length === 1 ? 'prova salva' : 'provas salvas'} neste aparelho</Text>
+        </View>
+      </View>
+      {saved.length > 0 && <>
+        <View style={s.searchBox}>
+          <Text style={s.searchGlyph}>⌕</Text>
+          <TextInput
+            value={savedSearch}
+            onChangeText={setSavedSearch}
+            placeholder="Buscar prova pelo nome"
+            placeholderTextColor="#89938A"
+            style={s.searchInput}
+            returnKeyType="search"
+          />
+          {!!savedSearch && <Pressable onPress={() => setSavedSearch('')}><Text style={s.clearSearch}>Limpar</Text></Pressable>}
+        </View>
+        <View style={s.filterRow}>
+          {[{ id: 'all', label: 'Todas' }, { id: 'active', label: 'Em andamento' }, { id: 'finished', label: 'Finalizadas' }].map(item =>
+            <Pressable key={item.id} onPress={() => setSavedFilter(item.id)} style={[s.filterChip, savedFilter === item.id && s.filterChipActive]}>
+              <Text style={[s.filterChipText, savedFilter === item.id && s.filterChipTextActive]}>{item.label}</Text>
+            </Pressable>
+          )}
+        </View>
+      </>}
+      {!saved.length ? <View style={s.empty}><Text style={s.emptyTitle}>Nenhuma prova salva</Text><Text style={s.emptyText}>Depois de importar um PDF, sua prova ficará disponível aqui para continuar de onde parou.</Text></View>
+        : !filteredSaved.length ? <View style={s.empty}><Text style={s.emptyTitle}>Nenhuma prova encontrada</Text><Text style={s.emptyText}>Tente mudar a busca ou o filtro selecionado.</Text></View>
+        : filteredSaved.map(exam => {
+          const duration = Math.max(1, Number(exam.duration) || 1);
+          const remainingTime = Math.max(0, Number(exam.remaining) || 0);
+          const progress = Math.max(0, Math.min(100, ((duration - remainingTime) / duration) * 100));
+          const status = exam.status || 'Em andamento';
+          return <View key={exam.id} style={s.savedCard}>
+            <Pressable onPress={() => resumeExam(exam)} style={{ flex: 1 }}>
+              <View style={s.savedCardTop}>
+                <Text style={s.examTitle}>{exam.title}</Text>
+                <Text style={[s.statusPill, status === 'Finalizada' ? s.statusFinished : status === 'Pausada' ? s.statusPaused : s.statusActive]}>{status}</Text>
+              </View>
+              <Text style={s.examDescription}>{exam.pages?.length || 0} páginas · {formatTime(remainingTime)} restantes</Text>
+              <View style={s.savedProgressTrack}><View style={[s.savedProgressFill, { width: progress + '%' }]} /></View>
+              <Text style={s.savedMeta}>Última atividade: {new Date(exam.updatedAt || exam.createdAt || Date.now()).toLocaleDateString('pt-BR')}</Text>
+            </Pressable>
+            <Pressable onPress={() => deleteExam(exam)} style={s.delete}><Text style={s.deleteText}>Excluir</Text></Pressable>
+          </View>;
+        })}
     </ScrollView>}
     {stage === 'setup' && selected && <View style={s.setup}>
       <Text style={s.kicker}>PROVA SELECIONADA</Text><Text style={s.setupTitle}>{selected.name}</Text><Text style={s.setupDescription}>{selected.description}</Text>
@@ -654,6 +713,25 @@ const s = StyleSheet.create({
   chevron: { color: '#9AA298', fontSize: 28, paddingLeft: 8 }, empty: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, alignItems: 'center' },
   emptyTitle: { color: INK, fontWeight: '700', fontSize: 14 }, emptyText: { color: '#89938A', textAlign: 'center', fontSize: 11, lineHeight: 17, marginTop: 6 },
   savedCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: LINE, borderRadius: 15, padding: 14, marginBottom: 9 },
+  savedHeader: { flexDirection: 'row', alignItems: 'center' },
+  savedSummary: { color: '#89938A', fontSize: 11, marginBottom: 10 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: LINE, borderRadius: 13, paddingHorizontal: 12, marginBottom: 9 },
+  searchGlyph: { color: GREEN, fontSize: 22, marginRight: 8 },
+  searchInput: { flex: 1, minHeight: 44, color: INK, fontSize: 12, paddingVertical: 8 },
+  clearSearch: { color: GREEN, fontSize: 10, fontWeight: '700', padding: 7 },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 11 },
+  filterChip: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 20, backgroundColor: '#ECEFEA', borderWidth: 1, borderColor: '#E1E7E0' },
+  filterChipActive: { backgroundColor: '#DDEBE0', borderColor: '#A9C4AE' },
+  filterChipText: { color: '#667269', fontSize: 10, fontWeight: '700' },
+  filterChipTextActive: { color: GREEN },
+  savedCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  statusPill: { overflow: 'hidden', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 4, fontSize: 9, fontWeight: '800' },
+  statusActive: { color: '#315C49', backgroundColor: '#E8F0E9' },
+  statusPaused: { color: '#8A5A14', backgroundColor: '#FFF2D9' },
+  statusFinished: { color: '#5F6368', backgroundColor: '#EEF0EF' },
+  savedProgressTrack: { height: 4, backgroundColor: '#EDF0EB', borderRadius: 4, overflow: 'hidden', marginTop: 10 },
+  savedProgressFill: { height: '100%', backgroundColor: GREEN, borderRadius: 4 },
+  savedMeta: { color: '#89938A', fontSize: 9, marginTop: 7 },
   delete: { padding: 9, backgroundColor: '#FBEFED', borderRadius: 9 }, deleteText: { color: '#C96F68', fontSize: 10, fontWeight: '700' },
   setup: { flex: 1, padding: 24, justifyContent: 'center' }, kicker: { color: GREEN, fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
   setupTitle: { color: INK, fontSize: 31, fontWeight: '700', marginTop: 8 }, setupDescription: { color: '#89938A', fontSize: 13, marginTop: 6 },
