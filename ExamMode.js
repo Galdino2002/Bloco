@@ -234,17 +234,23 @@ export default function ExamMode({ onExit }) {
 
   const saveExam = async (exam) => {
     const updated = { ...exam, updatedAt: Date.now() };
-    // Lê a versão mais recente do armazenamento para não sobrescrever
-    // alterações feitas pelo salvamento automático do editor.
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    const current = raw ? JSON.parse(raw) : [];
-    const list = Array.isArray(current) ? current : [];
-    const next = list.some(item => item.id === exam.id)
-      ? list.map(item => item.id === exam.id ? updated : item)
-      : [updated, ...list];
-    await persist(next);
-    setActive(null);
-    setStage('choose');
+    try {
+      // Sempre parte do snapshot recuperável mais recente. Se o armazenamento
+      // estiver inválido e não houver backup íntegro, não sobrescreve os dados.
+      const { items: current, recovered } = await readArrayWithBackup(AsyncStorage, STORAGE_KEY, BACKUP_KEY);
+      const next = current.some(item => item.id === exam.id)
+        ? current.map(item => item.id === exam.id ? updated : item)
+        : [updated, ...current];
+      await persist(next);
+      if (recovered) Alert.alert('Provas recuperadas', 'O backup automático foi usado antes de salvar esta prova.');
+      setActive(null);
+      setStage('choose');
+    } catch (error) {
+      Alert.alert(
+        'Não foi possível salvar a prova',
+        error?.message || 'Suas alterações continuam abertas. Verifique o armazenamento e tente novamente.',
+      );
+    }
   };
   const resumeExam = (exam) => { setActive(exam); setStage('editor'); };
 
@@ -263,9 +269,26 @@ export default function ExamMode({ onExit }) {
     { text: 'Cancelar', style: 'cancel' },
     { text: 'Excluir', style: 'destructive', onPress: async () => {
       try {
-        for (const page of exam.pages || []) await FileSystem.deleteAsync(page.uri, { idempotent: true });
-        await persist(saved.filter(item => item.id !== exam.id));
-      } catch { Alert.alert('Erro', 'Não foi possível excluir todos os arquivos da prova.'); }
+        // Primeiro confirma a remoção do registro no armazenamento. Só depois
+        // tenta apagar os arquivos locais, evitando uma prova sem páginas caso
+        // a gravação do novo snapshot falhe.
+        const { items: current } = await readArrayWithBackup(AsyncStorage, STORAGE_KEY, BACKUP_KEY);
+        const next = current.filter(item => item.id !== exam.id);
+        await persist(next);
+        const cleanup = await Promise.allSettled(
+          (exam.pages || []).filter(page => page.uri).map(page =>
+            FileSystem.deleteAsync(page.uri, { idempotent: true }),
+          ),
+        );
+        if (cleanup.some(result => result.status === 'rejected')) {
+          console.warn('A prova foi removida, mas alguns arquivos locais não puderam ser limpos.');
+        }
+      } catch (error) {
+        Alert.alert(
+          'Não foi possível excluir a prova',
+          error?.message || 'O registro e os arquivos foram preservados. Tente novamente.',
+        );
+      }
     } },
   ]);
 
