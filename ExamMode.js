@@ -347,6 +347,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   const [remaining, setRemaining] = useState(exam.remaining ?? exam.duration);
   const [finished, setFinished] = useState(false);
   const [finalized, setFinalized] = useState(exam.status === 'Finalizada');
+  const [saveState, setSaveState] = useState('saved');
   const [paused, setPaused] = useState(exam.status === 'Pausada');
   const remainingRef = useRef(remaining);
   const endAtRef = useRef(exam.endAt || (Date.now() + remaining * 1000));
@@ -403,6 +404,7 @@ function ExamEditor({ exam, onSave, onBack }) {
   }, [endAt, paused, finalized]);
   useEffect(() => { if (remaining <= 0) setFinished(true); }, [remaining]);
   const persistLatestSnapshot = () => {
+    setSaveState('saving');
     const snapshot = snapshotRef.current;
     const currentPages = snapshot.pages.map((page, pageIndex) =>
       pageIndex === snapshot.index ? { ...page, paths: snapshot.paths } : page
@@ -419,8 +421,12 @@ function ExamEditor({ exam, onSave, onBack }) {
           ? { ...item, pages: currentPages, currentPage: snapshot.index, zoom: snapshot.zoom, pan: snapshot.pan, remaining: snapshot.remaining, endAt: endAtRef.current, elapsed, status, updatedAt: Date.now() }
           : item);
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        setSaveState('saved');
       })
-      .catch(error => console.error('Erro no salvamento automático da prova:', error));
+      .catch(error => {
+        setSaveState('error');
+        console.error('Erro no salvamento automático da prova:', error);
+      });
   };
 
   // Protege anotações recentes: salva após pequenas pausas na edição,
@@ -676,7 +682,7 @@ function ExamEditor({ exam, onSave, onBack }) {
 
   return <SafeAreaView style={s.editorSafe}>
     <StatusBar barStyle="dark-content" backgroundColor={PAPER} />
-    <View style={[s.editorHead, { backgroundColor: design.colors.ink }]}><Pressable onPress={saveAndExit} style={s.back}><Text style={s.backText}>‹</Text></Pressable><View style={{ flex: 1 }}><Text style={s.editorTitle}>{exam.title}</Text><Text style={s.examDescription}>Página {index + 1} de {pages.length} · {paused ? 'Pausada' : finalized ? 'Finalizada' : 'Em andamento'}</Text></View><View style={s.timerPill}><Text style={s.timerText}>{formatTime(remaining)}</Text></View></View>
+    <View style={[s.editorHead, { backgroundColor: design.colors.ink }]}><Pressable onPress={saveAndExit} style={s.back}><Text style={s.backText}>‹</Text></Pressable><View style={{ flex: 1 }}><Text style={s.editorTitle}>{exam.title}</Text><Text style={s.examDescription}>Página {index + 1} de {pages.length} · {paused ? 'Pausada' : finalized ? 'Finalizada' : 'Em andamento'} · {saveState === 'saving' ? 'Salvando…' : saveState === 'error' ? 'Falha ao salvar' : 'Salvo'}</Text></View><View style={s.timerPill}><Text style={s.timerText}>{formatTime(remaining)}</Text></View></View>
     {finished && <View style={s.finishedBanner}><Text style={s.finishedText}>Tempo encerrado. Você ainda pode consultar e salvar suas anotações.</Text></View>}
     {paused && <View style={s.finishedBanner}><Text style={s.finishedText}>Prova pausada. O cronômetro será retomado quando você tocar em Continuar.</Text></View>}
     {finalized && <View style={s.finishedBanner}><Text style={s.finishedText}>Prova finalizada. As anotações estão disponíveis apenas para consulta.</Text></View>}
