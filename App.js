@@ -140,68 +140,141 @@ function HomeScreen({ documents, onImport, onCreateNote, onOpen, onDelete, onExa
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('updated');
+  const [folderFilter, setFolderFilter] = useState('all');
   const [renameTarget, setRenameTarget] = useState(null);
   const [renameValue, setRenameValue] = useState('');
+  const [folderTarget, setFolderTarget] = useState(null);
+  const [folderValue, setFolderValue] = useState('');
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const folders = useMemo(() => [...new Set(documents.filter(item => !item.deletedAt).map(item => item.folderName).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR')), [documents]);
   const filteredDocuments = useMemo(() => documents
     .filter(document => filter === 'trash' ? document.deletedAt : !document.deletedAt)
     .filter(document => filter === 'favorite' ? document.favorite && !document.deletedAt : true)
+    .filter(document => folderFilter === 'all' ? true : folderFilter === 'unfiled' ? !document.folderName : document.folderName === folderFilter)
     .filter(document => {
       const normalized = query.trim().toLocaleLowerCase();
       const pageText = (document.pages || []).map(page => page.text || '').join(' ');
-      const searchable = `${document.title || ''} ${pageText}`.toLocaleLowerCase();
-      return !normalized || searchable.includes(normalized);
+      return !normalized || `${document.title || ''} ${pageText}`.toLocaleLowerCase().includes(normalized);
     })
     .sort((a, b) => sort === 'name'
       ? (a.title || '').localeCompare(b.title || '', 'pt-BR')
       : sort === 'created'
         ? (b.createdAt || 0) - (a.createdAt || 0)
-      : (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)), [documents, filter, query, sort]);
+        : (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)), [documents, filter, folderFilter, query, sort]);
   const saveRename = () => {
     const title = renameValue.trim();
     if (!title || !renameTarget) return;
     onUpdate({ ...renameTarget, title, updatedAt: Date.now() });
     setRenameTarget(null);
   };
+  const toggleSelected = id => setSelectedIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
+  const moveSelected = folder => {
+    documents.filter(item => selectedIds.includes(item.id)).forEach(item => onUpdate({ ...item, folderName: folder || null, updatedAt: Date.now() }));
+    setSelectedIds([]);
+    setSelectionMode(false);
+    setFolderTarget(null);
+    setFolderValue('');
+  };
+  const openFolderManager = document => {
+    setSelectedIds(document ? [document.id] : []);
+    setSelectionMode(true);
+    setFolderTarget(document || { id: '__bulk__' });
+    setFolderValue('');
+  };
+  const selectedCount = selectedIds.length;
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.paper} />
-      <ScrollView contentContainerStyle={styles.homeContent} showsVerticalScrollIndicator={false}>
-        <ScreenTitle eyebrow="BLOCO · ESTUDOS E IDEIAS" title="Seu espaço de foco" subtitle="Notas, provas e redações em um só lugar" right={<IconButton label="▧" accessibilityLabel="Importar páginas da galeria" onPress={onImport} />} />
-        <View style={styles.searchBox}><Text style={styles.searchIcon}>⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="Buscar por título ou conteúdo" placeholderTextColor={COLORS.muted} style={styles.searchInput} returnKeyType="search" /></View>
+      <ScrollView contentContainerStyle={styles.homeContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScreenTitle eyebrow="BLOCO · ESTUDOS E IDEIAS" title="Seu espaço de foco" subtitle="Tudo o que você estuda, em um só lugar" right={<IconButton label="▧" accessibilityLabel="Importar páginas da galeria" onPress={onImport} />} />
+        <View style={styles.searchBox}>
+          <Text style={styles.searchIcon}>⌕</Text>
+          <TextInput value={query} onChangeText={setQuery} placeholder="Buscar cadernos e conteúdo" placeholderTextColor={COLORS.muted} style={styles.searchInput} returnKeyType="search" />
+          {!!query && <Pressable onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Limpar busca"><Text style={styles.searchClear}>×</Text></Pressable>}
+        </View>
         <View style={styles.quickLaunchPanel}>
-          <View style={styles.quickLaunchHeader}><Text style={styles.quickLaunchTitle}>Começar algo novo</Text><Text style={styles.quickLaunchSubtitle}>Escolha um espaço e mantenha o foco</Text></View>
+          <View style={styles.quickLaunchHeader}><Text style={styles.quickLaunchTitle}>Criar</Text><Text style={styles.quickLaunchSubtitle}>Escolha como deseja começar</Text></View>
           <View style={styles.quickLaunchRow}>
-            <Pressable onPress={onCreateNote} style={styles.quickLaunchCard}><Text style={styles.quickLaunchIcon}>＋</Text><Text style={styles.quickLaunchCardTitle}>Nota</Text><Text style={styles.quickLaunchCardText}>Folha livre</Text></Pressable>
-            <Pressable onPress={onExam} style={styles.quickLaunchCard}><Text style={styles.quickLaunchIcon}>◷</Text><Text style={styles.quickLaunchCardTitle}>Prova</Text><Text style={styles.quickLaunchCardText}>Tempo e PDF</Text></Pressable>
-            <Pressable onPress={onRedacao} style={styles.quickLaunchCard}><Text style={styles.quickLaunchIcon}>✎</Text><Text style={styles.quickLaunchCardTitle}>Redação</Text><Text style={styles.quickLaunchCardText}>Escreva e revise</Text></Pressable>
+            <Pressable onPress={onCreateNote} style={styles.quickLaunchCard} accessibilityRole="button"><Text style={styles.quickLaunchIcon}>＋</Text><Text style={styles.quickLaunchCardTitle}>Nota</Text><Text style={styles.quickLaunchCardText}>Anotar livremente</Text></Pressable>
+            <Pressable onPress={onExam} style={styles.quickLaunchCard} accessibilityRole="button"><Text style={styles.quickLaunchIcon}>◷</Text><Text style={styles.quickLaunchCardTitle}>Prova</Text><Text style={styles.quickLaunchCardText}>Resolver questões</Text></Pressable>
+            <Pressable onPress={onRedacao} style={styles.quickLaunchCard} accessibilityRole="button"><Text style={styles.quickLaunchIcon}>✎</Text><Text style={styles.quickLaunchCardTitle}>Redação</Text><Text style={styles.quickLaunchCardText}>Escrever e revisar</Text></Pressable>
           </View>
         </View>
         <View style={styles.sectionHeading}>
-          <View><Text style={styles.sectionTitle}>{filter === 'trash' ? 'Lixeira' : filter === 'favorite' ? 'Favoritos' : 'Meus cadernos'}</Text><Text style={styles.sectionSubtitle}>{filter === 'trash' ? 'Itens removidos que podem ser restaurados' : filter === 'favorite' ? 'Seus cadernos marcados' : 'Continue de onde parou'}</Text></View>
-          <Text style={styles.documentCount}>{filteredDocuments.length.toString().padStart(2, '0')}</Text>
+          <View><Text style={styles.sectionTitle}>{filter === 'trash' ? 'Lixeira' : filter === 'favorite' ? 'Favoritos' : folderFilter !== 'all' ? folderFilter === 'unfiled' ? 'Sem pasta' : folderFilter : 'Seus documentos'}</Text><Text style={styles.sectionSubtitle}>{filteredDocuments.length} {filteredDocuments.length === 1 ? 'documento' : 'documentos'} · organizado para continuar</Text></View>
+          <Pressable onPress={() => { setSelectionMode(value => !value); setSelectedIds([]); }} style={styles.organizeButton}><Text style={styles.organizeButtonText}>{selectionMode ? 'Concluir' : 'Selecionar'}</Text></Pressable>
         </View>
-        <View style={styles.filterRow}><Pressable onPress={() => setFilter('all')} style={[styles.filterChip, filter === 'all' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>Todos</Text></Pressable><Pressable onPress={() => setFilter('favorite')} style={[styles.filterChip, filter === 'favorite' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'favorite' && styles.filterTextActive]}>★ Favoritos</Text></Pressable><Pressable onPress={() => setFilter('trash')} style={[styles.filterChip, filter === 'trash' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'trash' && styles.filterTextActive]}>Lixeira</Text></Pressable><Pressable onPress={() => setSort(value => value === 'updated' ? 'name' : value === 'name' ? 'created' : 'updated')} style={styles.sortChip}><Text style={styles.filterText}>{sort === 'updated' ? 'Mais recentes' : sort === 'name' ? 'Por nome' : 'Por criação'} ↕</Text></Pressable></View>
+        <View style={styles.filterRow}>
+          <Pressable onPress={() => { setFilter('all'); setFolderFilter('all'); }} style={[styles.filterChip, filter === 'all' && folderFilter === 'all' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'all' && folderFilter === 'all' && styles.filterTextActive]}>Todos</Text></Pressable>
+          <Pressable onPress={() => { setFilter('favorite'); setFolderFilter('all'); }} style={[styles.filterChip, filter === 'favorite' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'favorite' && styles.filterTextActive]}>★ Favoritos</Text></Pressable>
+          <Pressable onPress={() => { setFilter('trash'); setFolderFilter('all'); }} style={[styles.filterChip, filter === 'trash' && styles.filterChipActive]}><Text style={[styles.filterText, filter === 'trash' && styles.filterChipActive && styles.filterTextActive]}>Lixeira</Text></Pressable>
+          <Pressable onPress={() => setSort(value => value === 'updated' ? 'name' : value === 'name' ? 'created' : 'updated')} style={styles.sortChip}><Text style={styles.filterText}>{sort === 'updated' ? 'Recentes' : sort === 'name' ? 'Nome' : 'Criação'} ↕</Text></Pressable>
+        </View>
+        {folders.length > 0 && filter !== 'trash' && <View style={styles.folderSection}>
+          <Text style={styles.folderSectionLabel}>PASTAS</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.folderChips}>
+            <Pressable onPress={() => { setFilter('all'); setFolderFilter('all'); }} style={[styles.folderChip, folderFilter === 'all' && styles.folderChipActive]}><Text style={[styles.folderChipText, folderFilter === 'all' && styles.folderChipTextActive]}>Tudo</Text></Pressable>
+            {folders.map(folder => <Pressable key={folder} onPress={() => { setFilter('all'); setFolderFilter(folder); }} style={[styles.folderChip, folderFilter === folder && styles.folderChipActive]}><Text style={[styles.folderChipText, folderFilter === folder && styles.folderChipTextActive]}>▰ {folder}</Text></Pressable>)}
+            <Pressable onPress={() => { setFilter('all'); setFolderFilter('unfiled'); }} style={[styles.folderChip, folderFilter === 'unfiled' && styles.folderChipActive]}><Text style={[styles.folderChipText, folderFilter === 'unfiled' && styles.folderChipTextActive]}>Sem pasta</Text></Pressable>
+          </ScrollView>
+        </View>}
+        {selectionMode && <View style={styles.bulkBar}>
+          <Text style={styles.bulkBarText}>{selectedCount} selecionado(s)</Text>
+          <Pressable disabled={!selectedCount} onPress={() => openFolderManager()} style={[styles.bulkAction, !selectedCount && styles.disabledAction]}><Text style={styles.bulkActionText}>Mover para pasta</Text></Pressable>
+          <Pressable disabled={!selectedCount} onPress={() => { selectedIds.forEach(id => onDelete(id)); setSelectedIds([]); setSelectionMode(false); }} style={[styles.bulkAction, styles.bulkDanger, !selectedCount && styles.disabledAction]}><Text style={styles.bulkActionText}>Lixeira</Text></Pressable>
+        </View>}
         {filteredDocuments.length === 0 ? (
-          <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 22 }}>▤</Text></View><Text style={styles.emptyTitle}>{query || filter === 'favorite' ? 'Nada encontrado' : 'Nenhum caderno por enquanto'}</Text><Text style={styles.emptyText}>{query || filter === 'favorite' ? 'Tente outra busca ou remova o filtro.' : 'Use as opções acima para criar uma nota, iniciar uma prova ou escrever uma redação. O ícone de importação permite adicionar páginas da galeria.'}</Text></View>
+          <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 22 }}>▤</Text></View><Text style={styles.emptyTitle}>{query || filter === 'favorite' || folderFilter !== 'all' ? 'Nada por aqui' : filter === 'trash' ? 'Lixeira vazia' : 'Seu espaço começa aqui'}</Text><Text style={styles.emptyText}>{query ? 'Tente buscar por outro termo.' : filter === 'trash' ? 'Os documentos excluídos aparecerão aqui.' : 'Crie uma nota, comece uma prova ou escreva uma redação. Você poderá organizar tudo em pastas.'}</Text></View>
         ) : (
           <View style={styles.documentList}>
-            {filteredDocuments.map((document) => {
+            {filteredDocuments.map(document => {
               const pageCount = document.pages?.length || 1;
               const annotationCount = (document.pages || [{ paths: document.paths || [] }]).reduce((sum, page) => sum + (page.paths?.length || 0), 0);
-              return <View key={document.id} style={styles.documentCard}>
-                <Pressable onPress={() => onOpen(document)} style={({ pressed }) => [styles.documentOpenArea, pressed && { opacity: 0.75 }]}>
-                  <View style={styles.documentThumb}>{document.pages?.[0]?.uri || document.uri ? <Image source={{ uri: document.pages?.[0]?.uri || document.uri }} style={styles.documentThumbImage} resizeMode="cover" /> : <View style={styles.documentThumbEmpty}><Text style={styles.documentThumbEmptyGlyph}>✎</Text></View>}<View style={styles.thumbBadge}><Text style={styles.thumbBadgeText}>✎</Text></View></View>
-                  <View style={styles.documentInfo}><Text style={styles.documentName} numberOfLines={1}>{document.title || 'Minha prova'}</Text><Text style={styles.documentMeta}>{pageCount} {pageCount === 1 ? 'página' : 'páginas'} · {annotationCount} traços</Text><Text style={styles.documentDate}>{document.updatedAt ? `Atualizado em ${new Date(document.updatedAt).toLocaleDateString('pt-BR')}` : 'Ainda não editado'}</Text></View>
-                  <Text style={styles.documentArrow}>›</Text>
+              const selected = selectedIds.includes(document.id);
+              return <View key={document.id} style={[styles.documentCard, selected && styles.documentCardSelected]}>
+                {selectionMode && <Pressable onPress={() => toggleSelected(document.id)} style={styles.selectionCheck} accessibilityRole="checkbox" accessibilityState={{ checked: selected }}><Text style={styles.selectionCheckText}>{selected ? '✓' : ''}</Text></Pressable>}
+                <Pressable onLongPress={() => { if (!selectionMode) { setSelectionMode(true); setSelectedIds([document.id]); } }} onPress={() => selectionMode ? toggleSelected(document.id) : onOpen(document)} style={({ pressed }) => [styles.documentOpenArea, pressed && { opacity: 0.75 }]}>
+                  <View style={styles.documentThumb}>{document.pages?.[0]?.uri || document.uri ? <Image source={{ uri: document.pages?.[0]?.uri || document.uri }} style={styles.documentThumbImage} resizeMode="cover" /> : <View style={styles.documentThumbEmpty}><Text style={styles.documentThumbEmptyGlyph}>✎</Text></View>}<View style={styles.thumbBadge}><Text style={styles.thumbBadgeText}>{pageCount}</Text></View></View>
+                  <View style={styles.documentInfo}>
+                    <Text style={styles.documentName} numberOfLines={1}>{document.title || 'Sem título'}</Text>
+                    <Text style={styles.documentMeta}>{pageCount} {pageCount === 1 ? 'página' : 'páginas'} · {annotationCount} anotações</Text>
+                    <Text style={styles.documentDate}>{document.folderName ? `▰ ${document.folderName} · ` : ''}{document.updatedAt ? new Date(document.updatedAt).toLocaleDateString('pt-BR') : 'Ainda não editado'}</Text>
+                  </View>
+                  {!selectionMode && <Text style={styles.documentArrow}>›</Text>}
                 </Pressable>
-                <Pressable accessibilityRole="button" onPress={() => Alert.alert(document.title || 'Opções do caderno', undefined, document.deletedAt ? [{ text: 'Restaurar', onPress: () => onUpdate({ ...document, deletedAt: null, updatedAt: Date.now() }) }, { text: 'Excluir definitivamente', style: 'destructive', onPress: () => onDelete(document.id, true) }, { text: 'Cancelar', style: 'cancel' }] : [{ text: document.favorite ? 'Remover dos favoritos' : 'Favoritar', onPress: () => onUpdate({ ...document, favorite: !document.favorite, updatedAt: Date.now() }) }, { text: 'Renomear', onPress: () => { setRenameTarget(document); setRenameValue(document.title || ''); } }, { text: 'Duplicar', onPress: () => onDuplicate(document) }, { text: 'Mover para a lixeira', style: 'destructive', onPress: () => onDelete(document.id) }, { text: 'Cancelar', style: 'cancel' }])} style={styles.moreButton}><Text style={styles.moreButtonText}>•••</Text></Pressable>
+                {!selectionMode && <Pressable accessibilityRole="button" accessibilityLabel={`Mais opções para ${document.title || 'documento'}`} onPress={() => Alert.alert(document.title || 'Opções', undefined, document.deletedAt ? [
+                  { text: 'Restaurar', onPress: () => onUpdate({ ...document, deletedAt: null, updatedAt: Date.now() }) },
+                  { text: 'Excluir definitivamente', style: 'destructive', onPress: () => onDelete(document.id, true) },
+                  { text: 'Cancelar', style: 'cancel' },
+                ] : [
+                  { text: document.favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos', onPress: () => onUpdate({ ...document, favorite: !document.favorite, updatedAt: Date.now() }) },
+                  { text: 'Mover para pasta', onPress: () => openFolderManager(document) },
+                  { text: 'Renomear', onPress: () => { setRenameTarget(document); setRenameValue(document.title || ''); } },
+                  { text: 'Duplicar', onPress: () => onDuplicate(document) },
+                  { text: 'Mover para a lixeira', style: 'destructive', onPress: () => onDelete(document.id) },
+                  { text: 'Cancelar', style: 'cancel' },
+                ])} style={styles.moreButton}><Text style={styles.moreButtonText}>•••</Text></Pressable>}
               </View>;
             })}
           </View>
         )}
         <View style={styles.footerNote}><Text style={styles.footerLeaf}>✳</Text><Text style={styles.footerText}>Um espaço simples. Para ideias grandes.</Text></View>
       </ScrollView>
-      <Modal visible={!!renameTarget} transparent animationType="fade" onRequestClose={() => setRenameTarget(null)}><View style={styles.modalBackdrop}><View style={styles.renameCard}><Text style={styles.sheetTitle}>Renomear caderno</Text><TextInput autoFocus value={renameValue} onChangeText={setRenameValue} style={styles.renameInput} placeholder="Nome do caderno" placeholderTextColor={COLORS.muted} onSubmitEditing={saveRename} /><View style={styles.renameActions}><Pressable onPress={() => setRenameTarget(null)} style={styles.renameCancel}><Text style={styles.renameCancelText}>Cancelar</Text></Pressable><Pressable onPress={saveRename} style={styles.renameConfirm}><Text style={styles.renameConfirmText}>Salvar</Text></Pressable></View></View></View></Modal>
+      <Modal visible={!!renameTarget} transparent animationType="fade" onRequestClose={() => setRenameTarget(null)}>
+        <View style={styles.modalBackdrop}><View style={styles.renameCard}><Text style={styles.sheetTitle}>Renomear documento</Text><TextInput autoFocus value={renameValue} onChangeText={setRenameValue} style={styles.renameInput} placeholder="Nome do documento" placeholderTextColor={COLORS.muted} onSubmitEditing={saveRename} /><View style={styles.renameActions}><Pressable onPress={() => setRenameTarget(null)} style={styles.renameCancel}><Text style={styles.renameCancelText}>Cancelar</Text></Pressable><Pressable onPress={saveRename} style={styles.renameConfirm}><Text style={styles.renameConfirmText}>Salvar</Text></Pressable></View></View></View>
+      </Modal>
+      <Modal visible={!!folderTarget} transparent animationType="slide" onRequestClose={() => setFolderTarget(null)}>
+        <View style={styles.modalBackdrop}><View style={styles.folderModalCard}><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>Organizar em pasta</Text><Text style={styles.sheetSubtitle}>{selectedCount || 1} documento(s) selecionado(s)</Text>
+          <ScrollView style={{ maxHeight: 190 }} keyboardShouldPersistTaps="handled">
+            <Pressable onPress={() => moveSelected(null)} style={styles.folderChoice}><Text style={styles.folderChoiceText}>Sem pasta</Text></Pressable>
+            {folders.map(folder => <Pressable key={folder} onPress={() => moveSelected(folder)} style={styles.folderChoice}><Text style={styles.folderChoiceText}>▰ {folder}</Text></Pressable>)}
+          </ScrollView>
+          <Text style={styles.folderSectionLabel}>CRIAR PASTA</Text>
+          <TextInput value={folderValue} onChangeText={setFolderValue} placeholder="Nome da nova pasta" placeholderTextColor={COLORS.muted} style={styles.renameInput} maxLength={40} returnKeyType="done" onSubmitEditing={() => folderValue.trim() && moveSelected(folderValue.trim())} />
+          <View style={styles.renameActions}><Pressable onPress={() => setFolderTarget(null)} style={styles.renameCancel}><Text style={styles.renameCancelText}>Cancelar</Text></Pressable><Pressable disabled={!folderValue.trim()} onPress={() => moveSelected(folderValue.trim())} style={[styles.renameConfirm, !folderValue.trim() && styles.disabledAction]}><Text style={styles.renameConfirmText}>Criar e mover</Text></Pressable></View>
+        </View></View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -894,6 +967,29 @@ const styles = StyleSheet.create({
   quickAddGlyph: { color: COLORS.white, fontSize: 27, fontWeight: '300', lineHeight: 29 },
   searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, paddingHorizontal: 13, marginBottom: 18 },
   searchIcon: { color: COLORS.green, fontSize: 23, marginRight: 8 },
+  searchClear: { color: COLORS.muted, fontSize: 22, paddingHorizontal: 5, paddingVertical: 3 },
+  organizeButton: { backgroundColor: COLORS.greenLight, paddingHorizontal: 13, paddingVertical: 9, borderRadius: 10 },
+  organizeButtonText: { color: COLORS.green, fontSize: 10, fontWeight: '800' },
+  folderSection: { marginBottom: 15 },
+  folderSectionLabel: { color: COLORS.muted, fontSize: 9, fontWeight: '800', letterSpacing: 1, marginBottom: 8 },
+  folderChips: { flexDirection: 'row', gap: 7, paddingRight: 10 },
+  folderChip: { backgroundColor: '#FFFFFF', borderColor: COLORS.line, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  folderChipActive: { backgroundColor: COLORS.greenLight, borderColor: '#B8CDBB' },
+  folderChipText: { color: COLORS.muted, fontSize: 10, fontWeight: '700' },
+  folderChipTextActive: { color: COLORS.green },
+  bulkBar: { flexDirection: 'row', alignItems: 'center', gap: 7, padding: 10, marginBottom: 12, backgroundColor: '#E8F0E9', borderRadius: 13 },
+  bulkBarText: { color: COLORS.green, fontSize: 10, fontWeight: '800', flex: 1 },
+  bulkAction: { backgroundColor: '#FFFFFF', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9 },
+  bulkDanger: { backgroundColor: '#FBEFED' },
+  bulkActionText: { color: COLORS.green, fontSize: 9, fontWeight: '800' },
+  disabledAction: { opacity: 0.4 },
+  documentCardSelected: { borderColor: COLORS.green, backgroundColor: '#F5F9F4' },
+  selectionCheck: { width: 25, height: 25, borderRadius: 8, borderWidth: 1.5, borderColor: COLORS.green, alignItems: 'center', justifyContent: 'center', marginRight: 8, backgroundColor: '#FFFFFF' },
+  selectionCheckText: { color: COLORS.green, fontSize: 14, fontWeight: '900' },
+  folderModalCard: { backgroundColor: COLORS.paper, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 22, paddingBottom: 32, width: '100%', marginTop: 'auto' },
+  folderChoice: { paddingVertical: 13, paddingHorizontal: 12, borderRadius: 11, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: COLORS.line, marginBottom: 7 },
+  folderChoiceText: { color: COLORS.ink, fontSize: 12, fontWeight: '700' },
+
   searchInput: { flex: 1, color: COLORS.ink, fontSize: 13, paddingVertical: 12 },
   searchShortcut: { color: COLORS.muted, fontSize: 12, backgroundColor: '#F1F3EE', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 3 },
   avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.greenLight, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#D7E3D8' },
