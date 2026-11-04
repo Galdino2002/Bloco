@@ -4,8 +4,10 @@ Caderno digital para estudar, organizar anotações e resolver provas diretament
 
 ## Cadernos
 - Importação de páginas em imagem e navegação entre páginas.
-- Escrita, desenho, marca-texto, borracha, laço e edição dos traços.
-- Zoom, salvamento automático local e recuperação por backup.
+- Escrita, desenho, marca-texto, borracha parcial ou por traço, laço e edição dos traços.
+- Seleção com laço, movimentação, redimensionamento, rotação, corte, cópia, colagem e exclusão.
+- Zoom por gesto de pinça com preservação do ponto focal e histórico de desfazer/refazer.
+- Salvamento automático local e recuperação por backup.
 - Organização por pastas, favoritos, busca, lixeira e duplicação.
 - Exportação do caderno em PDF.
 
@@ -17,7 +19,8 @@ Caderno digital para estudar, organizar anotações e resolver provas diretament
 
 ## Ambiente de redação
 - Redação digitada e manuscrita.
-- Ferramentas de desenho, seleção e edição de traços.
+- Ferramentas de desenho, seleção e edição de traços, com laço, movimentação, redimensionamento e rotação.
+- Histórico de desfazer/refazer para traços, apagamentos e transformações.
 - Salvamento automático, recuperação por backup e histórico de redações.
 - Compartilhamento de texto ou imagem para solicitar correção.
 
@@ -38,6 +41,6 @@ No terminal, execute: `git pull origin main`, `npm install`, `npm test`, `npm ru
 
 ## Qualidade e integridade
 
-A suíte `npm test` verifica a camada compartilhada de leitura, gravação e recuperação de listas com backup. O lint verifica problemas estáticos. Esses testes não substituem a validação manual no Expo Go: importação de arquivos, desenho por toque, impressão/PDF, compartilhamento e comportamento em segundo plano precisam ser exercitados em aparelhos reais.
+A suíte `npm test` verifica a camada compartilhada de leitura, gravação e recuperação de listas com backup. O lint verifica problemas estáticos e o CI também gera o bundle Android com `npx expo export --platform android`. Esses testes não substituem a validação manual no Expo Go: importação de arquivos, gestos de desenho, zoom, impressão/PDF, compartilhamento e comportamento em segundo plano precisam ser exercitados em aparelhos reais.
 
 Consulte `docs/QA_CHECKLIST.md` para o roteiro de validação antes de publicar uma versão.
