@@ -357,7 +357,7 @@ export default function RedacaoMode({ onExit }) {
       essay,
       '',
       'Organize a resposta com a nota, os critérios avaliados, justificativas e recomendações. Seja construtivo e explique como melhorar.',
-    ].join('\\n');
+    ].join('\n');
 
     try {
       await Share.share({ message, title: 'Corrigir minha redação' });
@@ -551,7 +551,7 @@ export default function RedacaoMode({ onExit }) {
               textAlignVertical="top"
               style={styles.textEditor}
             />
-            <Text style={styles.wordCount}>{(active.text || '').trim() ? (active.text || '').trim().split(/\\s+/).length : 0} palavras</Text>
+            <Text style={styles.wordCount}>{(active.text || '').trim() ? (active.text || '').trim().split(/\s+/).length : 0} palavras</Text>
             <Text style={styles.correctionCaption}>Peça ao ChatGPT para avaliar seu texto</Text>
             <View style={styles.correctionButtons}>
               <Pressable onPress={() => shareForCorrection('enem')} style={styles.correctionButton}>
