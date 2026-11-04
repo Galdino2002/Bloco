@@ -15,8 +15,13 @@ Use este roteiro em um aparelho com Expo Go SDK 57. Faça os testes com uma cóp
 - [ ] Recuperar um item da lixeira.
 - [ ] Criar pastas e subpastas e conferir filtros e movimentação.
 - [ ] Importar múltiplas imagens e navegar entre páginas.
-- [ ] Testar caneta, marca-texto, borracha, laço, mover, redimensionar, girar, desfazer e refazer.
-- [ ] Testar zoom com um e dois dedos.
+- [ ] Testar caneta, marca-texto, borracha parcial e borracha de traço inteiro.
+- [ ] Testar laço em traços isolados, traços que cruzam a borda da seleção e traços tocando a borda do laço.
+- [ ] Com uma seleção ativa, mover dentro dela; iniciar outro laço fora dela; redimensionar pelo puxador.
+- [ ] Repetir seleção, movimentação e redimensionamento com zoom em 50%, 100%, 200% e 300%.
+- [ ] Fazer pinch com dois dedos enquanto a ferramenta Laço está ativa; confirmar que o gesto não finaliza uma seleção acidental.
+- [ ] Testar mover, redimensionar, girar, cortar, colar e excluir; desfazer e refazer cada operação.
+- [ ] Confirmar que desfazer/refazer na redação restaura traços completos e transformações, não apenas o último traço.
 - [ ] Exportar PDF com páginas contendo imagem, texto e desenho.
 
 ## Provas
@@ -29,6 +34,8 @@ Use este roteiro em um aparelho com Expo Go SDK 57. Faça os testes com uma cóp
 
 ## Redações
 - [ ] Criar redação digitada e manuscrita.
+- [ ] Desenhar vários traços, apagar parcialmente, selecionar, mover, redimensionar, girar, cortar, colar e excluir.
+- [ ] Desfazer e refazer cada tipo de alteração e conferir que o estado visual é restaurado corretamente.
 - [ ] Alterar título, editar, sair e reabrir.
 - [ ] Confirmar indicador de salvamento e persistência após reiniciar o app.
 - [ ] Duplicar, excluir e pesquisar redações.
