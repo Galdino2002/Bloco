@@ -830,11 +830,6 @@ function EditorScreen({ document, onSave, onChange }) {
 
         {toolsExpanded && <View style={styles.expandedTools}>
           <View style={styles.examLikeActionTools}>
-            <Pressable onPress={() => setTool('pen')} style={[styles.examLikeTool, tool === 'pen' && styles.examLikeToolActive]}><Text style={styles.examLikeToolText}>✎ Caneta</Text></Pressable>
-            <Pressable onPress={() => setTool('highlighter')} style={[styles.examLikeTool, tool === 'highlighter' && styles.examLikeToolActive]}><Text style={styles.examLikeToolText}>▰ Marca-texto</Text></Pressable>
-            <Pressable onPress={() => setTool('eraser')} style={[styles.examLikeTool, tool === 'eraser' && styles.examLikeToolActive]}><Text style={styles.examLikeToolText}>⌫ Borracha</Text></Pressable>
-            <Pressable onPress={() => setTool('move')} style={[styles.examLikeTool, tool === 'move' && styles.examLikeToolActive]}><Text style={styles.examLikeToolText}>✥ Mover folha</Text></Pressable>
-            <Pressable onPress={() => setTool('text')} style={[styles.examLikeTool, tool === 'text' && styles.examLikeToolActive]}><Text style={styles.examLikeToolText}>T Texto</Text></Pressable>
             <Pressable onPress={() => Alert.alert('Limpar anotações desta página?', 'Esta ação pode ser desfeita pelo botão Desfazer.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Limpar página', style: 'destructive', onPress: () => { applyPathChange([]); setSelectedStrokeIds([]); selectedIdsRef.current = []; } }])} style={styles.examLikeTool}><Text style={styles.examLikeToolText}>⌫ Limpar página</Text></Pressable>
           </View>
           {tool === 'pen' && <>
