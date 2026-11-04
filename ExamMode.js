@@ -111,8 +111,14 @@ export default function ExamMode({ onExit }) {
 
   useEffect(() => { loadSaved(); }, []);
   const loadSaved = async () => {
-    try { const raw = await AsyncStorage.getItem(STORAGE_KEY); setSaved(raw ? JSON.parse(raw) : []); }
-    catch (e) { Alert.alert('Erro ao carregar provas', 'Não foi possível ler as provas salvas neste aparelho.'); }
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      const items = Array.isArray(parsed) ? parsed : [];
+      setSaved(items.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)));
+    } catch (e) {
+      Alert.alert('Erro ao carregar provas', 'Não foi possível ler as provas salvas neste aparelho.');
+    }
   };
   const persist = async (items) => {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items));
@@ -213,9 +219,17 @@ export default function ExamMode({ onExit }) {
 
   const saveExam = async (exam) => {
     const updated = { ...exam, updatedAt: Date.now() };
-    const next = saved.some(x => x.id === exam.id) ? saved.map(x => x.id === exam.id ? updated : x) : [updated, ...saved];
+    // Lê a versão mais recente do armazenamento para não sobrescrever
+    // alterações feitas pelo salvamento automático do editor.
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    const current = raw ? JSON.parse(raw) : [];
+    const list = Array.isArray(current) ? current : [];
+    const next = list.some(item => item.id === exam.id)
+      ? list.map(item => item.id === exam.id ? updated : item)
+      : [updated, ...list];
     await persist(next);
-    setActive(null); setStage('choose');
+    setActive(null);
+    setStage('choose');
   };
   const resumeExam = (exam) => { setActive(exam); setStage('editor'); };
   const deleteExam = (exam) => Alert.alert('Excluir prova?', 'O registro e as anotações salvas serão removidos.', [
@@ -329,23 +343,39 @@ function ExamEditor({ exam, onSave, onBack }) {
     return () => clearInterval(id);
   }, [endAt, paused, finalized]);
   useEffect(() => { if (remaining <= 0) setFinished(true); }, [remaining]);
+  const persistLatestSnapshot = () => {
+    const snapshot = snapshotRef.current;
+    const currentPages = snapshot.pages.map((page, pageIndex) =>
+      pageIndex === snapshot.index ? { ...page, paths: snapshot.paths } : page
+    );
+    const elapsed = Math.max(0, exam.duration - snapshot.remaining);
+    const status = finalized ? 'Finalizada' : (paused ? 'Pausada' : (snapshot.remaining <= 0 ? 'Tempo encerrado' : 'Em andamento'));
+    persistenceQueueRef.current = persistenceQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        const list = Array.isArray(parsed) ? parsed : [];
+        const next = list.map(item => item.id === exam.id
+          ? { ...item, pages: currentPages, currentPage: snapshot.index, zoom: snapshot.zoom, pan: snapshot.pan, remaining: snapshot.remaining, endAt: endAtRef.current, elapsed, status, updatedAt: Date.now() }
+          : item);
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      })
+      .catch(error => console.error('Erro no salvamento automático da prova:', error));
+  };
+
+  // Protege anotações recentes: salva após pequenas pausas na edição,
+  // sem esperar exclusivamente pelo intervalo periódico de 10 segundos.
   useEffect(() => {
-    const id = setInterval(() => {
-      const snapshot = snapshotRef.current;
-      const current = snapshot.pages.map((page, i) => i === snapshot.index ? { ...page, paths: snapshot.paths } : page);
-      const elapsed = Math.max(0, exam.duration - snapshot.remaining);
-      persistenceQueueRef.current = persistenceQueueRef.current
-        .catch(() => undefined)
-        .then(async () => {
-          const raw = await AsyncStorage.getItem(STORAGE_KEY);
-          const list = raw ? JSON.parse(raw) : [];
-          const next = list.map(item => item.id === exam.id ? { ...item, pages: current, currentPage: snapshot.index, zoom: snapshot.zoom, pan: snapshot.pan, remaining: snapshot.remaining, endAt, elapsed, status: finalized ? 'Finalizada' : (paused ? 'Pausada' : 'Em andamento'), updatedAt: Date.now() } : item);
-          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-        })
-        .catch(error => console.error('Erro no salvamento automático da prova:', error));
-    }, 10000);
+    const timeout = setTimeout(persistLatestSnapshot, 850);
+    return () => clearTimeout(timeout);
+  }, [pages, index, paths, zoom, pan, paused, finalized]);
+
+  // Salvamento periódico também atualiza o cronômetro mesmo sem interação.
+  useEffect(() => {
+    const id = setInterval(persistLatestSnapshot, 10000);
     return () => clearInterval(id);
-  }, [exam.id, exam.duration, endAt, finalized, paused]);
+  }, [exam.id, exam.duration, finalized, paused]);
 
   const persistExamState = (state = {}) => {
     const currentPages = pages.map((page, pageIndex) => pageIndex === index
@@ -578,7 +608,14 @@ function ExamEditor({ exam, onSave, onBack }) {
     <ScrollView pointerEvents={finalized ? 'none' : 'auto'} style={[s.drawPanel, { maxHeight: toolsExpanded ? 300 : 116 }, finalized && { opacity: 0.55 }]} contentContainerStyle={{ paddingBottom: toolsExpanded ? 8 : 4 }} showsVerticalScrollIndicator={false}>
       <Text style={s.selectionHint}>{tool==='select'?(selectedIds.length ? `${selectedIds.length} selecionado(s) · arraste para mover` : 'Contorne a escrita com o dedo para selecionar.'):'Escolha uma ferramenta para anotar a prova.'}</Text>{selectedIds.length>0 && <View style={s.selectionActions}><Pressable onPress={()=>applyPathChange(scaleSelected(pathsRef.current,selectedIds,1.15))} style={s.selectionAction}><Text style={s.toolbarText}>＋ Tamanho</Text></Pressable><Pressable onPress={()=>applyPathChange(scaleSelected(pathsRef.current,selectedIds,0.87))} style={s.selectionAction}><Text style={s.toolbarText}>− Tamanho</Text></Pressable><Pressable onPress={()=>applyPathChange(rotateSelected(pathsRef.current,selectedIds,Math.PI/12))} style={s.selectionAction}><Text style={s.toolbarText}>↻ Girar</Text></Pressable><Pressable onPress={()=>{const picked=pathsRef.current.filter(stroke=>selectedIds.includes(stroke.id));setSelectedClipboard(picked);applyPathChange(pathsRef.current.filter(stroke=>!selectedIds.includes(stroke.id)));setSelectedIds([]);}} style={s.selectionAction}><Text style={s.toolbarText}>Cortar</Text></Pressable><Pressable onPress={()=>{if(!selectedClipboard.length)return;const pasted=selectedClipboard.map(stroke=>({...stroke,id:String(Date.now())+Math.random(),points:stroke.points.map(p=>({x:p.x+24,y:p.y+24}))}));applyPathChange([...pathsRef.current,...pasted]);setSelectedIds(pasted.map(stroke=>stroke.id));}} style={s.selectionAction}><Text style={s.toolbarText}>Colar</Text></Pressable><Pressable onPress={()=>{applyPathChange(pathsRef.current.filter(stroke=>!selectedIds.includes(stroke.id)));setSelectedIds([]);}} style={s.selectionAction}><Text style={[s.toolbarText,{color:'#B44D45'}]}>Excluir</Text></Pressable><Pressable onPress={()=>setSelectedIds([])} style={s.selectionAction}><Text style={s.toolbarText}>Nova seleção</Text></Pressable></View>}
       <View style={s.compactToolRow}><Pressable onPress={() => { setTool('select'); setSelectedIds([]); setLasso([]); }} style={[s.compactTool, tool === 'select' && s.compactToolActive]}><Text style={s.compactToolGlyph}>⌁</Text><Text style={s.compactToolText}>Laço</Text></Pressable><Pressable onPress={() => setToolsExpanded(value => !value)} style={[s.moreToolsButton, toolsExpanded && s.moreToolsButtonActive]}><Text style={s.moreToolsGlyph}>{toolsExpanded ? '⌃' : '•••'}</Text><Text style={s.moreToolsText}>{toolsExpanded ? 'Fechar' : 'Ferramentas'}</Text></Pressable></View>
-      {toolsExpanded && <View style={s.expandedTools}><View style={s.drawTools}><Pressable onPress={() => setTool('pen')} style={[s.tool, tool === 'pen' && s.toolActive]}><Text style={s.toolText}>✎ Caneta</Text></Pressable><Pressable onPress={() => setTool('highlighter')} style={[s.tool, tool === 'highlighter' && s.toolActive]}><Text style={s.toolText}>▰ Marca-texto</Text></Pressable><Pressable onPress={() => setTool('eraser')} style={[s.tool, tool === 'eraser' && s.toolActive]}><Text style={s.toolText}>⌫ Borracha</Text></Pressable><Pressable onPress={() => setTool('move')} style={[s.tool, tool === 'move' && s.toolActive]}><Text style={s.toolText}>✥ Mover folha</Text></Pressable><Pressable onPress={() => { setPaths([]); setRedo([]); setSelectedIds([]); }} style={s.tool}><Text style={s.toolText}>⌫ Limpar</Text></Pressable></View>
+      {toolsExpanded && <View style={s.expandedTools}><View style={s.drawTools}><Pressable onPress={() => setTool('pen')} style={[s.tool, tool === 'pen' && s.toolActive]}><Text style={s.toolText}>✎ Caneta</Text></Pressable><Pressable onPress={() => setTool('highlighter')} style={[s.tool, tool === 'highlighter' && s.toolActive]}><Text style={s.toolText}>▰ Marca-texto</Text></Pressable><Pressable onPress={() => setTool('eraser')} style={[s.tool, tool === 'eraser' && s.toolActive]}><Text style={s.toolText}>⌫ Borracha</Text></Pressable><Pressable onPress={() => setTool('move')} style={[s.tool, tool === 'move' && s.toolActive]}><Text style={s.toolText}>✥ Mover folha</Text></Pressable><Pressable onPress={() => Alert.alert('Limpar anotações desta página?', 'Esta ação pode ser desfeita pelo botão Desfazer.', [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Limpar página', style: 'destructive', onPress: () => {
+          applyPathChange([]);
+          setSelectedIds([]);
+          selectedRef.current = [];
+        } },
+      ])} style={s.tool}><Text style={s.toolText}>⌫ Limpar página</Text></Pressable></View>
       {tool === 'pen' && <View style={s.strokePicker}><View style={s.strokePickerHeader}><Text style={s.paletteTitle}>ESPESSURA DA CANETA</Text><Text style={s.strokeValue}>{penWidth}px</Text></View><View style={s.strokeOptions}>{[{ width: 2, label: 'Fina' }, { width: 4, label: 'Média' }, { width: 7, label: 'Grossa' }, { width: 11, label: 'Extra' }].map(option => <Pressable key={option.width} accessibilityRole="button" accessibilityLabel={`Espessura ${option.label}`} onPress={() => setPenWidth(option.width)} style={[s.strokeOption, penWidth === option.width && s.strokeOptionActive]}><View style={s.strokePreview}><View style={[s.strokeLine, { height: option.width, borderRadius: option.width / 2 }]} /></View><Text style={[s.strokeOptionLabel, penWidth === option.width && s.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View></View>}
       {tool === 'highlighter' && <><View style={s.strokePicker}><View style={s.strokePickerHeader}><Text style={s.paletteTitle}>ESPESSURA DO MARCA-TEXTO</Text><Text style={s.strokeValue}>{markerWidth}px</Text></View><View style={s.strokeOptions}>{[{ width: 10, label: 'Fina' }, { width: 18, label: 'Média' }, { width: 28, label: 'Larga' }].map(option => <Pressable key={option.width} accessibilityRole="button" accessibilityLabel={`Espessura do marca-texto ${option.label}`} onPress={() => setMarkerWidth(option.width)} style={[s.strokeOption, markerWidth === option.width && s.strokeOptionActive]}><View style={s.strokePreview}><View style={[s.markerStrokeLine, { height: Math.min(18, Math.max(6, option.width / 1.5)) }]} /></View><Text style={[s.strokeOptionLabel, markerWidth === option.width && s.strokeOptionLabelActive]}>{option.label}</Text></Pressable>)}</View></View><View style={s.markerTypes}><Text style={s.paletteTitle}>ESTILO</Text>{[{id:'classic',label:'Clássico'},{id:'pastel',label:'Pastel'},{id:'bold',label:'Forte'},{id:'underline',label:'Sublinhado'}].map(item=><Pressable key={item.id} onPress={()=>setMarkerType(item.id)} style={[s.markerType,markerType===item.id&&s.markerTypeActive]}><Text style={[s.markerTypeText,markerType===item.id&&s.markerTypeTextActive]}>{item.label}</Text></Pressable>)}</View></>}
       </View>}
@@ -594,7 +631,7 @@ const s = StyleSheet.create({
   examCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 17, padding: 15, marginBottom: 10, borderWidth: 1, borderColor: LINE },
   examBadge: { width: 56, height: 56, borderRadius: 16, backgroundColor: '#E8F0E9', alignItems: 'center', justifyContent: 'center', marginRight: 13 },
   examBadgeText: { color: GREEN, fontWeight: '800', fontSize: 11 }, examTitle: { color: INK, fontSize: 15, fontWeight: '700' },
-  examDescription: { color: '#D2DED3', fontSize: 10, marginTop: 4 }, examDuration: { color: GREEN, fontSize: 10, fontWeight: '700', marginTop: 6 },
+  examDescription: { color: '#69766D', fontSize: 11, marginTop: 4, lineHeight: 16 }, examDuration: { color: GREEN, fontSize: 11, fontWeight: '700', marginTop: 7 },
   chevron: { color: '#9AA298', fontSize: 28, paddingLeft: 8 }, empty: { backgroundColor: '#FFF', padding: 20, borderRadius: 16, alignItems: 'center' },
   emptyTitle: { color: INK, fontWeight: '700', fontSize: 14 }, emptyText: { color: '#89938A', textAlign: 'center', fontSize: 11, lineHeight: 17, marginTop: 6 },
   savedCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: LINE, borderRadius: 15, padding: 14, marginBottom: 9 },
